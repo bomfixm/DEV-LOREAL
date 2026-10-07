@@ -1,0 +1,60 @@
+{
+  "dataMode": "REFERENCIA",
+  "fonte": "Mapa_Praca_Reversa_Referencia.pdf (desenho aprovado, vista superior) e nomenclatura FB01–FB07 → Fileiras 11–16/GR informada pelo operador em 5 de outubro de 2026.",
+  "aviso": "Distribuição aprovada: 194 posições ativas e 300 desativadas (prontas para ativar). Medidas, endereços reais e ocupação ainda precisam de conferência operacional; o desenho não declara paletes ocupados nem posições fisicamente validadas.",
+  "versao": "desenho-aprovado-2026-10-05",
+  "geometria": {
+    "unidade": "UNIDADE_DE_DESENHO",
+    "margem": 48,
+    "larguraPosicao": 80,
+    "alturaPosicao": 48,
+    "espacoEntrePosicoes": 6,
+    "espacoDentroDoPar": 12,
+    "larguraCorredor": 72,
+    "alturaTituloArea": 40,
+    "alturaTituloBloco": 36,
+    "alturaRotuloFileira": 28,
+    "alturaCorredorTransversal": 72,
+    "alturaCorredorFrontal": 64
+  },
+  "areas": [
+    {
+      "codigo": "Z-DESATIVADA",
+      "titulo": "Desativadas · prontas para ativar",
+      "situacao": "DESATIVADA",
+      "prefixoBloco": "DB",
+      "prefixoFileira": "D",
+      "prefixoCorredor": "DC",
+      "blocos": [
+        { "tipo": "UNICA", "posicoesPorFileira": 25 },
+        { "tipo": "PAR", "posicoesPorFileira": 25 },
+        { "tipo": "PAR", "posicoesPorFileira": 25 },
+        { "tipo": "PAR", "posicoesPorFileira": 25 },
+        { "tipo": "PAR", "posicoesPorFileira": 25 },
+        { "tipo": "PAR", "posicoesPorFileira": 25 },
+        { "tipo": "UNICA", "posicoesPorFileira": 25 }
+      ]
+    },
+    {
+      "codigo": "Z-ATIVA",
+      "titulo": "Praça da reversa · L'Oréal",
+      "situacao": "ATIVA",
+      "prefixoBloco": "FB",
+      "prefixoFileira": "F",
+      "prefixoCorredor": "FC",
+      "blocos": [
+        { "tipo": "UNICA", "posicoesPorFileira": 17, "nomeOperacional": "Fileira 11", "prefixoEndereco": "11" },
+        { "tipo": "PAR", "posicoesPorFileira": 17, "nomeOperacional": "Fileira 12", "prefixoEndereco": "12" },
+        { "tipo": "PAR", "posicoesPorFileira": 17, "nomeOperacional": "Fileira 13", "prefixoEndereco": "13" },
+        { "tipo": "PAR", "posicoesPorFileira": 17, "nomeOperacional": "Fileira 14", "prefixoEndereco": "14" },
+        { "tipo": "PAR", "posicoesPorFileira": 15, "nomeOperacional": "Fileira 15", "prefixoEndereco": "15" },
+        { "tipo": "PAR", "posicoesPorFileira": 15, "nomeOperacional": "Fileira 16", "prefixoEndereco": "16" },
+        { "tipo": "UNICA", "posicoesPorFileira": 15, "nomeOperacional": "GR — Grade", "prefixoEndereco": "GR" }
+      ]
+    }
+  ],
+  "corredores": {
+    "transversal": { "codigo": "CORR-TRANSV", "rotulo": "Corredor transversal entre as áreas" },
+    "frontal": { "codigo": "CORR-FRONTAL", "rotulo": "Corredor frontal da praça" }
+  }
+}

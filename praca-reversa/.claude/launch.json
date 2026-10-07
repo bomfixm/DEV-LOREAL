@@ -1,0 +1,31 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "praca-reversa",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "apps/api/dist/server.js"
+      ],
+      "port": 3000
+    },
+    {
+      "name": "praca-reversa-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 5173
+    },
+    {
+      "name": "praca-reversa-3100",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "apps/api/dist/server.js",
+        "--porta=3100"
+      ],
+      "port": 3100
+    }
+  ]
+}

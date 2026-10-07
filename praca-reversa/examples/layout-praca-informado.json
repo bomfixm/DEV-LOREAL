@@ -1,0 +1,53 @@
+{
+  "dataMode": "DEMO",
+  "fonte": "Orientação informada pelo usuário em 2 de outubro de 2026, corrigida para: 15 primeiro, depois 17.",
+  "aviso": "Esquema demonstrativo reduzido. Distâncias, alinhamento, quantidade de pares e capacidade total da praça ainda dependem de levantamento. As 96 posições desenhadas são apenas um exemplo.",
+  "layout": {
+    "id": "6f0f2a8e-6d1c-4c84-9a57-0b2f6b1e0001",
+    "codigo": "PRACA-INFORMADA",
+    "nome": "Praça informada — esquema demonstrativo",
+    "versao": "esquema-2026-10-02",
+    "totalCapacity": null
+  },
+  "geometria": {
+    "unidade": "UNIDADE_DE_DESENHO",
+    "margem": 48,
+    "larguraRotuloFileira": 72,
+    "larguraPosicao": 80,
+    "alturaPosicao": 52,
+    "espacoEntrePosicoes": 8,
+    "espacoDentroDoPar": 12,
+    "espacoEntreBlocos": 88,
+    "alturaTituloBloco": 36
+  },
+  "sequencia": [
+    {
+      "tipo": "UNICA",
+      "posicoesPorFileira": 15,
+      "repeticoes": 1,
+      "situacao": "CONFIRMADO",
+      "titulo": "Início: fileira única de 15"
+    },
+    {
+      "tipo": "PAR",
+      "posicoesPorFileira": 15,
+      "repeticoes": 1,
+      "situacao": "PRIMEIRO_CONFIRMADO_TOTAL_A_CONFIRMAR",
+      "titulo": "Par de fileiras de 15 (total de pares a confirmar)"
+    },
+    {
+      "tipo": "PAR",
+      "posicoesPorFileira": 17,
+      "repeticoes": 1,
+      "situacao": "TOTAL_A_CONFIRMAR",
+      "titulo": "Par de fileiras de 17 (total de pares a confirmar)"
+    },
+    {
+      "tipo": "UNICA",
+      "posicoesPorFileira": 17,
+      "repeticoes": 1,
+      "situacao": "DERIVADO_A_CONFIRMAR",
+      "titulo": "Outro extremo: fileira única de 17 (a confirmar)"
+    }
+  ]
+}

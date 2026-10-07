@@ -1,0 +1,14 @@
+{
+  "dataMode": "DEMO",
+  "motivo": "Na etapa 02 o mapa principal passou a seguir o esquema informado (15 primeiro, depois 17). Os 6 paletes fictícios de paletes-demo.json foram associados a posições do novo esquema. Apenas fixtures fictícias foram remapeadas; IDs permanentes, códigos, estados e conteúdo foram preservados.",
+  "escopo": "Praça informada · demonstração",
+  "mapeamento": [
+    { "paleteId": "00000000-0000-4000-8000-000000000001", "codigo": "PAL-DEMO-001", "enderecoEtapa01": "A-01", "posicaoEtapa02": "F01-P01" },
+    { "paleteId": "00000000-0000-4000-8000-000000000002", "codigo": "PAL-DEMO-002", "enderecoEtapa01": "A-02", "posicaoEtapa02": "F01-P02" },
+    { "paleteId": "00000000-0000-4000-8000-000000000003", "codigo": "PAL-DEMO-003", "enderecoEtapa01": "A-03", "posicaoEtapa02": "F01-P03" },
+    { "paleteId": "00000000-0000-4000-8000-000000000004", "codigo": "PAL-DEMO-004", "enderecoEtapa01": "B-01", "posicaoEtapa02": "F02-P01" },
+    { "paleteId": "00000000-0000-4000-8000-000000000005", "codigo": "PAL-DEMO-005", "enderecoEtapa01": "B-02", "posicaoEtapa02": "F02-P02" },
+    { "paleteId": "00000000-0000-4000-8000-000000000006", "codigo": "PAL-DEMO-006", "enderecoEtapa01": "B-03", "posicaoEtapa02": "F02-P03" }
+  ],
+  "cenarioNavegacao": "Os 337 paletes gerados na etapa 01 (PAL-DEMO-007 a PAL-DEMO-343, zonas Norte/Sul) continuam com os mesmos IDs e endereços em um escopo separado, 'Cenário de navegação · fictício', usado para testar navegação com mais elementos."
+}

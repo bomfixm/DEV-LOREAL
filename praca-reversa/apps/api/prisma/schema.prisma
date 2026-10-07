@@ -1,0 +1,2827 @@
+// Praça Reversa — modelo de dados (etapas 02 a 08).
+// Convenções: IDs UUID; códigos, SKU, lote, código de barras e referências
+// como texto; timestamps em UTC (timestamptz); quantidades em decimal exato.
+// Tabelas de domínio carregam escopo_id e se relacionam por chaves compostas
+// (escopo_id, id), o que impede no banco vínculos entre escopos diferentes.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Perfil {
+  CONSULTA
+  OPERADOR
+  SUPERVISOR_ESTOQUE
+  ANALISTA_CLAIMS
+  ADMINISTRADOR
+}
+
+enum EstadoConferencia {
+  NAO_CONFERIDO
+  PARCIAL
+  AGUARDANDO_VALIDACAO
+  RECONCILIADO
+}
+
+enum EstadoLiberacao {
+  PENDENTE
+  BLOQUEADO
+  LIBERADO
+}
+
+enum EstadoFluxo {
+  EM_ESTOQUE
+  RESERVADO
+  EXPEDIDO
+  VAZIO_ARQUIVADO
+}
+
+enum CondicaoMaterial {
+  SAUDAVEL
+  AVARIADO
+  EM_AVALIACAO
+}
+
+enum TipoElemento {
+  ZONA
+  BLOCO
+  CORREDOR
+  DOCA
+}
+
+enum TipoOrigemDocumento {
+  DEVOLUCAO
+  NOTA_FISCAL
+  MANIFESTO
+  OUTRO
+}
+
+enum OrigemCodigoPalete {
+  EXISTENTE
+  GERADO
+  DEMONSTRACAO
+}
+
+enum ResultadoAuditoria {
+  SUCESSO
+  NEGADO
+  FALHA
+}
+
+enum EscopoConferencia {
+  PARCIAL
+  COMPLETA
+}
+
+/// "Rascunho" e "em andamento" são o mesmo estado no servidor (EM_ANDAMENTO).
+enum SituacaoConferencia {
+  EM_ANDAMENTO
+  CONCLUIDA
+  CANCELADA
+  RECONCILIADA
+  SUBSTITUIDA
+}
+
+enum MotivoConferencia {
+  CONFERENCIA
+  RECONTAGEM
+}
+
+enum ModoEntrada {
+  MANUAL
+  LEITURA_UNIDADE
+  LEITURA_EMBALAGEM
+}
+
+enum PendenciaObservacao {
+  PRODUTO_NAO_IDENTIFICADO
+  FATOR_DESCONHECIDO
+}
+
+enum TipoEventoEstoque {
+  SALDO_INICIAL
+  AJUSTE_RECONCILIACAO
+  TRANSFERENCIA
+  CORRECAO_TRANSFERENCIA
+  EXPEDICAO
+}
+
+enum TipoEventoLocalizacao {
+  MOVIMENTO
+  CORRECAO
+  SAIDA_EXPEDICAO
+  /// Palete vazio retirado da posição depois de uma consolidação (etapa 10): nenhuma unidade sai do estoque.
+  RETIRADA_VAZIO
+}
+
+/// Situação do tutorial de primeiro uso de um usuário (etapa 10).
+enum SituacaoTutorial {
+  NAO_INICIADO
+  ADIADO
+  INTERROMPIDO
+  CONCLUIDO
+}
+
+enum SituacaoJanela {
+  RASCUNHO
+  CONFIRMADA
+  PREPARACAO
+  ENCERRADA
+  CANCELADA
+}
+
+enum MetricaCapacidade {
+  QUANTIDADE
+  CAIXAS
+  PALETES
+  PESO_KG
+  VOLUME_M3
+}
+
+enum BasePeso {
+  BRUTO
+  LIQUIDO
+}
+
+enum SituacaoReserva {
+  ATIVA
+  LIBERADA
+  CONSUMIDA
+  CANCELADA
+}
+
+enum SituacaoPreparacao {
+  PENDENTE
+  PREPARADA
+  DIVERGENTE
+}
+
+enum TipoRetorno {
+  AVISO_DOCUMENTAL
+  RECEBIMENTO_FISICO
+}
+
+enum TipoImportacao {
+  PRODUTOS
+  DEVOLUCOES
+  CLAIMS
+  /// Inventário conferido (NF × palete × endereço × volumes), sem saldo validado.
+  INVENTARIO
+  /// Seleção devolvida pelo cliente (lista ou inventário com marcação).
+  SELECAO_CLIENTE
+}
+
+/// Correspondência entre posição desenhada e endereço real: proposta até a confirmação.
+enum SituacaoEndereco {
+  PROPOSTO
+  CONFIRMADO
+}
+
+/// Sentido da sequência informada em relação à ordem visual (P01 no topo do desenho).
+enum SentidoSequencia {
+  /// P01 recebe o primeiro endereço da sequência.
+  P01_PRIMEIRO
+  /// P01 recebe o último endereço da sequência.
+  P01_ULTIMO
+}
+
+enum SituacaoInventario {
+  ATIVO
+  SUBSTITUIDO
+}
+
+/// O que a confirmação faz com cada linha do inventário conferido.
+enum AcaoLinhaInventario {
+  VINCULAR
+  CRIAR_CADASTRO
+  ATUALIZAR
+  JA_IMPORTADO
+  REFERENCIA_HISTORICA
+  DUPLICADA_ARQUIVO
+  REQUER_RESOLUCAO
+}
+
+enum ModalidadeSelecao {
+  LISTA
+  MARCACAO
+}
+
+enum SituacaoSelecao {
+  REGISTRADA
+  SUBSTITUIDA
+}
+
+/// Abrangência de uma solicitação do cliente.
+enum AbrangenciaSelecao {
+  PALETE
+  DOCUMENTO
+  LINHA_PRODUTO
+}
+
+enum FormatoArquivo {
+  CSV
+  XLSX
+  /// Pacote preparado de carga em lote (comando local `inventario:carregar`).
+  JSON
+}
+
+/// AGUARDANDO_MAPEAMENTO → PREVIA (versões) → CONFIRMADO; DESCARTADO a partir das duas primeiras.
+enum SituacaoImportacao {
+  AGUARDANDO_MAPEAMENTO
+  PREVIA
+  CONFIRMADO
+  DESCARTADO
+}
+
+enum ClassificacaoLinha {
+  VALIDA_NOVA
+  DUPLICADA
+  INVALIDA
+  CONFLITANTE
+  /// Fora da seleção pela regra de marcação (registrada e visível; não importada).
+  EXCLUIDA
+}
+
+enum ResultadoLinha {
+  GRAVADA
+  IGNORADA_DUPLICADA
+}
+
+enum MotivoClaim {
+  EXTRAVIO_FALTA
+  AVARIA
+  DIVERGENCIA_DOCUMENTAL
+}
+
+/// Situação operacional do caso; as três últimas são finais (decisão documentada).
+enum SituacaoClaim {
+  EM_ANALISE
+  BUSCA_EM_ANDAMENTO
+  CANDIDATO_LOCALIZADO
+  VALIDACAO_PENDENTE
+  REGULARIZADO
+  PERDA_CONFIRMADA
+  ENCERRADO
+}
+
+enum PrioridadeClaim {
+  URGENTE
+  ALTA
+  NORMAL
+  BAIXA
+}
+
+/// Valor estimado da linha: total da linha (nunca multiplicado) ou unitário.
+enum BaseValor {
+  TOTAL_LINHA
+  UNITARIO
+}
+
+enum OrigemCadastroClaim {
+  MANUAL
+  IMPORTACAO
+}
+
+enum BaseCandidato {
+  SALDO_VALIDADO
+  OBSERVADO
+  DECLARADO_PALETE
+  DOCUMENTO
+  HISTORICO
+}
+
+enum SituacaoCandidato {
+  EM_INVESTIGACAO
+  DESCARTADO
+}
+
+enum TipoEvidencia {
+  MATERIAL_CONFERIDO
+  DOCUMENTO
+  DESCRICAO
+}
+
+enum SituacaoEvidencia {
+  REGISTRADA
+  VALIDACAO_SOLICITADA
+  VALIDADA
+  REJEITADA
+}
+
+enum SituacaoRecuperacao {
+  ATIVA
+  ESTORNADA
+}
+
+enum TipoResultado {
+  REGULARIZACAO
+  PERDA_CONFIRMADA
+}
+
+enum SituacaoResultado {
+  VIGENTE
+  CORRIGIDO
+  ANULADO
+}
+
+// ---------- Escopo: unidade + cliente ----------
+
+model Unidade {
+  id           String   @id @db.Uuid
+  codigo       String   @unique
+  nome         String
+  fuso         String   @default("America/Sao_Paulo")
+  demonstracao Boolean  @default(false)
+  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  escopos      Escopo[]
+
+  @@map("unidade")
+}
+
+model Cliente {
+  id           String   @id @db.Uuid
+  codigo       String   @unique
+  nome         String
+  demonstracao Boolean  @default(false)
+  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  escopos      Escopo[]
+
+  @@map("cliente")
+}
+
+/// Combinação unidade/cliente. Todo dado operacional pertence a um escopo.
+model Escopo {
+  id           String   @id @db.Uuid
+  unidadeId    String   @map("unidade_id") @db.Uuid
+  clienteId    String   @map("cliente_id") @db.Uuid
+  nome         String
+  /// Dados fictícios de demonstração, isolados dos operacionais.
+  demonstracao Boolean  @default(false)
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  unidade              Unidade                @relation(fields: [unidadeId], references: [id])
+  cliente              Cliente                @relation(fields: [clienteId], references: [id])
+  vinculos             Vinculo[]
+  sessoes              Sessao[]
+  layouts              Layout[]
+  paletes              Palete[]
+  eventos              EventoAuditoria[]
+  idempotencias        RegistroIdempotencia[]
+  produtos             Produto[]
+  sequencia            SequenciaPalete?
+  importacoes          LoteImportacao[]
+  claims               Claim[]
+  janelas              JanelaDevolucao[]
+  inventarios          InventarioReferencia[]
+  selecoes             SelecaoCliente[]
+  informacoesDocumento InformacaoDocumento[]
+  controlePlanilha     ControlePlanilha?
+  publicacoesPlanilha  PublicacaoPlanilha[]
+
+  @@unique([unidadeId, clienteId])
+  @@map("escopo")
+}
+
+// ---------- Acesso ----------
+
+model Usuario {
+  id           String    @id @default(uuid()) @db.Uuid
+  /// Login normalizado em minúsculas.
+  login        String    @unique
+  nome         String
+  /// Argon2id em formato PHC. Nunca devolvido pela API.
+  senhaHash    String    @map("senha_hash")
+  ativo        Boolean   @default(true)
+  versao       Int       @default(1)
+  criadoEm     DateTime  @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm DateTime  @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+  desativadoEm DateTime? @map("desativado_em") @db.Timestamptz(3)
+
+  vinculos          Vinculo[]
+  sessoes           Sessao[]
+  eventos           EventoAuditoria[]
+  idempotencias     RegistroIdempotencia[]
+  paletesCriados    Palete[]               @relation("PaleteCriadoPor")
+  paletesArquivados Palete[]               @relation("PaleteArquivadoPor")
+  produtosCriados   Produto[]
+  codigosBarras     CodigoBarras[]
+  linhasDeclaradas  ItemDeclarado[]
+  alteracoesLayout  HistoricoLayout[]
+
+  conferenciasResponsavel  SessaoConferencia[]       @relation("ConferenciaResponsavel")
+  conferenciasConcluidas   SessaoConferencia[]       @relation("ConferenciaConcluidaPor")
+  conferenciasCanceladas   SessaoConferencia[]       @relation("ConferenciaCanceladaPor")
+  conferenciasReconciliada SessaoConferencia[]       @relation("ConferenciaReconciliadaPor")
+  observacoesRegistradas   ObservacaoConferencia[]   @relation("ObservacaoRegistradaPor")
+  observacoesRemovidas     ObservacaoConferencia[]   @relation("ObservacaoRemovidaPor")
+  revisoesObservacao       RevisaoObservacao[]
+  eventosEstoque           EventoEstoque[]
+  eventosLocalizacao       EventoLocalizacao[]
+  importacoesCriadas       LoteImportacao[]          @relation("ImportacaoCriadaPor")
+  importacoesConfirmadas   LoteImportacao[]          @relation("ImportacaoConfirmadaPor")
+  importacoesDescartadas   LoteImportacao[]          @relation("ImportacaoDescartadaPor")
+  claimsResponsavel        Claim[]                   @relation("ClaimResponsavel")
+  claimsCriados            Claim[]                   @relation("ClaimCriadoPor")
+  claimsEncerrados         Claim[]                   @relation("ClaimEncerradoPor")
+  candidatosRegistrados    CandidatoClaim[]          @relation("CandidatoRegistradoPor")
+  candidatosConferencia    CandidatoClaim[]          @relation("CandidatoConferenciaPor")
+  candidatosDescartados    CandidatoClaim[]          @relation("CandidatoDescartadoPor")
+  anexosEnviados           AnexoClaim[]              @relation("AnexoEnviadoPor")
+  evidenciasAutor          EvidenciaClaim[]          @relation("EvidenciaAutor")
+  evidenciasSolicitadas    EvidenciaClaim[]          @relation("EvidenciaSolicitadaPor")
+  evidenciasDecididas      EvidenciaClaim[]          @relation("EvidenciaDecididaPor")
+  recuperacoesValidadas    RecuperacaoClaim[]        @relation("RecuperacaoValidadaPor")
+  recuperacoesEstornadas   RecuperacaoClaim[]        @relation("RecuperacaoEstornadaPor")
+  resultadosAutor          ResultadoClaim[]          @relation("ResultadoAutor")
+  resultadosEncerrados     ResultadoClaim[]          @relation("ResultadoEncerradoPor")
+  eventosClaim             EventoClaim[]             @relation("EventoClaimAutor")
+  paletesBloqueados        Palete[]                  @relation("PaleteBloqueadoPor")
+  saldosBloqueados         SaldoEstoque[]            @relation("SaldoBloqueadoPor")
+  eventosLiberacao         EventoLiberacao[]         @relation("EventoLiberacaoAutor")
+  janelasCriadas           JanelaDevolucao[]         @relation("JanelaCriadaPor")
+  janelasConfirmadas       JanelaDevolucao[]         @relation("JanelaConfirmadaPor")
+  janelasEncerradas        JanelaDevolucao[]         @relation("JanelaEncerradaPor")
+  versoesRegrasJanela      VersaoRegrasJanela[]      @relation("VersaoRegrasAutor")
+  reservasCriadas          ReservaJanela[]           @relation("ReservaCriadaPor")
+  reservasEncerradas       ReservaJanela[]           @relation("ReservaEncerradaPor")
+  preparacoesResponsavel   ReservaJanela[]           @relation("PreparacaoResponsavel")
+  preparacoesRegistradas   ReservaJanela[]           @relation("PreparacaoRegistradaPor")
+  medidasInformadas        UnidadeCargaReserva[]     @relation("MedidaInformadaPor")
+  expedicoesResponsavel    Expedicao[]               @relation("ExpedicaoResponsavel")
+  expedicoesConfirmadas    Expedicao[]               @relation("ExpedicaoConfirmadaPor")
+  correcoesExpedicao       CorrecaoExpedicao[]       @relation("CorrecaoExpedicaoAutor")
+  retornosRegistrados      RetornoExpedicao[]        @relation("RetornoRegistradoPor")
+  anexosJanela             AnexoJanela[]             @relation("AnexoJanelaEnviadoPor")
+  anexosConferencia        AnexoConferencia[]        @relation("AnexoConferenciaEnviadoPor")
+  eventosJanela            EventoJanela[]            @relation("EventoJanelaAutor")
+  sequenciasEndereco       SequenciaEnderecoFaixa[]  @relation("SequenciaInformadaPor")
+  enderecosPropostos       EnderecoPosicao[]         @relation("EnderecoPropostoPor")
+  enderecosConfirmados     EnderecoPosicao[]         @relation("EnderecoConfirmadoPor")
+  inventariosCriados       InventarioReferencia[]    @relation("InventarioCriadoPor")
+  conferenciasExternas     InventarioReferencia[]    @relation("ConferenciaExternaPor")
+  vinculosDocumento        VinculoDocumentoPalete[]  @relation("VinculoDocumentoCriadoPor")
+  vinculosDocumentoFim     VinculoDocumentoPalete[]  @relation("VinculoDocumentoEncerradoPor")
+  selecoesCriadas          SelecaoCliente[]          @relation("SelecaoCriadaPor")
+  resolucoesSelecao        ResolucaoLinhaSelecao[]   @relation("ResolucaoSelecaoAutor")
+  resolucoesAnuladas       ResolucaoLinhaSelecao[]   @relation("ResolucaoSelecaoAnuladaPor")
+  encaminhamentosSelecao   VinculoSelecaoReserva[]   @relation("EncaminhamentoSelecaoAutor")
+  informacoesDocumento     InformacaoDocumento[]     @relation("InformacaoDocumentoAtualizadaPor")
+  conteudosDocumento       ConteudoDocumentoPalete[] @relation("ConteudoDocumentoAtualizadoPor")
+  descricoesCaixa          DescricaoCaixaDocumento[] @relation("DescricaoCaixaCriadaPor")
+  descricoesCaixaRemovidas DescricaoCaixaDocumento[] @relation("DescricaoCaixaRemovidaPor")
+  publicacoesPlanilha      PublicacaoPlanilha[]      @relation("PublicacaoPlanilhaSolicitadaPor")
+  preferencia              PreferenciaUsuario?
+
+  @@map("usuario")
+}
+
+/// Preferência de uso por usuário (etapa 10): só a situação do tutorial e o
+/// passo em que parou. Nenhum dado operacional nem credencial.
+model PreferenciaUsuario {
+  usuarioId        String           @id @map("usuario_id") @db.Uuid
+  tutorialSituacao SituacaoTutorial @default(NAO_INICIADO) @map("tutorial_situacao")
+  tutorialPasso    Int?             @map("tutorial_passo")
+  tutorialVersao   Int              @default(1) @map("tutorial_versao")
+  atualizadoEm     DateTime         @map("atualizado_em") @db.Timestamptz(3)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("preferencia_usuario")
+}
+
+/// Associação de um usuário a um escopo com um perfil de permissões.
+model Vinculo {
+  id               String   @id @default(uuid()) @db.Uuid
+  usuarioId        String   @map("usuario_id") @db.Uuid
+  escopoId         String   @map("escopo_id") @db.Uuid
+  perfil           Perfil
+  ativo            Boolean  @default(true)
+  /// Concessão explícita de claim.aprovar_financeiro (só ANALISTA_CLAIMS; CHECK).
+  aprovaFinanceiro Boolean  @default(false) @map("aprova_financeiro")
+  versao           Int      @default(1)
+  criadoEm         DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm     DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+  escopo  Escopo  @relation(fields: [escopoId], references: [id])
+
+  @@unique([usuarioId, escopoId])
+  @@index([escopoId])
+  @@map("vinculo")
+}
+
+/// Sessão no servidor. O cookie contém um identificador opaco; aqui fica só o
+/// SHA-256 dele. O token anti-CSRF é derivado do identificador (HMAC) e não é guardado.
+model Sessao {
+  id              String    @id @default(uuid()) @db.Uuid
+  tokenHash       String    @unique @map("token_hash")
+  usuarioId       String    @map("usuario_id") @db.Uuid
+  escopoAtivoId   String?   @map("escopo_ativo_id") @db.Uuid
+  criadaEm        DateTime  @default(now()) @map("criada_em") @db.Timestamptz(3)
+  ultimoUsoEm     DateTime  @default(now()) @map("ultimo_uso_em") @db.Timestamptz(3)
+  expiraEm        DateTime  @map("expira_em") @db.Timestamptz(3)
+  revogadaEm      DateTime? @map("revogada_em") @db.Timestamptz(3)
+  motivoRevogacao String?   @map("motivo_revogacao")
+
+  usuario     Usuario @relation(fields: [usuarioId], references: [id])
+  escopoAtivo Escopo? @relation(fields: [escopoAtivoId], references: [id])
+
+  @@index([usuarioId])
+  @@map("sessao")
+}
+
+model EventoAuditoria {
+  id            String             @id @default(uuid()) @db.Uuid
+  ocorridoEm    DateTime           @default(now()) @map("ocorrido_em") @db.Timestamptz(3)
+  acao          String
+  resultado     ResultadoAuditoria
+  atorUsuarioId String?            @map("ator_usuario_id") @db.Uuid
+  escopoId      String?            @map("escopo_id") @db.Uuid
+  alvoTipo      String?            @map("alvo_tipo")
+  alvoId        String?            @map("alvo_id")
+  /// Somente dados necessários; nunca senha, cookie ou identificador de sessão.
+  detalhes      Json?
+  requestId     String?            @map("request_id")
+
+  ator   Usuario? @relation(fields: [atorUsuarioId], references: [id])
+  escopo Escopo?  @relation(fields: [escopoId], references: [id])
+
+  @@index([escopoId, ocorridoEm])
+  @@index([atorUsuarioId, ocorridoEm])
+  @@map("evento_auditoria")
+}
+
+model RegistroIdempotencia {
+  id          String   @id @default(uuid()) @db.Uuid
+  escopoId    String   @map("escopo_id") @db.Uuid
+  usuarioId   String   @map("usuario_id") @db.Uuid
+  operacao    String
+  chave       String
+  /// SHA-256 do pedido normalizado (método, rota, parâmetros e corpo).
+  payloadHash String   @map("payload_hash")
+  statusHttp  Int      @map("status_http")
+  resposta    Json
+  criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  escopo  Escopo  @relation(fields: [escopoId], references: [id])
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@unique([escopoId, usuarioId, operacao, chave])
+  @@map("registro_idempotencia")
+}
+
+// ---------- Layout ----------
+
+/// Geometria da praça em unidades de desenho, origem no canto superior esquerdo.
+model Layout {
+  id              String   @id @db.Uuid
+  escopoId        String   @map("escopo_id") @db.Uuid
+  codigo          String
+  nome            String
+  versao          String
+  largura         Int
+  altura          Int
+  /// Capacidade total confirmada. Nula enquanto não houver levantamento.
+  capacidadeTotal Int?     @map("capacidade_total")
+  /// Geometria esquemática, sem medidas levantadas.
+  esquematico     Boolean  @default(true)
+  ficticio        Boolean  @default(false)
+  ativo           Boolean  @default(true)
+  observacao      String?
+  /// Revisão da configuração; aumenta a cada alteração registrada em historico_layout.
+  revisao         Int      @default(1)
+  /// Parâmetros de desenho usados ao acrescentar blocos (margens, medidas e espaços).
+  parametros      Json?
+  criadoEm        DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  escopo     Escopo                   @relation(fields: [escopoId], references: [id])
+  elementos  ElementoLayout[]
+  fileiras   Fileira[]
+  posicoes   Posicao[]
+  historico  HistoricoLayout[]
+  sequencias SequenciaEnderecoFaixa[]
+  enderecos  EnderecoPosicao[]
+
+  @@unique([escopoId, codigo])
+  @@unique([escopoId, id])
+  @@map("layout")
+}
+
+/// Zonas, blocos, corredores e docas desenhados para orientação (sem estoque).
+model ElementoLayout {
+  id              String       @id @db.Uuid
+  escopoId        String       @map("escopo_id") @db.Uuid
+  layoutId        String       @map("layout_id") @db.Uuid
+  tipo            TipoElemento
+  codigo          String
+  rotulo          String
+  ficticio        Boolean      @default(false)
+  x               Int
+  y               Int
+  largura         Int
+  altura          Int
+  rotuloX         Int?         @map("rotulo_x")
+  rotuloY         Int?         @map("rotulo_y")
+  rotuloLargura   Int?         @map("rotulo_largura")
+  rotuloAltura    Int?         @map("rotulo_altura")
+  /// Nome operacional autorizado do bloco (ex.: "Fileira 15", "GR — Grade"); o código (FB05) não muda.
+  nomeOperacional String?      @map("nome_operacional")
+  /// Prefixo dos endereços reais do bloco (ex.: "15", "GR"): endereço = prefixo + código local.
+  prefixoEndereco String?      @map("prefixo_endereco")
+
+  layout Layout @relation(fields: [escopoId, layoutId], references: [escopoId, id])
+
+  @@unique([layoutId, codigo])
+  @@unique([layoutId, prefixoEndereco])
+  @@map("elemento_layout")
+}
+
+model Fileira {
+  id            String  @id @db.Uuid
+  escopoId      String  @map("escopo_id") @db.Uuid
+  layoutId      String  @map("layout_id") @db.Uuid
+  codigo        String
+  rotulo        String
+  ordem         Int
+  blocoCodigo   String? @map("bloco_codigo")
+  x             Int
+  y             Int
+  largura       Int
+  altura        Int
+  rotuloX       Int     @map("rotulo_x")
+  rotuloY       Int     @map("rotulo_y")
+  rotuloLargura Int     @map("rotulo_largura")
+  rotuloAltura  Int     @map("rotulo_altura")
+  /// Lado na vista de referência: ESQUERDO ou DIREITO (faixa dupla) ou UNICO; nulo = não informado.
+  lado          String?
+
+  layout    Layout                  @relation(fields: [escopoId, layoutId], references: [escopoId, id])
+  posicoes  Posicao[]
+  sequencia SequenciaEnderecoFaixa?
+  enderecos EnderecoPosicao[]
+
+  @@unique([layoutId, codigo])
+  @@unique([escopoId, id])
+  @@map("fileira")
+}
+
+model Posicao {
+  id                      String    @id @db.Uuid
+  escopoId                String    @map("escopo_id") @db.Uuid
+  layoutId                String    @map("layout_id") @db.Uuid
+  fileiraId               String    @map("fileira_id") @db.Uuid
+  /// Código legível; provisório enquanto não houver endereçamento oficial.
+  codigo                  String
+  codigoProvisorio        Boolean   @default(true) @map("codigo_provisorio")
+  numero                  Int
+  x                       Int
+  y                       Int
+  largura                 Int
+  altura                  Int
+  disponivel              Boolean   @default(true)
+  motivoIndisponibilidade String?   @map("motivo_indisponibilidade")
+  /// A ocupação física desta posição já foi levantada pelo cadastro.
+  ocupacaoLevantada       Boolean   @default(false) @map("ocupacao_levantada")
+  /// Posição retirada do desenho: o ID e o código nunca são reutilizados.
+  retiradaEm              DateTime? @map("retirada_em") @db.Timestamptz(3)
+  motivoRetirada          String?   @map("motivo_retirada")
+  /// Área desativada do desenho aprovado: visível e consultável, fora da
+  /// disponibilidade e da ocupação ativa (CHECK: desativada ⇒ indisponível).
+  /// Recebe palete só depois de ativação explícita na configuração.
+  desativada              Boolean   @default(false)
+
+  layout           Layout              @relation(fields: [escopoId, layoutId], references: [escopoId, id])
+  fileira          Fileira             @relation(fields: [escopoId, fileiraId], references: [escopoId, id])
+  /// Posição individual: no máximo um palete (índice único em palete).
+  palete           Palete?
+  /// Histórico de localização (a posição nunca é apagada nem reutilizada).
+  saidas           EventoLocalizacao[] @relation("LocalizacaoOrigem")
+  entradas         EventoLocalizacao[] @relation("LocalizacaoDestino")
+  /// Endereço real correspondente (tabela explícita, proposta ou confirmada).
+  endereco         EnderecoPosicao?
+  linhasInventario LinhaInventario[]
+
+  @@unique([layoutId, codigo])
+  @@unique([escopoId, id])
+  @@map("posicao")
+}
+
+// ---------- Paletes e conteúdo ----------
+
+model Palete {
+  id                 String             @id @db.Uuid
+  escopoId           String             @map("escopo_id") @db.Uuid
+  /// Código legível (maiúsculas). Nunca reutilizado no escopo, nem de palete arquivado.
+  codigo             String
+  /// Código sem separadores, para impedir "PAL-001" e "PAL001" no mesmo escopo.
+  codigoBusca        String             @map("codigo_busca")
+  origemCodigo       OrigemCodigoPalete @map("origem_codigo")
+  /// Vínculo de localização, separado do ID permanente.
+  posicaoId          String?            @map("posicao_id") @db.Uuid
+  estadoConferencia  EstadoConferencia  @map("estado_conferencia")
+  estadoLiberacao    EstadoLiberacao    @map("estado_liberacao")
+  estadoFluxo        EstadoFluxo        @map("estado_fluxo")
+  motivoPendencia    String?            @map("motivo_pendencia")
+  observacoes        String?
+  criadoPorId        String?            @map("criado_por_id") @db.Uuid
+  arquivadoEm        DateTime?          @map("arquivado_em") @db.Timestamptz(3)
+  arquivadoPorId     String?            @map("arquivado_por_id") @db.Uuid
+  motivoArquivamento String?            @map("motivo_arquivamento")
+  versao             Int                @default(1)
+  /// Versão do conteúdo validado: aumenta a cada evento de estoque do palete
+  /// (reconciliação, transferência enviada ou recebida, correção). Uma contagem
+  /// iniciada noutra versão de conteúdo não pode ser reconciliada.
+  versaoSaldo        Int                @default(1) @map("versao_saldo")
+  /// Bloqueio do palete inteiro (etapa 08): vale para o conteúdo atual e o que chegar depois.
+  bloqueioMotivo     String?            @map("bloqueio_motivo")
+  bloqueadoEm        DateTime?          @map("bloqueado_em") @db.Timestamptz(3)
+  bloqueadoPorId     String?            @map("bloqueado_por_id") @db.Uuid
+  criadoEm           DateTime           @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm       DateTime           @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+
+  escopo             Escopo                    @relation(fields: [escopoId], references: [id])
+  posicao            Posicao?                  @relation(fields: [escopoId, posicaoId], references: [escopoId, id])
+  criadoPor          Usuario?                  @relation("PaleteCriadoPor", fields: [criadoPorId], references: [id])
+  arquivadoPor       Usuario?                  @relation("PaleteArquivadoPor", fields: [arquivadoPorId], references: [id])
+  bloqueadoPor       Usuario?                  @relation("PaleteBloqueadoPor", fields: [bloqueadoPorId], references: [id], onDelete: Restrict)
+  declarados         ItemDeclarado[]
+  conferencias       SessaoConferencia[]
+  saldos             SaldoEstoque[]
+  eventos            EventoEstoque[]
+  /// Transferências e correções recebidas.
+  eventosDestino     EventoEstoque[]           @relation("EventoDestino")
+  linhasEventos      LinhaEventoEstoque[]
+  localizacoes       EventoLocalizacao[]
+  candidatosClaim    CandidatoClaim[]
+  evidenciasClaim    EvidenciaClaim[]
+  recuperacoesClaim  RecuperacaoClaim[]
+  vinculosClaim      VinculoMaterialClaim[]
+  eventosLiberacao   EventoLiberacao[]
+  linhasReserva      LinhaReserva[]
+  unidadesCarga      UnidadeCargaReserva[]
+  linhasExpedicao    LinhaExpedicao[]
+  cargasExpedidas    UnidadeCargaExpedicao[]
+  retornosRecebidos  RetornoExpedicao[]
+  linhasInventario   LinhaInventario[]
+  documentos         VinculoDocumentoPalete[]
+  resolucoesSelecao  ResolucaoLinhaSelecao[]
+  conteudosDocumento ConteudoDocumentoPalete[]
+
+  @@unique([escopoId, codigo])
+  @@unique([escopoId, codigoBusca])
+  @@unique([escopoId, id])
+  /// Uma posição individual recebe no máximo um palete (nulos não conflitam).
+  @@unique([escopoId, posicaoId])
+  @@map("palete")
+}
+
+/// Quantidade declarada em documento. Não comprova presença física.
+/// Cada linha tem a própria origem documental; produto, lote e origem podem
+/// ficar pendentes (nulos).
+model ItemDeclarado {
+  id               String               @id @default(uuid()) @db.Uuid
+  escopoId         String               @map("escopo_id") @db.Uuid
+  paleteId         String               @map("palete_id") @db.Uuid
+  ordem            Int
+  /// Produto do cadastro; nulo = produto pendente de identificação.
+  produtoId        String?              @map("produto_id") @db.Uuid
+  sku              String?
+  descricao        String
+  lote             String?
+  codigoBarras     String?              @map("codigo_barras")
+  origemTipo       TipoOrigemDocumento? @map("origem_tipo")
+  origemReferencia String?              @map("origem_referencia")
+  quantidade       Decimal              @db.Decimal(18, 3)
+  unidadeMedida    String               @map("unidade_medida")
+  /// Condição informada no documento; nula = não informada.
+  condicao         CondicaoMaterial?
+  registradoPorId  String?              @map("registrado_por_id") @db.Uuid
+  registradoEm     DateTime             @default(now()) @map("registrado_em") @db.Timestamptz(3)
+  /// Linha de retorno físico que originou esta declaração (etapa 08); nula nas demais.
+  linhaRetornoId   String?              @map("linha_retorno_id") @db.Uuid
+
+  palete        Palete        @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+  produto       Produto?      @relation(fields: [escopoId, produtoId], references: [escopoId, id])
+  registradoPor Usuario?      @relation(fields: [registradoPorId], references: [id])
+  linhaRetorno  LinhaRetorno? @relation(fields: [escopoId, linhaRetornoId], references: [escopoId, id], onDelete: Restrict)
+
+  @@unique([paleteId, ordem])
+  @@index([escopoId, produtoId])
+  @@map("item_declarado")
+}
+
+// ---------- Conferência e estoque validado (etapa 04) ----------
+
+/// Sessão de conferência de um palete. Observações formam o rascunho no
+/// servidor enquanto EM_ANDAMENTO; depois de concluída, nada é apagado.
+model SessaoConferencia {
+  id                         String              @id @default(uuid()) @db.Uuid
+  escopoId                   String              @map("escopo_id") @db.Uuid
+  paleteId                   String              @map("palete_id") @db.Uuid
+  /// Número sequencial da conferência no palete (1, 2, 3…).
+  numero                     Int
+  escopoContagem             EscopoConferencia   @map("escopo_contagem")
+  /// Parte física conferida; obrigatória na parcial.
+  descricaoEscopo            String?             @map("descricao_escopo")
+  motivo                     MotivoConferencia
+  /// Conferência anterior, quando esta é recontagem/correção.
+  sessaoOrigemId             String?             @map("sessao_origem_id") @db.Uuid
+  justificativa              String?
+  situacao                   SituacaoConferencia
+  /// TRUE somente enquanto EM_ANDAMENTO (nulo nos demais estados). Com o índice
+  /// único (palete_id, ativa), o banco garante uma única sessão ativa por palete.
+  ativa                      Boolean?
+  /// Aumenta a cada alteração do rascunho (entradas, correções, observações gerais).
+  revisao                    Int                 @default(1)
+  versaoPaleteInicial        Int                 @map("versao_palete_inicial")
+  versaoSaldoInicial         Int                 @map("versao_saldo_inicial")
+  observacoes                String?
+  /// Quem iniciou; nulo somente na carga de demonstração.
+  responsavelId              String?             @map("responsavel_id") @db.Uuid
+  iniciadaEm                 DateTime            @default(now()) @map("iniciada_em") @db.Timestamptz(3)
+  /// Última gravação do rascunho no servidor.
+  atualizadaEm               DateTime            @default(now()) @map("atualizada_em") @db.Timestamptz(3)
+  concluidaEm                DateTime?           @map("concluida_em") @db.Timestamptz(3)
+  concluidaPorId             String?             @map("concluida_por_id") @db.Uuid
+  /// Completa: confirmação de que todo o escopo físico do palete foi conferido.
+  escopoCompletoConfirmado   Boolean             @default(false) @map("escopo_completo_confirmado")
+  canceladaEm                DateTime?           @map("cancelada_em") @db.Timestamptz(3)
+  canceladaPorId             String?             @map("cancelada_por_id") @db.Uuid
+  motivoCancelamento         String?             @map("motivo_cancelamento")
+  reconciliadaEm             DateTime?           @map("reconciliada_em") @db.Timestamptz(3)
+  reconciliadaPorId          String?             @map("reconciliada_por_id") @db.Uuid
+  justificativaReconciliacao String?             @map("justificativa_reconciliacao")
+  /// Reconciliação recusada por conflito com o estado atual (reservas, vínculos).
+  pendenciaReconciliacao     String?             @map("pendencia_reconciliacao")
+  pendenciaRegistradaEm      DateTime?           @map("pendencia_registrada_em") @db.Timestamptz(3)
+
+  palete               Palete                  @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+  sessaoOrigem         SessaoConferencia?      @relation("Recontagem", fields: [escopoId, sessaoOrigemId], references: [escopoId, id])
+  recontagens          SessaoConferencia[]     @relation("Recontagem")
+  responsavel          Usuario?                @relation("ConferenciaResponsavel", fields: [responsavelId], references: [id])
+  concluidaPor         Usuario?                @relation("ConferenciaConcluidaPor", fields: [concluidaPorId], references: [id])
+  canceladaPor         Usuario?                @relation("ConferenciaCanceladaPor", fields: [canceladaPorId], references: [id])
+  reconciliadaPor      Usuario?                @relation("ConferenciaReconciliadaPor", fields: [reconciliadaPorId], references: [id])
+  linhas               ObservacaoConferencia[]
+  evento               EventoEstoque?
+  candidatosClaim      CandidatoClaim[]        @relation("CandidatoSessao")
+  candidatosVinculados CandidatoClaim[]        @relation("CandidatoSessaoVinculada")
+  evidenciasClaim      EvidenciaClaim[]
+  anexos               AnexoConferencia[]
+
+  @@unique([paleteId, numero])
+  @@unique([paleteId, ativa])
+  @@unique([escopoId, id])
+  @@index([escopoId, situacao])
+  @@map("sessao_conferencia")
+}
+
+/// Uma ação de entrada (leitura ou quantidade digitada). Leituras repetidas do
+/// mesmo código são linhas distintas: nada é deduplicado pelo código.
+/// Foto ou documento da conferência (etapa 09): bytes privados no banco,
+/// imutáveis; tipo pelo conteúdo; SHA-256 conferido por CHECK.
+model AnexoConferencia {
+  id            String   @id @db.Uuid
+  escopoId      String   @map("escopo_id") @db.Uuid
+  conferenciaId String   @map("conferencia_id") @db.Uuid
+  nome          String
+  tipoConteudo  String   @map("tipo_conteudo")
+  tamanho       Int
+  sha256        String
+  conteudo      Bytes
+  enviadoPorId  String   @map("enviado_por_id") @db.Uuid
+  enviadoEm     DateTime @map("enviado_em") @db.Timestamptz(3)
+
+  conferencia SessaoConferencia @relation(fields: [escopoId, conferenciaId], references: [escopoId, id])
+  enviadoPor  Usuario           @relation("AnexoConferenciaEnviadoPor", fields: [enviadoPorId], references: [id])
+
+  @@unique([escopoId, id])
+  @@unique([conferenciaId, sha256])
+  @@map("anexo_conferencia")
+}
+
+model ObservacaoConferencia {
+  id                  String               @id @default(uuid()) @db.Uuid
+  escopoId            String               @map("escopo_id") @db.Uuid
+  sessaoId            String               @map("sessao_id") @db.Uuid
+  ordem               Int
+  /// Produto do cadastro; nulo = código não cadastrado (pendência).
+  produtoId           String?              @map("produto_id") @db.Uuid
+  sku                 String?
+  descricao           String
+  codigoLido          String?              @map("codigo_lido")
+  modoEntrada         ModoEntrada          @map("modo_entrada")
+  /// Quantidade como informada, na unidade informada.
+  quantidadeInformada Decimal              @map("quantidade_informada") @db.Decimal(18, 3)
+  unidadeInformada    String               @map("unidade_informada")
+  /// Fator usado na conversão; nulo = desconhecido (conversão bloqueada).
+  fatorConversao      Decimal?             @map("fator_conversao") @db.Decimal(18, 3)
+  quantidadeCanonica  Decimal?             @map("quantidade_canonica") @db.Decimal(18, 3)
+  unidadeCanonica     String?              @map("unidade_canonica")
+  lote                String?
+  origemTipo          TipoOrigemDocumento? @map("origem_tipo")
+  origemReferencia    String?              @map("origem_referencia")
+  condicao            CondicaoMaterial
+  pendencia           PendenciaObservacao?
+  nota                String?
+  evidencia           String?
+  revisao             Int                  @default(1)
+  registradoPorId     String?              @map("registrado_por_id") @db.Uuid
+  registradoEm        DateTime             @default(now()) @map("registrado_em") @db.Timestamptz(3)
+  removidaEm          DateTime?            @map("removida_em") @db.Timestamptz(3)
+  removidaPorId       String?              @map("removida_por_id") @db.Uuid
+  motivoRemocao       String?              @map("motivo_remocao")
+
+  sessao        SessaoConferencia   @relation(fields: [escopoId, sessaoId], references: [escopoId, id])
+  produto       Produto?            @relation(fields: [escopoId, produtoId], references: [escopoId, id])
+  registradoPor Usuario?            @relation("ObservacaoRegistradaPor", fields: [registradoPorId], references: [id])
+  removidaPor   Usuario?            @relation("ObservacaoRemovidaPor", fields: [removidaPorId], references: [id])
+  revisoes      RevisaoObservacao[]
+
+  @@unique([sessaoId, ordem])
+  @@unique([escopoId, id])
+  @@index([escopoId, produtoId])
+  @@map("observacao_conferencia")
+}
+
+/// Estado anterior de uma observação corrigida ou removida no rascunho.
+model RevisaoObservacao {
+  id           String   @id @default(uuid()) @db.Uuid
+  escopoId     String   @map("escopo_id") @db.Uuid
+  observacaoId String   @map("observacao_id") @db.Uuid
+  /// Revisão encerrada por esta alteração.
+  revisao      Int
+  /// CORRIGIDA ou REMOVIDA.
+  acao         String
+  anterior     Json
+  motivo       String?
+  autorId      String?  @map("autor_id") @db.Uuid
+  ocorridoEm   DateTime @default(now()) @map("ocorrido_em") @db.Timestamptz(3)
+
+  observacao ObservacaoConferencia @relation(fields: [escopoId, observacaoId], references: [escopoId, id])
+  autor      Usuario?              @relation(fields: [autorId], references: [id])
+
+  @@unique([observacaoId, revisao])
+  @@map("revisao_observacao")
+}
+
+/// Identidade do material em estoque: produto, lote, origem e condição. Lote e
+/// origem desconhecidos ficam nulos (pendentes) e fazem parte da identidade;
+/// nesse caso o segmento tem também uma linhagem própria (a conferência que o
+/// validou), para que registros pendentes distintos não se unam só por terem
+/// campos nulos. A transferência preserva o segmento (e a linhagem).
+model SegmentoEstoque {
+  id               String               @id @default(uuid()) @db.Uuid
+  escopoId         String               @map("escopo_id") @db.Uuid
+  produtoId        String               @map("produto_id") @db.Uuid
+  lote             String?
+  origemTipo       TipoOrigemDocumento? @map("origem_tipo")
+  origemReferencia String?              @map("origem_referencia")
+  condicao         CondicaoMaterial
+  /// Unidade canônica do produto na criação do segmento.
+  unidade          String
+  /// Linhagem do segmento com lote/origem pendentes; nula quando lote e origem
+  /// são conhecidos (CHECK segmento_linhagem_coerente).
+  linhagem         String?
+  /// Chave de identidade (conferida por CHECK): produto, lote, origem, condição e linhagem.
+  chave            String
+  criadoEm         DateTime             @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  produto           Produto                @relation(fields: [escopoId, produtoId], references: [escopoId, id])
+  saldos            SaldoEstoque[]
+  linhas            LinhaEventoEstoque[]
+  candidatosClaim   CandidatoClaim[]
+  evidenciasClaim   EvidenciaClaim[]
+  recuperacoesClaim RecuperacaoClaim[]
+  vinculosClaim     VinculoMaterialClaim[]
+  eventosLiberacao  EventoLiberacao[]
+  linhasReserva     LinhaReserva[]
+  linhasExpedicao   LinhaExpedicao[]
+
+  @@unique([escopoId, chave])
+  @@unique([escopoId, id])
+  @@index([escopoId, produtoId], map: "segmento_estoque_produto_idx")
+  @@map("segmento_estoque")
+}
+
+/// Saldo validado de um segmento num palete (posição de estoque).
+model SaldoEstoque {
+  id                  String    @id @default(uuid()) @db.Uuid
+  escopoId            String    @map("escopo_id") @db.Uuid
+  paleteId            String    @map("palete_id") @db.Uuid
+  segmentoId          String    @map("segmento_id") @db.Uuid
+  quantidade          Decimal   @db.Decimal(18, 3)
+  /// Reservas ativas (etapas posteriores). Reserva não baixa o físico.
+  quantidadeReservada Decimal   @default(0) @map("quantidade_reservada") @db.Decimal(18, 3)
+  /// Soma dos vínculos de recuperações de claim validadas neste palete × segmento
+  /// (etapa 07). Não é reserva nem baixa; reservado + vinculado ≤ saldo (CHECK).
+  quantidadeVinculada Decimal   @default(0) @map("quantidade_vinculada") @db.Decimal(18, 3)
+  /// Parte liberada para expedição por ação autorizada (etapa 08).
+  /// Reservado ≤ liberado ≤ saldo (CHECK). Conferência e claim não liberam.
+  quantidadeLiberada  Decimal   @default(0) @map("quantidade_liberada") @db.Decimal(18, 3)
+  /// Bloqueio deste material (motivo obrigatório); nulo = sem bloqueio próprio.
+  bloqueioMotivo      String?   @map("bloqueio_motivo")
+  bloqueadoEm         DateTime? @map("bloqueado_em") @db.Timestamptz(3)
+  bloqueadoPorId      String?   @map("bloqueado_por_id") @db.Uuid
+  versao              Int       @default(1)
+  atualizadoEm        DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz(3)
+
+  palete       Palete          @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+  segmento     SegmentoEstoque @relation(fields: [escopoId, segmentoId], references: [escopoId, id])
+  bloqueadoPor Usuario?        @relation("SaldoBloqueadoPor", fields: [bloqueadoPorId], references: [id], onDelete: Restrict)
+
+  @@unique([paleteId, segmentoId])
+  @@index([escopoId, segmentoId], map: "saldo_estoque_segmento_idx")
+  @@map("saldo_estoque")
+}
+
+/// Evento de estoque imutável: reconciliação (um palete; no máximo um evento
+/// por conferência) ou transferência/correção entre dois paletes do mesmo
+/// escopo (baixa no palete principal, entrada no de destino).
+model EventoEstoque {
+  id                          String            @id @default(uuid()) @db.Uuid
+  escopoId                    String            @map("escopo_id") @db.Uuid
+  tipo                        TipoEventoEstoque
+  /// Palete reconciliado, ou de onde a quantidade saiu.
+  paleteId                    String            @map("palete_id") @db.Uuid
+  /// Palete que recebeu a quantidade (transferência e correção).
+  paleteDestinoId             String?           @map("palete_destino_id") @db.Uuid
+  sessaoId                    String?           @map("sessao_id") @db.Uuid
+  motivo                      String
+  /// Nulo somente na carga de demonstração.
+  autorId                     String?           @map("autor_id") @db.Uuid
+  ocorridoEm                  DateTime          @default(now()) @map("ocorrido_em") @db.Timestamptz(3)
+  /// Evento de estoque anterior do palete principal.
+  eventoAnteriorId            String?           @map("evento_anterior_id") @db.Uuid
+  versaoSaldoAnterior         Int               @map("versao_saldo_anterior")
+  versaoSaldoPosterior        Int               @map("versao_saldo_posterior")
+  versaoSaldoDestinoAnterior  Int?              @map("versao_saldo_destino_anterior")
+  versaoSaldoDestinoPosterior Int?              @map("versao_saldo_destino_posterior")
+  /// Transferência compensada por esta correção.
+  eventoCorrigidoId           String?           @map("evento_corrigido_id") @db.Uuid
+  /// Expedição que originou a baixa (tipo EXPEDICAO): no máximo um evento por expedição × palete.
+  expedicaoId                 String?           @map("expedicao_id") @db.Uuid
+
+  palete           Palete               @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+  paleteDestino    Palete?              @relation("EventoDestino", fields: [escopoId, paleteDestinoId], references: [escopoId, id])
+  sessao           SessaoConferencia?   @relation(fields: [escopoId, sessaoId], references: [escopoId, id])
+  autor            Usuario?             @relation(fields: [autorId], references: [id])
+  eventoAnterior   EventoEstoque?       @relation("CadeiaEventos", fields: [escopoId, eventoAnteriorId], references: [escopoId, id])
+  posteriores      EventoEstoque[]      @relation("CadeiaEventos")
+  eventoCorrigido  EventoEstoque?       @relation("CorrecaoEstoque", fields: [escopoId, eventoCorrigidoId], references: [escopoId, id])
+  correcoes        EventoEstoque[]      @relation("CorrecaoEstoque")
+  linhas           LinhaEventoEstoque[]
+  expedicao        Expedicao?           @relation(fields: [escopoId, expedicaoId], references: [escopoId, id], onDelete: Restrict)
+  ajustesLiberacao EventoLiberacao[]
+
+  @@unique([escopoId, sessaoId])
+  @@unique([expedicaoId, paleteId])
+  @@unique([escopoId, id])
+  @@index([escopoId, paleteId, ocorridoEm])
+  @@index([escopoId, paleteDestinoId, ocorridoEm])
+  @@index([escopoId, eventoCorrigidoId])
+  /// Indicadores e relatórios por período (etapa 10).
+  @@index([escopoId, ocorridoEm], map: "evento_estoque_escopo_ocorrido_idx")
+  @@map("evento_estoque")
+}
+
+/// Mudança de localização de um palete (imutável). O palete mantém ID, código
+/// e QR; os códigos das posições ficam gravados como eram no momento.
+model EventoLocalizacao {
+  id                    String                @id @db.Uuid
+  escopoId              String                @map("escopo_id") @db.Uuid
+  paleteId              String                @map("palete_id") @db.Uuid
+  tipo                  TipoEventoLocalizacao
+  /// Nula = localização pendente antes do movimento.
+  posicaoOrigemId       String?               @map("posicao_origem_id") @db.Uuid
+  posicaoOrigemCodigo   String?               @map("posicao_origem_codigo")
+  /// Nula somente em correção que devolve o palete à localização pendente.
+  posicaoDestinoId      String?               @map("posicao_destino_id") @db.Uuid
+  posicaoDestinoCodigo  String?               @map("posicao_destino_codigo")
+  motivo                String
+  autorId               String?               @map("autor_id") @db.Uuid
+  ocorridoEm            DateTime              @map("ocorrido_em") @db.Timestamptz(3)
+  versaoPaleteAnterior  Int                   @map("versao_palete_anterior")
+  versaoPaletePosterior Int                   @map("versao_palete_posterior")
+  /// Movimento corrigido por este evento (cada movimento é corrigido no máximo uma vez).
+  eventoCorrigidoId     String?               @map("evento_corrigido_id") @db.Uuid
+
+  palete          Palete              @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+  posicaoOrigem   Posicao?            @relation("LocalizacaoOrigem", fields: [escopoId, posicaoOrigemId], references: [escopoId, id])
+  posicaoDestino  Posicao?            @relation("LocalizacaoDestino", fields: [escopoId, posicaoDestinoId], references: [escopoId, id])
+  autor           Usuario?            @relation(fields: [autorId], references: [id])
+  eventoCorrigido EventoLocalizacao?  @relation("CorrecaoLocalizacao", fields: [escopoId, eventoCorrigidoId], references: [escopoId, id])
+  correcoes       EventoLocalizacao[] @relation("CorrecaoLocalizacao")
+
+  @@unique([escopoId, id])
+  @@unique([eventoCorrigidoId])
+  @@index([escopoId, paleteId, ocorridoEm])
+  @@map("evento_localizacao")
+}
+
+/// Variação exata de um segmento num palete causada por um evento.
+model LinhaEventoEstoque {
+  id                  String  @id @default(uuid()) @db.Uuid
+  escopoId            String  @map("escopo_id") @db.Uuid
+  eventoId            String  @map("evento_id") @db.Uuid
+  paleteId            String  @map("palete_id") @db.Uuid
+  segmentoId          String  @map("segmento_id") @db.Uuid
+  quantidadeAnterior  Decimal @map("quantidade_anterior") @db.Decimal(18, 3)
+  delta               Decimal @db.Decimal(18, 3)
+  quantidadePosterior Decimal @map("quantidade_posterior") @db.Decimal(18, 3)
+
+  evento   EventoEstoque   @relation(fields: [escopoId, eventoId], references: [escopoId, id])
+  palete   Palete          @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+  segmento SegmentoEstoque @relation(fields: [escopoId, segmentoId], references: [escopoId, id])
+
+  @@unique([eventoId, paleteId, segmentoId])
+  @@map("linha_evento_estoque")
+}
+
+// ---------- Cadastro (etapa 03) ----------
+
+/// Produto do escopo. SKU textual (zeros à esquerda preservados) e uma unidade canônica.
+model Produto {
+  id              String   @id @default(uuid()) @db.Uuid
+  escopoId        String   @map("escopo_id") @db.Uuid
+  sku             String
+  descricao       String
+  unidadeCanonica String   @map("unidade_canonica")
+  ativo           Boolean  @default(true)
+  versao          Int      @default(1)
+  criadoPorId     String?  @map("criado_por_id") @db.Uuid
+  criadoEm        DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm    DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+
+  escopo          Escopo                    @relation(fields: [escopoId], references: [id])
+  criadoPor       Usuario?                  @relation(fields: [criadoPorId], references: [id])
+  codigosBarras   CodigoBarras[]
+  declarados      ItemDeclarado[]
+  observacoes     ObservacaoConferencia[]
+  segmentos       SegmentoEstoque[]
+  /// Linhas de documentos importados (declaração documental; não é estoque).
+  linhasDocumento LinhaDocumentoDevolucao[]
+  linhasClaim     LinhaClaim[]
+
+  @@unique([escopoId, sku])
+  @@unique([escopoId, id])
+  @@map("produto")
+}
+
+/// Código de barras de uma embalagem do produto, com fator explícito de conversão
+/// para a unidade canônica. Nada é deduzido do formato do código. Fator nulo =
+/// desconhecido/não aprovado: o código é reconhecido, a conversão fica bloqueada.
+model CodigoBarras {
+  id              String   @id @default(uuid()) @db.Uuid
+  escopoId        String   @map("escopo_id") @db.Uuid
+  produtoId       String   @map("produto_id") @db.Uuid
+  codigo          String
+  embalagem       String
+  fatorConversao  Decimal? @map("fator_conversao") @db.Decimal(18, 3)
+  registradoPorId String?  @map("registrado_por_id") @db.Uuid
+  registradoEm    DateTime @default(now()) @map("registrado_em") @db.Timestamptz(3)
+
+  produto       Produto  @relation(fields: [escopoId, produtoId], references: [escopoId, id])
+  registradoPor Usuario? @relation(fields: [registradoPorId], references: [id])
+
+  @@unique([escopoId, codigo])
+  @@map("codigo_barras")
+}
+
+/// Sequência de códigos internos de palete por escopo (gerados sem duplicação).
+model SequenciaPalete {
+  escopoId String @id @map("escopo_id") @db.Uuid
+  prefixo  String
+  digitos  Int
+  proximo  Int
+
+  escopo Escopo @relation(fields: [escopoId], references: [id])
+
+  @@map("sequencia_palete")
+}
+
+/// Histórico das alterações do layout: uma linha por revisão, com antes/depois.
+model HistoricoLayout {
+  id         String   @id @default(uuid()) @db.Uuid
+  escopoId   String   @map("escopo_id") @db.Uuid
+  layoutId   String   @map("layout_id") @db.Uuid
+  revisao    Int
+  acao       String
+  alvoTipo   String   @map("alvo_tipo")
+  alvoId     String?  @map("alvo_id")
+  resumo     String
+  antes      Json?
+  depois     Json?
+  autorId    String?  @map("autor_id") @db.Uuid
+  ocorridoEm DateTime @default(now()) @map("ocorrido_em") @db.Timestamptz(3)
+
+  layout Layout   @relation(fields: [escopoId, layoutId], references: [escopoId, id])
+  autor  Usuario? @relation(fields: [autorId], references: [id])
+
+  @@unique([layoutId, revisao])
+  @@map("historico_layout")
+}
+
+// ---------- Importação e documentos (etapa 06) ----------
+
+/// Lote de importação: arquivo enviado, mapeamento, prévia versionada,
+/// contadores e resultado. Nunca é apagado; CONFIRMADO e DESCARTADO são finais.
+model LoteImportacao {
+  id               String             @id @db.Uuid
+  escopoId         String             @map("escopo_id") @db.Uuid
+  tipo             TipoImportacao
+  situacao         SituacaoImportacao
+  formato          FormatoArquivo
+  /// Nome informado pelo navegador, só para exibição (sem caminho).
+  nomeArquivo      String             @map("nome_arquivo")
+  /// SHA-256 do conteúdo (hexadecimal): detecta o mesmo arquivo.
+  hashArquivo      String             @map("hash_arquivo")
+  tamanhoBytes     Int                @map("tamanho_bytes")
+  /// Opções de leitura da prévia atual (planilha, cabeçalho, codificação, delimitador).
+  opcoes           Json?
+  separadorDecimal String?            @map("separador_decimal")
+  /// Campo → coluna da prévia atual.
+  colunas          Json?
+  /// Parâmetros do tipo (inventário: significado do N° Pallet, convenção de cor,
+  /// referência da conferência; seleção: modalidade, marcação, pedido/versão…).
+  parametros       Json?
+  /// Resumo da prévia atual (totais por ação, diferenças de versão, avisos gerais).
+  resumoPrevia     Json?              @map("resumo_previa")
+  /// Versão do registro (mapeamento, confirmação, descarte).
+  versao           Int                @default(1)
+  /// Versão da prévia: aumenta a cada mapeamento ou revalidação; só a atual pode ser confirmada.
+  versaoPrevia     Int                @default(0) @map("versao_previa")
+  /// SHA-256 do resultado da prévia (classificação, chaves, valores e motivos de cada linha).
+  assinaturaPrevia String?            @map("assinatura_previa")
+  previaGeradaEm   DateTime?          @map("previa_gerada_em") @db.Timestamptz(3)
+  totalLinhas      Int                @default(0) @map("total_linhas")
+  linhasVazias     Int                @default(0) @map("linhas_vazias")
+  validasNovas     Int                @default(0) @map("validas_novas")
+  duplicadas       Int                @default(0)
+  invalidas        Int                @default(0)
+  conflitantes     Int                @default(0)
+  /// Linhas fora da seleção pela regra de marcação (seleção do cliente).
+  excluidas        Int                @default(0)
+  gravadas         Int                @default(0)
+  ignoradas        Int                @default(0)
+  /// Contagem do que foi gravado na confirmação.
+  resultado        Json?
+  criadoPorId      String?            @map("criado_por_id") @db.Uuid
+  criadoEm         DateTime           @default(now()) @map("criado_em") @db.Timestamptz(3)
+  confirmadoPorId  String?            @map("confirmado_por_id") @db.Uuid
+  confirmadoEm     DateTime?          @map("confirmado_em") @db.Timestamptz(3)
+  descartadoPorId  String?            @map("descartado_por_id") @db.Uuid
+  descartadoEm     DateTime?          @map("descartado_em") @db.Timestamptz(3)
+  /// Última confirmação que falhou (revertida inteira: nada foi gravado).
+  ultimaFalhaEm    DateTime?          @map("ultima_falha_em") @db.Timestamptz(3)
+  ultimaFalha      String?            @map("ultima_falha")
+
+  escopo           Escopo                    @relation(fields: [escopoId], references: [id])
+  criadoPor        Usuario?                  @relation("ImportacaoCriadaPor", fields: [criadoPorId], references: [id])
+  confirmadoPor    Usuario?                  @relation("ImportacaoConfirmadaPor", fields: [confirmadoPorId], references: [id])
+  descartadoPor    Usuario?                  @relation("ImportacaoDescartadaPor", fields: [descartadoPorId], references: [id])
+  arquivo          ArquivoImportacao?
+  linhas           LinhaImportacao[]
+  documentos       DocumentoDevolucao[]
+  linhasDocumento  LinhaDocumentoDevolucao[]
+  claims           Claim[]
+  linhasClaim      LinhaClaim[]
+  inventario       InventarioReferencia?
+  linhasInventario LinhaInventario[]
+  selecao          SelecaoCliente?
+
+  @@unique([escopoId, id])
+  @@index([escopoId, criadoEm])
+  @@index([escopoId, tipo, hashArquivo])
+  @@map("lote_importacao")
+}
+
+/// Conteúdo do arquivo enviado, privado (lido só pelo servidor, com escopo).
+model ArquivoImportacao {
+  loteId   String @id @map("lote_id") @db.Uuid
+  escopoId String @map("escopo_id") @db.Uuid
+  conteudo Bytes
+
+  lote LoteImportacao @relation(fields: [escopoId, loteId], references: [escopoId, id])
+
+  @@unique([escopoId, loteId])
+  @@map("arquivo_importacao")
+}
+
+/// Resultado de uma linha do arquivo na prévia atual (ou final, depois de confirmar).
+model LinhaImportacao {
+  id            String             @id @default(uuid()) @db.Uuid
+  escopoId      String             @map("escopo_id") @db.Uuid
+  loteId        String             @map("lote_id") @db.Uuid
+  /// Número da linha no arquivo.
+  numero        Int
+  classificacao ClassificacaoLinha
+  /// Chave de negócio (nula quando faltam componentes).
+  chave         String?
+  valores       Json
+  lidos         Json
+  motivos       Json
+  avisos        Json
+  resultado     ResultadoLinha?
+  /// Produto ou linha de documento gravado por esta linha.
+  registroId    String?            @map("registro_id") @db.Uuid
+  /// Ação proposta/realizada (inventário e seleção do cliente): vincular, criar
+  /// cadastro, referência histórica, excluída pela marcação…
+  acao          String?
+
+  lote LoteImportacao @relation(fields: [escopoId, loteId], references: [escopoId, id])
+
+  @@unique([loteId, numero])
+  @@index([loteId, classificacao, numero])
+  @@map("linha_importacao")
+}
+
+/// Documento de devolução importado. Declaração documental: não comprova
+/// presença física nem cria recebimento, contagem, saldo, ocupação ou liberação.
+model DocumentoDevolucao {
+  id               String              @id @db.Uuid
+  escopoId         String              @map("escopo_id") @db.Uuid
+  /// Tipo de origem documental (nesta etapa, DEVOLUCAO).
+  tipo             TipoOrigemDocumento
+  referencia       String
+  loteImportacaoId String              @map("lote_importacao_id") @db.Uuid
+  criadoEm         DateTime            @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  loteImportacao LoteImportacao            @relation(fields: [escopoId, loteImportacaoId], references: [escopoId, id])
+  linhas         LinhaDocumentoDevolucao[]
+
+  @@unique([escopoId, tipo, referencia])
+  @@unique([escopoId, id])
+  @@map("documento_devolucao")
+}
+
+/// Linha declarada de um documento importado: quantidade e unidade originais,
+/// fator aprovado usado e quantidade na unidade canônica (sem saldo físico).
+model LinhaDocumentoDevolucao {
+  id                  String    @id @db.Uuid
+  escopoId            String    @map("escopo_id") @db.Uuid
+  documentoId         String    @map("documento_id") @db.Uuid
+  /// Linha/item como no arquivo.
+  referenciaLinha     String    @map("referencia_linha")
+  /// Chave de comparação: igual à referência; só dígitos, sem zeros à esquerda (CHECK).
+  chaveLinha          String    @map("chave_linha")
+  produtoId           String    @map("produto_id") @db.Uuid
+  sku                 String
+  quantidadeDeclarada Decimal   @map("quantidade_declarada") @db.Decimal(18, 3)
+  unidadeDeclarada    String    @map("unidade_declarada")
+  fatorConversao      Decimal   @map("fator_conversao") @db.Decimal(18, 3)
+  quantidadeCanonica  Decimal   @map("quantidade_canonica") @db.Decimal(18, 3)
+  unidadeCanonica     String    @map("unidade_canonica")
+  notaFiscal          String?   @map("nota_fiscal")
+  lote                String?
+  dataDocumento       DateTime? @map("data_documento") @db.Date
+  loteImportacaoId    String    @map("lote_importacao_id") @db.Uuid
+  /// Linha do arquivo de origem.
+  linhaArquivo        Int       @map("linha_arquivo")
+  criadoEm            DateTime  @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  documento       DocumentoDevolucao @relation(fields: [escopoId, documentoId], references: [escopoId, id])
+  produto         Produto            @relation(fields: [escopoId, produtoId], references: [escopoId, id])
+  loteImportacao  LoteImportacao     @relation(fields: [escopoId, loteImportacaoId], references: [escopoId, id])
+  candidatosClaim CandidatoClaim[]
+  evidenciasClaim EvidenciaClaim[]
+
+  @@unique([documentoId, chaveLinha])
+  @@unique([escopoId, id])
+  @@index([escopoId, produtoId])
+  @@index([escopoId, documentoId], map: "linha_documento_devolucao_documento_idx")
+  @@map("linha_documento_devolucao")
+}
+
+// ---------- Claims e rastreabilidade (etapa 07) ----------
+
+/// Caso de claim: investigação, não estoque. ID permanente, código legível
+/// (CLM-000001) e referência externa textual opcional (única no escopo).
+/// Situação muda só por ação explícita; decisões não são apagadas.
+model Claim {
+  id                  String              @id @db.Uuid
+  escopoId            String              @map("escopo_id") @db.Uuid
+  numero              Int
+  codigo              String
+  referenciaExterna   String?             @map("referencia_externa")
+  motivo              MotivoClaim
+  situacao            SituacaoClaim
+  prioridade          PrioridadeClaim?
+  /// Prazo informado; nulo = não informado (nunca calculado).
+  prazo               DateTime?           @db.Date
+  dataAbertura        DateTime?           @map("data_abertura") @db.Date
+  dataOcorrencia      DateTime?           @map("data_ocorrencia") @db.Date
+  responsavelId       String?             @map("responsavel_id") @db.Uuid
+  /// Moeda do valor estimado (uma por caso).
+  moeda               String?
+  fonteValor          String?             @map("fonte_valor")
+  situacaoExterna     String?             @map("situacao_externa")
+  referenciaCobranca  String?             @map("referencia_cobranca")
+  /// Cobrança já finalizada financeiramente no cliente: resultado só com prova externa.
+  cobrancaFinalizada  Boolean             @default(false) @map("cobranca_finalizada")
+  observacoes         String?
+  origemCadastro      OrigemCadastroClaim @map("origem_cadastro")
+  loteImportacaoId    String?             @map("lote_importacao_id") @db.Uuid
+  criadoPorId         String              @map("criado_por_id") @db.Uuid
+  criadoEm            DateTime            @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm        DateTime            @map("atualizado_em") @db.Timestamptz(3)
+  versao              Int                 @default(1)
+  encerradoEm         DateTime?           @map("encerrado_em") @db.Timestamptz(3)
+  encerradoPorId      String?             @map("encerrado_por_id") @db.Uuid
+  decisaoEncerramento String?             @map("decisao_encerramento")
+
+  escopo         Escopo             @relation(fields: [escopoId], references: [id])
+  responsavel    Usuario?           @relation("ClaimResponsavel", fields: [responsavelId], references: [id], onDelete: Restrict)
+  criadoPor      Usuario            @relation("ClaimCriadoPor", fields: [criadoPorId], references: [id])
+  encerradoPor   Usuario?           @relation("ClaimEncerradoPor", fields: [encerradoPorId], references: [id], onDelete: Restrict)
+  loteImportacao LoteImportacao?    @relation(fields: [escopoId, loteImportacaoId], references: [escopoId, id], onDelete: Restrict)
+  linhas         LinhaClaim[]
+  candidatos     CandidatoClaim[]
+  anexos         AnexoClaim[]
+  evidencias     EvidenciaClaim[]
+  recuperacoes   RecuperacaoClaim[]
+  resultados     ResultadoClaim[]
+  eventos        EventoClaim[]
+
+  @@unique([escopoId, numero])
+  @@unique([escopoId, referenciaExterna])
+  @@unique([escopoId, id])
+  @@index([escopoId, situacao])
+  @@index([escopoId, prazo])
+  @@map("claim")
+}
+
+/// Linha do caso: produto/SKU, quantidade em análise e unidade, com
+/// identidade própria no caso. Quantidade recuperada (recuperações ativas) e
+/// coberta (resultados vigentes) são mantidas na mesma transação e conferidas
+/// por CHECK e por gatilho adiado. Linhas não são apagadas.
+model LinhaClaim {
+  id                   String               @id @db.Uuid
+  escopoId             String               @map("escopo_id") @db.Uuid
+  claimId              String               @map("claim_id") @db.Uuid
+  /// Identidade da linha como informada.
+  identificador        String
+  /// Chave de comparação (só dígitos: sem zeros à esquerda).
+  chaveLinha           String               @map("chave_linha")
+  ordem                Int
+  /// Produto do cadastro; nulo = SKU fora do cadastro (pendência de triagem).
+  produtoId            String?              @map("produto_id") @db.Uuid
+  sku                  String
+  descricao            String?
+  quantidadeAnalise    Decimal              @map("quantidade_analise") @db.Decimal(18, 3)
+  unidade              String
+  lote                 String?
+  loteExigido          Boolean              @default(false) @map("lote_exigido")
+  origemTipo           TipoOrigemDocumento? @map("origem_tipo")
+  origemReferencia     String?              @map("origem_referencia")
+  origemLinha          String?              @map("origem_linha")
+  valorEstimado        Decimal?             @map("valor_estimado") @db.Decimal(18, 2)
+  baseValor            BaseValor?           @map("base_valor")
+  quantidadeRecuperada Decimal              @default(0) @map("quantidade_recuperada") @db.Decimal(18, 3)
+  quantidadeCoberta    Decimal              @default(0) @map("quantidade_coberta") @db.Decimal(18, 3)
+  versao               Int                  @default(1)
+  loteImportacaoId     String?              @map("lote_importacao_id") @db.Uuid
+  linhaArquivo         Int?                 @map("linha_arquivo")
+  criadoEm             DateTime             @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm         DateTime             @map("atualizado_em") @db.Timestamptz(3)
+
+  claim          Claim                 @relation(fields: [escopoId, claimId], references: [escopoId, id])
+  produto        Produto?              @relation(fields: [escopoId, produtoId], references: [escopoId, id], onDelete: Restrict)
+  loteImportacao LoteImportacao?       @relation(fields: [escopoId, loteImportacaoId], references: [escopoId, id], onDelete: Restrict)
+  candidatos     CandidatoClaim[]
+  evidencias     EvidenciaClaim[]
+  recuperacoes   RecuperacaoClaim[]
+  resultados     ResultadoLinhaClaim[]
+  eventos        EventoClaim[]
+
+  @@unique([claimId, chaveLinha])
+  @@unique([claimId, ordem])
+  @@unique([escopoId, id])
+  @@index([escopoId, produtoId])
+  @@index([escopoId, sku])
+  @@map("linha_claim")
+}
+
+/// Candidato registrado na investigação de uma linha (pista, não prova).
+/// O retrato guarda o registro como estava; a localização atual é consultada.
+model CandidatoClaim {
+  id                         String            @id @db.Uuid
+  escopoId                   String            @map("escopo_id") @db.Uuid
+  claimId                    String            @map("claim_id") @db.Uuid
+  linhaId                    String            @map("linha_id") @db.Uuid
+  base                       BaseCandidato
+  situacao                   SituacaoCandidato
+  paleteId                   String?           @map("palete_id") @db.Uuid
+  segmentoId                 String?           @map("segmento_id") @db.Uuid
+  sessaoId                   String?           @map("sessao_id") @db.Uuid
+  linhaDocumentoId           String?           @map("linha_documento_id") @db.Uuid
+  retrato                    Json
+  observacao                 String?
+  registradoPorId            String            @map("registrado_por_id") @db.Uuid
+  registradoEm               DateTime          @map("registrado_em") @db.Timestamptz(3)
+  conferenciaSolicitadaPorId String?           @map("conferencia_solicitada_por_id") @db.Uuid
+  conferenciaSolicitadaEm    DateTime?         @map("conferencia_solicitada_em") @db.Timestamptz(3)
+  notaConferencia            String?           @map("nota_conferencia")
+  sessaoVinculadaId          String?           @map("sessao_vinculada_id") @db.Uuid
+  descartadoPorId            String?           @map("descartado_por_id") @db.Uuid
+  descartadoEm               DateTime?         @map("descartado_em") @db.Timestamptz(3)
+  motivoDescarte             String?           @map("motivo_descarte")
+  versao                     Int               @default(1)
+
+  claim                    Claim                    @relation(fields: [escopoId, claimId], references: [escopoId, id])
+  linha                    LinhaClaim               @relation(fields: [escopoId, linhaId], references: [escopoId, id])
+  palete                   Palete?                  @relation(fields: [escopoId, paleteId], references: [escopoId, id], onDelete: Restrict)
+  segmento                 SegmentoEstoque?         @relation(fields: [escopoId, segmentoId], references: [escopoId, id], onDelete: Restrict)
+  sessao                   SessaoConferencia?       @relation("CandidatoSessao", fields: [escopoId, sessaoId], references: [escopoId, id], onDelete: Restrict)
+  sessaoVinculada          SessaoConferencia?       @relation("CandidatoSessaoVinculada", fields: [escopoId, sessaoVinculadaId], references: [escopoId, id], onDelete: Restrict)
+  linhaDocumento           LinhaDocumentoDevolucao? @relation(fields: [escopoId, linhaDocumentoId], references: [escopoId, id], onDelete: Restrict)
+  registradoPor            Usuario                  @relation("CandidatoRegistradoPor", fields: [registradoPorId], references: [id])
+  conferenciaSolicitadaPor Usuario?                 @relation("CandidatoConferenciaPor", fields: [conferenciaSolicitadaPorId], references: [id], onDelete: Restrict)
+  descartadoPor            Usuario?                 @relation("CandidatoDescartadoPor", fields: [descartadoPorId], references: [id], onDelete: Restrict)
+  evidencias               EvidenciaClaim[]
+
+  @@unique([escopoId, id])
+  @@index([escopoId, claimId])
+  @@map("candidato_claim")
+}
+
+/// Anexo privado do caso (foto ou PDF): lido só com sessão, permissão e
+/// escopo. Conteúdo imutável; vinculado uma vez a evidência ou resultado.
+model AnexoClaim {
+  id           String   @id @db.Uuid
+  escopoId     String   @map("escopo_id") @db.Uuid
+  claimId      String   @map("claim_id") @db.Uuid
+  nome         String
+  tipoConteudo String   @map("tipo_conteudo")
+  tamanho      Int
+  sha256       String
+  conteudo     Bytes
+  enviadoPorId String   @map("enviado_por_id") @db.Uuid
+  enviadoEm    DateTime @map("enviado_em") @db.Timestamptz(3)
+  evidenciaId  String?  @map("evidencia_id") @db.Uuid
+  resultadoId  String?  @map("resultado_id") @db.Uuid
+
+  claim      Claim           @relation(fields: [escopoId, claimId], references: [escopoId, id])
+  enviadoPor Usuario         @relation("AnexoEnviadoPor", fields: [enviadoPorId], references: [id])
+  evidencia  EvidenciaClaim? @relation(fields: [escopoId, evidenciaId], references: [escopoId, id], onDelete: Restrict)
+  resultado  ResultadoClaim? @relation(fields: [escopoId, resultadoId], references: [escopoId, id], onDelete: Restrict)
+
+  @@unique([escopoId, id])
+  @@index([escopoId, claimId])
+  @@map("anexo_claim")
+}
+
+/// Evidência registrada numa linha. Conteúdo e retrato imutáveis; só a
+/// situação avança (registrada → validação solicitada → validada/rejeitada).
+model EvidenciaClaim {
+  id                    String            @id @db.Uuid
+  escopoId              String            @map("escopo_id") @db.Uuid
+  claimId               String            @map("claim_id") @db.Uuid
+  linhaId               String            @map("linha_id") @db.Uuid
+  numero                Int
+  tipo                  TipoEvidencia
+  situacao              SituacaoEvidencia
+  candidatoId           String?           @map("candidato_id") @db.Uuid
+  paleteId              String?           @map("palete_id") @db.Uuid
+  /// Endereço do palete no momento da evidência.
+  posicaoNaEpoca        String?           @map("posicao_na_epoca")
+  segmentoId            String?           @map("segmento_id") @db.Uuid
+  sessaoId              String?           @map("sessao_id") @db.Uuid
+  linhaDocumentoId      String?           @map("linha_documento_id") @db.Uuid
+  quantidade            Decimal?          @db.Decimal(18, 3)
+  unidade               String?
+  condicao              CondicaoMaterial?
+  descricao             String
+  referenciaVerificavel String?           @map("referencia_verificavel")
+  /// Retrato dos dados pertinentes (linha, material, saldo, versões).
+  retrato               Json
+  autorId               String            @map("autor_id") @db.Uuid
+  registradaEm          DateTime          @map("registrada_em") @db.Timestamptz(3)
+  quantidadeSolicitada  Decimal?          @map("quantidade_solicitada") @db.Decimal(18, 3)
+  notaSolicitacao       String?           @map("nota_solicitacao")
+  solicitadaPorId       String?           @map("solicitada_por_id") @db.Uuid
+  solicitadaEm          DateTime?         @map("solicitada_em") @db.Timestamptz(3)
+  decididaPorId         String?           @map("decidida_por_id") @db.Uuid
+  decididaEm            DateTime?         @map("decidida_em") @db.Timestamptz(3)
+  justificativaDecisao  String?           @map("justificativa_decisao")
+  versao                Int               @default(1)
+
+  claim          Claim                    @relation(fields: [escopoId, claimId], references: [escopoId, id])
+  linha          LinhaClaim               @relation(fields: [escopoId, linhaId], references: [escopoId, id])
+  candidato      CandidatoClaim?          @relation(fields: [escopoId, candidatoId], references: [escopoId, id], onDelete: Restrict)
+  palete         Palete?                  @relation(fields: [escopoId, paleteId], references: [escopoId, id], onDelete: Restrict)
+  segmento       SegmentoEstoque?         @relation(fields: [escopoId, segmentoId], references: [escopoId, id], onDelete: Restrict)
+  sessao         SessaoConferencia?       @relation(fields: [escopoId, sessaoId], references: [escopoId, id], onDelete: Restrict)
+  linhaDocumento LinhaDocumentoDevolucao? @relation(fields: [escopoId, linhaDocumentoId], references: [escopoId, id], onDelete: Restrict)
+  autor          Usuario                  @relation("EvidenciaAutor", fields: [autorId], references: [id])
+  solicitadaPor  Usuario?                 @relation("EvidenciaSolicitadaPor", fields: [solicitadaPorId], references: [id], onDelete: Restrict)
+  decididaPor    Usuario?                 @relation("EvidenciaDecididaPor", fields: [decididaPorId], references: [id], onDelete: Restrict)
+  anexos         AnexoClaim[]
+  recuperacao    RecuperacaoClaim?
+
+  @@unique([claimId, numero])
+  @@unique([escopoId, id])
+  @@index([escopoId, linhaId])
+  @@map("evidencia_claim")
+}
+
+/// Recuperação física validada: aloca uma quantidade de material rastreável
+/// (segmento) à linha do caso. Nunca apagada; o estorno é explícito e libera
+/// a alocação. Não cria entrada, saída nem reserva de estoque.
+model RecuperacaoClaim {
+  id             String              @id @db.Uuid
+  escopoId       String              @map("escopo_id") @db.Uuid
+  claimId        String              @map("claim_id") @db.Uuid
+  linhaId        String              @map("linha_id") @db.Uuid
+  evidenciaId    String              @map("evidencia_id") @db.Uuid
+  segmentoId     String              @map("segmento_id") @db.Uuid
+  /// Palete e endereço na validação (histórico).
+  paleteId       String              @map("palete_id") @db.Uuid
+  posicaoNaEpoca String?             @map("posicao_na_epoca")
+  quantidade     Decimal             @db.Decimal(18, 3)
+  unidade        String
+  situacao       SituacaoRecuperacao
+  validadaPorId  String              @map("validada_por_id") @db.Uuid
+  validadaEm     DateTime            @map("validada_em") @db.Timestamptz(3)
+  justificativa  String
+  tratativaLote  String?             @map("tratativa_lote")
+  retrato        Json
+  estornadaPorId String?             @map("estornada_por_id") @db.Uuid
+  estornadaEm    DateTime?           @map("estornada_em") @db.Timestamptz(3)
+  motivoEstorno  String?             @map("motivo_estorno")
+  versao         Int                 @default(1)
+
+  claim        Claim                  @relation(fields: [escopoId, claimId], references: [escopoId, id])
+  linha        LinhaClaim             @relation(fields: [escopoId, linhaId], references: [escopoId, id])
+  evidencia    EvidenciaClaim         @relation(fields: [escopoId, evidenciaId], references: [escopoId, id])
+  segmento     SegmentoEstoque        @relation(fields: [escopoId, segmentoId], references: [escopoId, id])
+  palete       Palete                 @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+  validadaPor  Usuario                @relation("RecuperacaoValidadaPor", fields: [validadaPorId], references: [id])
+  estornadaPor Usuario?               @relation("RecuperacaoEstornadaPor", fields: [estornadaPorId], references: [id], onDelete: Restrict)
+  vinculos     VinculoMaterialClaim[]
+
+  @@unique([escopoId, id])
+  @@unique([escopoId, evidenciaId])
+  @@index([escopoId, segmentoId])
+  @@index([escopoId, linhaId])
+  @@index([claimId])
+  @@map("recuperacao_claim")
+}
+
+/// Onde está agora a quantidade alocada por uma recuperação ativa (palete ×
+/// segmento). A soma por palete × segmento é a quantidade_vinculada do saldo.
+/// Transferências movem o vínculo junto (evento VINCULO_MOVIDO no histórico).
+model VinculoMaterialClaim {
+  id            String   @id @db.Uuid
+  escopoId      String   @map("escopo_id") @db.Uuid
+  recuperacaoId String   @map("recuperacao_id") @db.Uuid
+  paleteId      String   @map("palete_id") @db.Uuid
+  segmentoId    String   @map("segmento_id") @db.Uuid
+  quantidade    Decimal  @db.Decimal(18, 3)
+  atualizadoEm  DateTime @map("atualizado_em") @db.Timestamptz(3)
+
+  recuperacao RecuperacaoClaim @relation(fields: [escopoId, recuperacaoId], references: [escopoId, id])
+  palete      Palete           @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+  segmento    SegmentoEstoque  @relation(fields: [escopoId, segmentoId], references: [escopoId, id])
+
+  @@unique([recuperacaoId, paleteId])
+  @@index([paleteId, segmentoId])
+  @@map("vinculo_material_claim")
+}
+
+/// Resultado da regularização (decisão financeira registrada; o aplicativo
+/// não cancela nem estorna cobranças). Correção ou anulação encerram o
+/// resultado com motivo; a correção cria um novo vinculado ao original.
+model ResultadoClaim {
+  id                         String            @id @db.Uuid
+  escopoId                   String            @map("escopo_id") @db.Uuid
+  claimId                    String            @map("claim_id") @db.Uuid
+  numero                     Int
+  tipo                       TipoResultado
+  situacao                   SituacaoResultado
+  dataDecisao                DateTime          @map("data_decisao") @db.Date
+  valor                      Decimal?          @db.Decimal(18, 2)
+  moeda                      String?
+  fonte                      String
+  referencia                 String
+  referenciaResultadoExterno String?           @map("referencia_resultado_externo")
+  justificativaValor         String?           @map("justificativa_valor")
+  /// Estimativa e fonte no momento da decisão.
+  estimativa                 Json
+  /// Evidências registradas citadas pela decisão.
+  evidencias                 Json
+  autorId                    String            @map("autor_id") @db.Uuid
+  registradoEm               DateTime          @map("registrado_em") @db.Timestamptz(3)
+  corrigeId                  String?           @map("corrige_id") @db.Uuid
+  motivoCorrecao             String?           @map("motivo_correcao")
+  encerradoPorId             String?           @map("encerrado_por_id") @db.Uuid
+  encerradoEm                DateTime?         @map("encerrado_em") @db.Timestamptz(3)
+  motivoEncerramento         String?           @map("motivo_encerramento")
+  versao                     Int               @default(1)
+
+  claim        Claim                 @relation(fields: [escopoId, claimId], references: [escopoId, id])
+  autor        Usuario               @relation("ResultadoAutor", fields: [autorId], references: [id])
+  encerradoPor Usuario?              @relation("ResultadoEncerradoPor", fields: [encerradoPorId], references: [id], onDelete: Restrict)
+  corrige      ResultadoClaim?       @relation("CorrecaoResultado", fields: [escopoId, corrigeId], references: [escopoId, id], onDelete: Restrict)
+  correcoes    ResultadoClaim[]      @relation("CorrecaoResultado")
+  linhas       ResultadoLinhaClaim[]
+  anexos       AnexoClaim[]
+
+  @@unique([claimId, numero])
+  @@unique([escopoId, id])
+  @@unique([corrigeId])
+  @@map("resultado_claim")
+}
+
+/// Quantidade de uma linha coberta por um resultado (imutável).
+model ResultadoLinhaClaim {
+  id          String  @id @db.Uuid
+  escopoId    String  @map("escopo_id") @db.Uuid
+  resultadoId String  @map("resultado_id") @db.Uuid
+  linhaId     String  @map("linha_id") @db.Uuid
+  quantidade  Decimal @db.Decimal(18, 3)
+
+  resultado ResultadoClaim @relation(fields: [escopoId, resultadoId], references: [escopoId, id])
+  linha     LinhaClaim     @relation(fields: [escopoId, linhaId], references: [escopoId, id])
+
+  @@unique([resultadoId, linhaId])
+  @@index([escopoId, linhaId])
+  @@map("resultado_linha_claim")
+}
+
+/// Histórico de domínio do caso (imutável): quem, quando, o quê e o registro
+/// original quando corrige, estorna ou reabre.
+model EventoClaim {
+  id            String   @id @db.Uuid
+  escopoId      String   @map("escopo_id") @db.Uuid
+  claimId       String   @map("claim_id") @db.Uuid
+  linhaId       String?  @map("linha_id") @db.Uuid
+  tipo          String
+  autorId       String?  @map("autor_id") @db.Uuid
+  ocorridoEm    DateTime @map("ocorrido_em") @db.Timestamptz(3)
+  resumo        String
+  relacionadoId String?  @map("relacionado_id") @db.Uuid
+  detalhes      Json
+
+  claim Claim       @relation(fields: [escopoId, claimId], references: [escopoId, id])
+  linha LinhaClaim? @relation(fields: [escopoId, linhaId], references: [escopoId, id], onDelete: Restrict)
+  autor Usuario?    @relation("EventoClaimAutor", fields: [autorId], references: [id], onDelete: Restrict)
+
+  @@index([escopoId, claimId, ocorridoEm])
+  @@map("evento_claim")
+}
+
+// ---------- Janelas, liberação, reservas e expedição (etapa 08) ----------
+
+/// Histórico imutável da liberação do material: liberar/revogar quantidade,
+/// bloquear/desbloquear linha ou palete inteiro e ajustes automáticos quando o
+/// saldo diminui. Segmento nulo = evento do palete inteiro.
+model EventoLiberacao {
+  id                String   @id @db.Uuid
+  escopoId          String   @map("escopo_id") @db.Uuid
+  paleteId          String   @map("palete_id") @db.Uuid
+  segmentoId        String?  @map("segmento_id") @db.Uuid
+  tipo              String
+  quantidade        Decimal? @db.Decimal(18, 3)
+  liberadaAnterior  Decimal? @map("liberada_anterior") @db.Decimal(18, 3)
+  liberadaPosterior Decimal? @map("liberada_posterior") @db.Decimal(18, 3)
+  criterio          String?
+  fonte             String?
+  referencia        String?
+  motivo            String
+  autorId           String?  @map("autor_id") @db.Uuid
+  ocorridoEm        DateTime @map("ocorrido_em") @db.Timestamptz(3)
+  eventoEstoqueId   String?  @map("evento_estoque_id") @db.Uuid
+
+  palete        Palete           @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+  segmento      SegmentoEstoque? @relation(fields: [escopoId, segmentoId], references: [escopoId, id], onDelete: Restrict)
+  autor         Usuario?         @relation("EventoLiberacaoAutor", fields: [autorId], references: [id], onDelete: Restrict)
+  eventoEstoque EventoEstoque?   @relation(fields: [escopoId, eventoEstoqueId], references: [escopoId, id], onDelete: Restrict)
+
+  @@index([escopoId, paleteId, ocorridoEm])
+  @@map("evento_liberacao")
+}
+
+/// Janela de devolução ao cliente. Campos desconhecidos ficam nulos
+/// (pendentes); nada é presumido (datas, capacidade, critérios).
+model JanelaDevolucao {
+  id                     String                @id @db.Uuid
+  escopoId               String                @map("escopo_id") @db.Uuid
+  numero                 Int
+  codigo                 String
+  nome                   String
+  referenciaCliente      String?               @map("referencia_cliente")
+  /// Primeiro dia do mês de referência (visão mensal).
+  mesReferencia          DateTime              @map("mes_referencia") @db.Date
+  saidaInicio            DateTime?             @map("saida_inicio") @db.Timestamptz(3)
+  saidaFim               DateTime?             @map("saida_fim") @db.Timestamptz(3)
+  prazoPreparacao        DateTime?             @map("prazo_preparacao") @db.Timestamptz(3)
+  criteriosDefinidos     Boolean               @default(false) @map("criterios_definidos")
+  condicoesAceitas       CondicaoMaterial[]    @map("condicoes_aceitas")
+  /// Verdadeiro = qualquer tipo de origem; falso = só os de origens_aceitas.
+  origemQualquer         Boolean               @default(true) @map("origem_qualquer")
+  origensAceitas         TipoOrigemDocumento[] @map("origens_aceitas")
+  exigeLote              Boolean               @default(false) @map("exige_lote")
+  exigeOrigem            Boolean               @default(false) @map("exige_origem")
+  documentosExigidos     String[]              @map("documentos_exigidos")
+  criteriosObservacao    String?               @map("criterios_observacao")
+  autorizacaoFonte       String?               @map("autorizacao_fonte")
+  autorizacaoReferencia  String?               @map("autorizacao_referencia")
+  autorizacaoData        DateTime?             @map("autorizacao_data") @db.Date
+  autorizacaoResponsavel String?               @map("autorizacao_responsavel")
+  observacoes            String?
+  situacao               SituacaoJanela
+  versao                 Int                   @default(1)
+  /// Versão das regras (período, critérios, limites); avança a cada alteração autorizada.
+  versaoRegras           Int                   @default(1) @map("versao_regras")
+  criadoPorId            String                @map("criado_por_id") @db.Uuid
+  criadoEm               DateTime              @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm           DateTime              @map("atualizado_em") @db.Timestamptz(3)
+  confirmadaPorId        String?               @map("confirmada_por_id") @db.Uuid
+  confirmadaEm           DateTime?             @map("confirmada_em") @db.Timestamptz(3)
+  encerradaPorId         String?               @map("encerrada_por_id") @db.Uuid
+  encerradaEm            DateTime?             @map("encerrada_em") @db.Timestamptz(3)
+  motivoEncerramento     String?               @map("motivo_encerramento")
+
+  escopo        Escopo               @relation(fields: [escopoId], references: [id])
+  criadoPor     Usuario              @relation("JanelaCriadaPor", fields: [criadoPorId], references: [id])
+  confirmadaPor Usuario?             @relation("JanelaConfirmadaPor", fields: [confirmadaPorId], references: [id], onDelete: Restrict)
+  encerradaPor  Usuario?             @relation("JanelaEncerradaPor", fields: [encerradaPorId], references: [id], onDelete: Restrict)
+  restricoes    RestricaoJanela[]
+  versoes       VersaoRegrasJanela[]
+  reservas      ReservaJanela[]
+  expedicoes    Expedicao[]
+  anexos        AnexoJanela[]
+  eventos       EventoJanela[]
+
+  @@unique([escopoId, numero])
+  @@unique([escopoId, id])
+  @@index([escopoId, mesReferencia])
+  @@map("janela_devolucao")
+}
+
+/// Restrição de capacidade da janela. Limite nulo = pendente (nunca
+/// ilimitado). Reservado e expedido são mantidos na mesma transação das
+/// reservas/expedições e conferidos por CHECK e gatilho adiado.
+model RestricaoJanela {
+  id           String            @id @db.Uuid
+  escopoId     String            @map("escopo_id") @db.Uuid
+  janelaId     String            @map("janela_id") @db.Uuid
+  metrica      MetricaCapacidade
+  unidade      String
+  basePeso     BasePeso?         @map("base_peso")
+  limite       Decimal?          @db.Decimal(18, 3)
+  reservado    Decimal           @default(0) @db.Decimal(18, 3)
+  expedido     Decimal           @default(0) @db.Decimal(18, 3)
+  atualizadoEm DateTime          @map("atualizado_em") @db.Timestamptz(3)
+
+  janela    JanelaDevolucao    @relation(fields: [escopoId, janelaId], references: [escopoId, id])
+  reservas  MetricaReserva[]
+  expedidas MetricaExpedicao[]
+
+  @@unique([janelaId, metrica])
+  @@unique([escopoId, id])
+  @@map("restricao_janela")
+}
+
+/// Versão imutável das regras da janela (fotografia de período, critérios e
+/// limites), com justificativa e fonte da alteração.
+model VersaoRegrasJanela {
+  id            String   @id @db.Uuid
+  escopoId      String   @map("escopo_id") @db.Uuid
+  janelaId      String   @map("janela_id") @db.Uuid
+  versao        Int
+  fotografia    Json
+  justificativa String?
+  fonte         String?
+  autorId       String   @map("autor_id") @db.Uuid
+  criadoEm      DateTime @map("criado_em") @db.Timestamptz(3)
+
+  janela JanelaDevolucao @relation(fields: [escopoId, janelaId], references: [escopoId, id])
+  autor  Usuario         @relation("VersaoRegrasAutor", fields: [autorId], references: [id])
+
+  @@unique([janelaId, versao])
+  @@map("versao_regras_janela")
+}
+
+/// Reserva de material e capacidade para uma janela. Não baixa estoque.
+model ReservaJanela {
+  id                        String             @id @db.Uuid
+  escopoId                  String             @map("escopo_id") @db.Uuid
+  janelaId                  String             @map("janela_id") @db.Uuid
+  numero                    Int
+  codigo                    String
+  situacao                  SituacaoReserva
+  /// Consumida com envio menor que o reservado (restante liberado na mesma operação).
+  consumoParcial            Boolean            @default(false) @map("consumo_parcial")
+  versao                    Int                @default(1)
+  versaoRegras              Int                @map("versao_regras")
+  fotografiaCriterios       Json               @map("fotografia_criterios")
+  observacoes               String?
+  preparacao                SituacaoPreparacao @default(PENDENTE)
+  preparadaEm               DateTime?          @map("preparada_em") @db.Timestamptz(3)
+  preparacaoResponsavelId   String?            @map("preparacao_responsavel_id") @db.Uuid
+  preparacaoRegistradaPorId String?            @map("preparacao_registrada_por_id") @db.Uuid
+  preparacaoRegistradaEm    DateTime?          @map("preparacao_registrada_em") @db.Timestamptz(3)
+  preparacaoObservacoes     String?            @map("preparacao_observacoes")
+  preparacaoDiferencas      Json?              @map("preparacao_diferencas")
+  criadoPorId               String             @map("criado_por_id") @db.Uuid
+  criadoEm                  DateTime           @map("criado_em") @db.Timestamptz(3)
+  encerradaPorId            String?            @map("encerrada_por_id") @db.Uuid
+  encerradaEm               DateTime?          @map("encerrada_em") @db.Timestamptz(3)
+  motivoEncerramento        String?            @map("motivo_encerramento")
+
+  janela                  JanelaDevolucao         @relation(fields: [escopoId, janelaId], references: [escopoId, id])
+  criadoPor               Usuario                 @relation("ReservaCriadaPor", fields: [criadoPorId], references: [id])
+  encerradaPor            Usuario?                @relation("ReservaEncerradaPor", fields: [encerradaPorId], references: [id], onDelete: Restrict)
+  preparacaoResponsavel   Usuario?                @relation("PreparacaoResponsavel", fields: [preparacaoResponsavelId], references: [id], onDelete: Restrict)
+  preparacaoRegistradaPor Usuario?                @relation("PreparacaoRegistradaPor", fields: [preparacaoRegistradaPorId], references: [id], onDelete: Restrict)
+  linhas                  LinhaReserva[]
+  unidadesCarga           UnidadeCargaReserva[]
+  metricas                MetricaReserva[]
+  expedicao               Expedicao?
+  eventos                 EventoJanela[]
+  selecoes                VinculoSelecaoReserva[]
+
+  @@unique([escopoId, numero])
+  @@unique([escopoId, id])
+  @@index([escopoId, janelaId, situacao])
+  @@map("reserva_janela")
+}
+
+/// Material reservado (palete × segmento), com fotografia da identidade e do
+/// endereço no momento da reserva.
+model LinhaReserva {
+  id                  String               @id @db.Uuid
+  escopoId            String               @map("escopo_id") @db.Uuid
+  reservaId           String               @map("reserva_id") @db.Uuid
+  paleteId            String               @map("palete_id") @db.Uuid
+  segmentoId          String               @map("segmento_id") @db.Uuid
+  quantidade          Decimal              @db.Decimal(18, 3)
+  unidade             String
+  sku                 String
+  descricao           String
+  lote                String?
+  origemTipo          TipoOrigemDocumento? @map("origem_tipo")
+  origemReferencia    String?              @map("origem_referencia")
+  condicao            CondicaoMaterial
+  paleteCodigo        String               @map("palete_codigo")
+  posicaoCodigo       String?              @map("posicao_codigo")
+  quantidadePreparada Decimal?             @map("quantidade_preparada") @db.Decimal(18, 3)
+  quantidadeEnviada   Decimal?             @map("quantidade_enviada") @db.Decimal(18, 3)
+  quantidadeLiberada  Decimal?             @map("quantidade_liberada") @db.Decimal(18, 3)
+
+  reserva   ReservaJanela           @relation(fields: [escopoId, reservaId], references: [escopoId, id])
+  palete    Palete                  @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+  segmento  SegmentoEstoque         @relation(fields: [escopoId, segmentoId], references: [escopoId, id])
+  expedicao LinhaExpedicao?
+  selecoes  VinculoSelecaoReserva[]
+
+  @@unique([reservaId, paleteId, segmentoId])
+  @@unique([escopoId, id])
+  @@index([escopoId, paleteId, segmentoId])
+  @@map("linha_reserva")
+}
+
+/// Unidade de carga planejada da reserva: o palete físico, com as medidas
+/// informadas (caixas, peso com base, volume) e a fonte. Alterações geram
+/// evento com antes/depois.
+model UnidadeCargaReserva {
+  id             String    @id @db.Uuid
+  escopoId       String    @map("escopo_id") @db.Uuid
+  reservaId      String    @map("reserva_id") @db.Uuid
+  paleteId       String    @map("palete_id") @db.Uuid
+  caixas         Int?
+  pesoKg         Decimal?  @map("peso_kg") @db.Decimal(18, 3)
+  basePeso       BasePeso? @map("base_peso")
+  volumeM3       Decimal?  @map("volume_m3") @db.Decimal(18, 3)
+  fonteMedida    String?   @map("fonte_medida")
+  informadoPorId String    @map("informado_por_id") @db.Uuid
+  informadoEm    DateTime  @map("informado_em") @db.Timestamptz(3)
+  versao         Int       @default(1)
+
+  reserva      ReservaJanela @relation(fields: [escopoId, reservaId], references: [escopoId, id])
+  palete       Palete        @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+  informadoPor Usuario       @relation("MedidaInformadaPor", fields: [informadoPorId], references: [id])
+
+  @@unique([reservaId, paleteId])
+  @@map("unidade_carga_reserva")
+}
+
+/// Capacidade que a reserva consome em cada restrição (valor atual) e o valor
+/// da fotografia inicial, com a base de cálculo (fator/fonte).
+model MetricaReserva {
+  id           String            @id @db.Uuid
+  escopoId     String            @map("escopo_id") @db.Uuid
+  reservaId    String            @map("reserva_id") @db.Uuid
+  restricaoId  String            @map("restricao_id") @db.Uuid
+  metrica      MetricaCapacidade
+  unidade      String
+  valor        Decimal           @db.Decimal(18, 3)
+  valorInicial Decimal           @map("valor_inicial") @db.Decimal(18, 3)
+  base         String
+
+  reserva   ReservaJanela   @relation(fields: [escopoId, reservaId], references: [escopoId, id])
+  restricao RestricaoJanela @relation(fields: [escopoId, restricaoId], references: [escopoId, id])
+
+  @@unique([reservaId, restricaoId])
+  @@index([restricaoId])
+  @@map("metrica_reserva")
+}
+
+/// Expedição física confirmada (imutável; correções de informação geram nova
+/// versão com motivo). Uma por reserva: a baixa acontece uma única vez.
+model Expedicao {
+  id              String   @id @db.Uuid
+  escopoId        String   @map("escopo_id") @db.Uuid
+  janelaId        String   @map("janela_id") @db.Uuid
+  reservaId       String   @map("reserva_id") @db.Uuid
+  numero          Int
+  codigo          String
+  saidaEm         DateTime @map("saida_em") @db.Timestamptz(3)
+  responsavelId   String   @map("responsavel_id") @db.Uuid
+  confirmadaPorId String   @map("confirmada_por_id") @db.Uuid
+  confirmadaEm    DateTime @map("confirmada_em") @db.Timestamptz(3)
+  parcial         Boolean
+  observacoes     String?
+  versao          Int      @default(1)
+
+  janela         JanelaDevolucao         @relation(fields: [escopoId, janelaId], references: [escopoId, id])
+  reserva        ReservaJanela           @relation(fields: [escopoId, reservaId], references: [escopoId, id])
+  responsavel    Usuario                 @relation("ExpedicaoResponsavel", fields: [responsavelId], references: [id])
+  confirmadaPor  Usuario                 @relation("ExpedicaoConfirmadaPor", fields: [confirmadaPorId], references: [id])
+  linhas         LinhaExpedicao[]
+  unidadesCarga  UnidadeCargaExpedicao[]
+  metricas       MetricaExpedicao[]
+  documentos     DocumentoExpedicao[]
+  correcoes      CorrecaoExpedicao[]
+  retornos       RetornoExpedicao[]
+  eventosEstoque EventoEstoque[]
+  eventos        EventoJanela[]
+
+  /// Uma expedição por reserva: a baixa acontece uma única vez.
+  @@unique([escopoId, reservaId])
+  @@unique([escopoId, numero])
+  @@unique([escopoId, id])
+  @@index([escopoId, confirmadaEm], map: "expedicao_escopo_confirmada_idx")
+  @@map("expedicao")
+}
+
+/// Linha expedida: reservado = enviado + restante liberado (CHECK). O
+/// retornado (retornos físicos registrados) nunca passa do enviado.
+model LinhaExpedicao {
+  id                  String               @id @db.Uuid
+  escopoId            String               @map("escopo_id") @db.Uuid
+  expedicaoId         String               @map("expedicao_id") @db.Uuid
+  linhaReservaId      String               @map("linha_reserva_id") @db.Uuid
+  paleteId            String               @map("palete_id") @db.Uuid
+  segmentoId          String               @map("segmento_id") @db.Uuid
+  unidade             String
+  sku                 String
+  descricao           String
+  lote                String?
+  origemTipo          TipoOrigemDocumento? @map("origem_tipo")
+  origemReferencia    String?              @map("origem_referencia")
+  condicao            CondicaoMaterial
+  paleteCodigo        String               @map("palete_codigo")
+  posicaoCodigo       String?              @map("posicao_codigo")
+  quantidadeReservada Decimal              @map("quantidade_reservada") @db.Decimal(18, 3)
+  quantidadeEnviada   Decimal              @map("quantidade_enviada") @db.Decimal(18, 3)
+  quantidadeLiberada  Decimal              @map("quantidade_liberada") @db.Decimal(18, 3)
+  quantidadeRetornada Decimal              @default(0) @map("quantidade_retornada") @db.Decimal(18, 3)
+
+  expedicao    Expedicao       @relation(fields: [escopoId, expedicaoId], references: [escopoId, id])
+  linhaReserva LinhaReserva    @relation(fields: [escopoId, linhaReservaId], references: [escopoId, id])
+  palete       Palete          @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+  segmento     SegmentoEstoque @relation(fields: [escopoId, segmentoId], references: [escopoId, id])
+  retornos     LinhaRetorno[]
+
+  @@unique([escopoId, linhaReservaId])
+  @@unique([escopoId, id])
+  @@index([expedicaoId])
+  @@map("linha_expedicao")
+}
+
+/// Unidade de carga efetivamente enviada, com as medidas reais.
+model UnidadeCargaExpedicao {
+  id           String    @id @db.Uuid
+  escopoId     String    @map("escopo_id") @db.Uuid
+  expedicaoId  String    @map("expedicao_id") @db.Uuid
+  paleteId     String    @map("palete_id") @db.Uuid
+  paleteCodigo String    @map("palete_codigo")
+  caixas       Int?
+  pesoKg       Decimal?  @map("peso_kg") @db.Decimal(18, 3)
+  basePeso     BasePeso? @map("base_peso")
+  volumeM3     Decimal?  @map("volume_m3") @db.Decimal(18, 3)
+  fonteMedida  String?   @map("fonte_medida")
+  /// O palete físico inteiro saiu (sem saldo restante): posição liberada.
+  paleteSaiu   Boolean   @map("palete_saiu")
+
+  expedicao Expedicao @relation(fields: [escopoId, expedicaoId], references: [escopoId, id])
+  palete    Palete    @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+
+  @@unique([expedicaoId, paleteId])
+  @@map("unidade_carga_expedicao")
+}
+
+/// Capacidade convertida de reservada em expedida (e a diferença liberada).
+model MetricaExpedicao {
+  id             String            @id @db.Uuid
+  escopoId       String            @map("escopo_id") @db.Uuid
+  expedicaoId    String            @map("expedicao_id") @db.Uuid
+  restricaoId    String            @map("restricao_id") @db.Uuid
+  metrica        MetricaCapacidade
+  unidade        String
+  valorReservado Decimal           @map("valor_reservado") @db.Decimal(18, 3)
+  valorExpedido  Decimal           @map("valor_expedido") @db.Decimal(18, 3)
+  valorLiberado  Decimal           @map("valor_liberado") @db.Decimal(18, 3)
+
+  expedicao Expedicao       @relation(fields: [escopoId, expedicaoId], references: [escopoId, id])
+  restricao RestricaoJanela @relation(fields: [escopoId, restricaoId], references: [escopoId, id])
+
+  @@unique([expedicaoId, restricaoId])
+  @@index([restricaoId])
+  @@map("metrica_expedicao")
+}
+
+/// Documento/comprovante da expedição na versão indicada (correções acrescentam nova versão).
+model DocumentoExpedicao {
+  id          String  @id @db.Uuid
+  escopoId    String  @map("escopo_id") @db.Uuid
+  expedicaoId String  @map("expedicao_id") @db.Uuid
+  versao      Int
+  ordem       Int
+  nome        String
+  referencia  String?
+  anexoId     String? @map("anexo_id") @db.Uuid
+
+  expedicao Expedicao    @relation(fields: [escopoId, expedicaoId], references: [escopoId, id])
+  anexo     AnexoJanela? @relation(fields: [escopoId, anexoId], references: [escopoId, id], onDelete: Restrict)
+
+  @@unique([expedicaoId, versao, ordem])
+  @@map("documento_expedicao")
+}
+
+/// Correção de informação da expedição (sem efeito físico), imutável.
+model CorrecaoExpedicao {
+  id          String   @id @db.Uuid
+  escopoId    String   @map("escopo_id") @db.Uuid
+  expedicaoId String   @map("expedicao_id") @db.Uuid
+  versao      Int
+  motivo      String
+  antes       Json
+  depois      Json
+  autorId     String   @map("autor_id") @db.Uuid
+  criadoEm    DateTime @map("criado_em") @db.Timestamptz(3)
+
+  expedicao Expedicao @relation(fields: [escopoId, expedicaoId], references: [escopoId, id])
+  autor     Usuario   @relation("CorrecaoExpedicaoAutor", fields: [autorId], references: [id])
+
+  @@unique([expedicaoId, versao])
+  @@map("correcao_expedicao")
+}
+
+/// Retorno ligado à expedição original. Aviso documental não tem
+/// quantidade física; recebimento físico limita-se ao enviado e gera
+/// declaração no palete de destino (a entrada no estoque é a reconciliação).
+model RetornoExpedicao {
+  id              String           @id @db.Uuid
+  escopoId        String           @map("escopo_id") @db.Uuid
+  expedicaoId     String           @map("expedicao_id") @db.Uuid
+  numero          Int
+  codigo          String
+  tipo            TipoRetorno
+  recebidoEm      DateTime         @map("recebido_em") @db.Timestamptz(3)
+  motivo          String
+  condicao        CondicaoMaterial
+  paleteDestinoId String?          @map("palete_destino_id") @db.Uuid
+  anexoIds        String[]         @map("anexo_ids") @db.Uuid
+  observacoes     String?
+  registradoPorId String           @map("registrado_por_id") @db.Uuid
+  criadoEm        DateTime         @map("criado_em") @db.Timestamptz(3)
+
+  expedicao     Expedicao      @relation(fields: [escopoId, expedicaoId], references: [escopoId, id])
+  paleteDestino Palete?        @relation(fields: [escopoId, paleteDestinoId], references: [escopoId, id], onDelete: Restrict)
+  registradoPor Usuario        @relation("RetornoRegistradoPor", fields: [registradoPorId], references: [id])
+  linhas        LinhaRetorno[]
+  eventos       EventoJanela[]
+
+  @@unique([escopoId, numero])
+  @@unique([escopoId, id])
+  @@map("retorno_expedicao")
+}
+
+model LinhaRetorno {
+  id               String  @id @db.Uuid
+  escopoId         String  @map("escopo_id") @db.Uuid
+  retornoId        String  @map("retorno_id") @db.Uuid
+  linhaExpedicaoId String  @map("linha_expedicao_id") @db.Uuid
+  quantidade       Decimal @db.Decimal(18, 3)
+
+  retorno        RetornoExpedicao @relation(fields: [escopoId, retornoId], references: [escopoId, id])
+  linhaExpedicao LinhaExpedicao   @relation(fields: [escopoId, linhaExpedicaoId], references: [escopoId, id])
+  declaracoes    ItemDeclarado[]
+
+  @@unique([retornoId, linhaExpedicaoId])
+  @@unique([escopoId, id])
+  @@index([linhaExpedicaoId])
+  @@map("linha_retorno")
+}
+
+/// Anexo privado da janela (autorização, documentos de expedição, evidência de retorno).
+model AnexoJanela {
+  id           String   @id @db.Uuid
+  escopoId     String   @map("escopo_id") @db.Uuid
+  janelaId     String   @map("janela_id") @db.Uuid
+  nome         String
+  tipoConteudo String   @map("tipo_conteudo")
+  tamanho      Int
+  sha256       String
+  conteudo     Bytes
+  enviadoPorId String   @map("enviado_por_id") @db.Uuid
+  enviadoEm    DateTime @map("enviado_em") @db.Timestamptz(3)
+
+  janela     JanelaDevolucao      @relation(fields: [escopoId, janelaId], references: [escopoId, id])
+  enviadoPor Usuario              @relation("AnexoJanelaEnviadoPor", fields: [enviadoPorId], references: [id])
+  documentos DocumentoExpedicao[]
+
+  @@unique([escopoId, id])
+  @@unique([janelaId, sha256])
+  @@map("anexo_janela")
+}
+
+/// Histórico de domínio da janela (imutável).
+model EventoJanela {
+  id          String   @id @db.Uuid
+  escopoId    String   @map("escopo_id") @db.Uuid
+  janelaId    String   @map("janela_id") @db.Uuid
+  reservaId   String?  @map("reserva_id") @db.Uuid
+  expedicaoId String?  @map("expedicao_id") @db.Uuid
+  retornoId   String?  @map("retorno_id") @db.Uuid
+  tipo        String
+  autorId     String   @map("autor_id") @db.Uuid
+  ocorridoEm  DateTime @map("ocorrido_em") @db.Timestamptz(3)
+  resumo      String
+  detalhes    Json
+
+  janela    JanelaDevolucao   @relation(fields: [escopoId, janelaId], references: [escopoId, id])
+  reserva   ReservaJanela?    @relation(fields: [escopoId, reservaId], references: [escopoId, id], onDelete: Restrict)
+  expedicao Expedicao?        @relation(fields: [escopoId, expedicaoId], references: [escopoId, id], onDelete: Restrict)
+  retorno   RetornoExpedicao? @relation(fields: [escopoId, retornoId], references: [escopoId, id], onDelete: Restrict)
+  autor     Usuario           @relation("EventoJanelaAutor", fields: [autorId], references: [id])
+
+  @@index([escopoId, janelaId, ocorridoEm])
+  @@map("evento_janela")
+}
+
+// ---------- Endereços reais da praça (complemento: seleção do cliente) ----------
+
+/// Sequência de endereços reais de uma faixa do desenho, informada pela
+/// operação: segmentos ("A101-A133/2"; "A79-A89/2, A103-A123/2") e sentido em
+/// relação à ordem visual (P01 no topo). Gera a proposta da tabela de
+/// correspondência; nada é presumido para faixas sem sequência.
+model SequenciaEnderecoFaixa {
+  id             String           @id @db.Uuid
+  escopoId       String           @map("escopo_id") @db.Uuid
+  layoutId       String           @map("layout_id") @db.Uuid
+  fileiraId      String           @map("fileira_id") @db.Uuid
+  segmentos      String
+  sentido        SentidoSequencia
+  /// De onde veio a sequência (levantamento, informação do operador…).
+  fonte          String
+  observacao     String?
+  informadoPorId String           @map("informado_por_id") @db.Uuid
+  informadoEm    DateTime         @map("informado_em") @db.Timestamptz(3)
+  versao         Int              @default(1)
+
+  layout       Layout  @relation(fields: [escopoId, layoutId], references: [escopoId, id])
+  fileira      Fileira @relation(fields: [escopoId, fileiraId], references: [escopoId, id])
+  informadoPor Usuario @relation("SequenciaInformadaPor", fields: [informadoPorId], references: [id])
+
+  @@unique([escopoId, fileiraId])
+  @@unique([escopoId, id])
+  @@map("sequencia_endereco_faixa")
+}
+
+/// Tabela explícita de correspondência: posição desenhada (ID permanente) ×
+/// fileira operacional × lado × ordem visual × endereço real. Só a
+/// correspondência CONFIRMADA resolve um endereço para uma posição do mapa.
+model EnderecoPosicao {
+  id              String           @id @db.Uuid
+  escopoId        String           @map("escopo_id") @db.Uuid
+  layoutId        String           @map("layout_id") @db.Uuid
+  posicaoId       String           @map("posicao_id") @db.Uuid
+  fileiraId       String           @map("fileira_id") @db.Uuid
+  /// Fileira operacional ou GR (prefixo do bloco).
+  prefixo         String
+  /// Código local na fileira (ex.: "A120"; na GR, "5").
+  codigoLocal     String           @map("codigo_local")
+  /// Endereço canônico "15 - A120".
+  endereco        String
+  /// Chave de comparação "15|A120".
+  chave           String
+  lado            String
+  ordemVisual     Int              @map("ordem_visual")
+  situacao        SituacaoEndereco
+  /// SEQUENCIA (gerada de sequência informada), MANUAL ou DEMONSTRACAO.
+  origem          String
+  propostoPorId   String?          @map("proposto_por_id") @db.Uuid
+  propostoEm      DateTime         @map("proposto_em") @db.Timestamptz(3)
+  confirmadoPorId String?          @map("confirmado_por_id") @db.Uuid
+  confirmadoEm    DateTime?        @map("confirmado_em") @db.Timestamptz(3)
+  versao          Int              @default(1)
+
+  layout        Layout   @relation(fields: [escopoId, layoutId], references: [escopoId, id])
+  posicao       Posicao  @relation(fields: [escopoId, posicaoId], references: [escopoId, id])
+  fileira       Fileira  @relation(fields: [escopoId, fileiraId], references: [escopoId, id])
+  propostoPor   Usuario? @relation("EnderecoPropostoPor", fields: [propostoPorId], references: [id])
+  confirmadoPor Usuario? @relation("EnderecoConfirmadoPor", fields: [confirmadoPorId], references: [id])
+
+  @@unique([escopoId, posicaoId])
+  @@unique([layoutId, chave])
+  @@unique([escopoId, id])
+  @@index([escopoId, chave])
+  @@map("endereco_posicao")
+}
+
+// ---------- Inventário de referência (complemento: seleção do cliente) ----------
+
+/// Fotografia de um inventário enviado ao cliente: importado (arquivo
+/// conferido) ou gerado pela aplicação. Preservada mesmo depois de movimentos.
+/// Importar não cria saldo validado; a conferência externa é reconhecida à parte.
+model InventarioReferencia {
+  id                           String             @id @db.Uuid
+  escopoId                     String             @map("escopo_id") @db.Uuid
+  numero                       Int
+  codigo                       String
+  /// Identificação dada por quem importou (ex.: "versão definitiva conferida em 28/09").
+  descricao                    String
+  /// IMPORTADO ou APLICACAO.
+  origem                       String
+  loteImportacaoId             String?            @map("lote_importacao_id") @db.Uuid
+  referenciaConferencia        String             @map("referencia_conferencia")
+  /// Data da conferência informada (nunca presumida pela data do envio).
+  dataConferencia              DateTime?          @map("data_conferencia") @db.Date
+  fonteConferencia             String?            @map("fonte_conferencia")
+  nomeArquivo                  String?            @map("nome_arquivo")
+  hashArquivo                  String?            @map("hash_arquivo")
+  aba                          String?
+  /// IDENTIFICADOR_PALETE ou NUMERACAO_POSICAO (confirmado por quem importa).
+  significadoNumeroPalete      String             @map("significado_numero_palete")
+  /// Convenções confirmadas (cor de fonte, tipos documentais…).
+  convencoes                   Json
+  situacao                     SituacaoInventario
+  /// Versão anterior substituída por esta (revisão com diferenças).
+  substituiId                  String?            @unique @map("substitui_id") @db.Uuid
+  totalLinhas                  Int                @map("total_linhas")
+  aplicadas                    Int
+  pendentes                    Int
+  historicas                   Int
+  conferenciaExternaSituacao   String             @default("NAO_REGISTRADA") @map("conferencia_externa_situacao")
+  conferenciaExternaReferencia String?            @map("conferencia_externa_referencia")
+  conferenciaExternaData       DateTime?          @map("conferencia_externa_data") @db.Date
+  conferenciaExternaFonte      String?            @map("conferencia_externa_fonte")
+  conferenciaExternaObservacao String?            @map("conferencia_externa_observacao")
+  conferenciaExternaPorId      String?            @map("conferencia_externa_por_id") @db.Uuid
+  conferenciaExternaEm         DateTime?          @map("conferencia_externa_em") @db.Timestamptz(3)
+  criadoPorId                  String             @map("criado_por_id") @db.Uuid
+  criadoEm                     DateTime           @map("criado_em") @db.Timestamptz(3)
+  versao                       Int                @default(1)
+
+  escopo                Escopo                   @relation(fields: [escopoId], references: [id])
+  loteImportacao        LoteImportacao?          @relation(fields: [escopoId, loteImportacaoId], references: [escopoId, id])
+  substitui             InventarioReferencia?    @relation("VersaoInventario", fields: [substituiId], references: [id])
+  substituidoPor        InventarioReferencia?    @relation("VersaoInventario")
+  criadoPor             Usuario                  @relation("InventarioCriadoPor", fields: [criadoPorId], references: [id])
+  conferenciaExternaPor Usuario?                 @relation("ConferenciaExternaPor", fields: [conferenciaExternaPorId], references: [id])
+  linhas                LinhaInventario[]
+  vinculos              VinculoDocumentoPalete[]
+  selecoes              SelecaoCliente[]
+
+  @@unique([escopoId, numero])
+  @@unique([escopoId, loteImportacaoId])
+  @@unique([escopoId, id])
+  @@map("inventario_referencia")
+}
+
+/// Linha do inventário como informada (aplicada ou não). Valores originais e
+/// normalizações preservados; demais colunas do arquivo em `extras`.
+model LinhaInventario {
+  id                  String              @id @db.Uuid
+  escopoId            String              @map("escopo_id") @db.Uuid
+  inventarioId        String              @map("inventario_id") @db.Uuid
+  loteImportacaoId    String              @map("lote_importacao_id") @db.Uuid
+  linhaArquivo        Int                 @map("linha_arquivo")
+  delivery            String?
+  tipoDocumento       String?             @map("tipo_documento")
+  numeroDocumento     String?             @map("numero_documento")
+  /// TIPO|NUMERO (contexto documental + número); nula sem número.
+  chaveDocumento      String?             @map("chave_documento")
+  volumes             Decimal?            @db.Decimal(18, 3)
+  volumesLido         String?             @map("volumes_lido")
+  remetente           String?
+  mesAgenda           String?             @map("mes_agenda")
+  janelaReferencia    String?             @map("janela_referencia")
+  enderecoLido        String?             @map("endereco_lido")
+  /// Endereço normalizado por regra registrada ("15 - A120"); nulo se ilegível.
+  enderecoCanonico    String?             @map("endereco_canonico")
+  /// Convenção vigente do arquivo: endereço livre (dado remanescente, não ocupa).
+  enderecoLivre       Boolean             @default(false) @map("endereco_livre")
+  numeroPalete        String?             @map("numero_palete")
+  documentacao        String?
+  palletFull          String?             @map("pallet_full")
+  categoria           String?
+  extras              Json
+  /// Identidade documental (SHA-256 do contexto [tipo, número, DELIVERY|REMETENTE, valor]);
+  /// nula sem número de documento. Agrupa a mesma NF em vários endereços.
+  identidadeDocumento String?             @map("identidade_documento")
+  /// Palete resolvido ou criado pela confirmação (nulo se não aplicada).
+  paleteId            String?             @map("palete_id") @db.Uuid
+  /// Posição do mapa resolvida pela tabela confirmada no momento da importação.
+  posicaoId           String?             @map("posicao_id") @db.Uuid
+  acao                AcaoLinhaInventario
+  aplicada            Boolean
+  motivos             Json
+  /// Linha posterior (reapresentação corrigida) que resolveu esta pendência.
+  resolvidaPorId      String?             @map("resolvida_por_id") @db.Uuid
+  criadoEm            DateTime            @map("criado_em") @db.Timestamptz(3)
+
+  inventario     InventarioReferencia     @relation(fields: [escopoId, inventarioId], references: [escopoId, id])
+  loteImportacao LoteImportacao           @relation(fields: [escopoId, loteImportacaoId], references: [escopoId, id])
+  palete         Palete?                  @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+  posicao        Posicao?                 @relation(fields: [escopoId, posicaoId], references: [escopoId, id])
+  resolvidaPor   LinhaInventario?         @relation("ReapresentacaoInventario", fields: [resolvidaPorId], references: [id])
+  resolve        LinhaInventario[]        @relation("ReapresentacaoInventario")
+  vinculos       VinculoDocumentoPalete[]
+
+  @@unique([loteImportacaoId, linhaArquivo])
+  @@unique([escopoId, id])
+  @@index([escopoId, inventarioId])
+  @@index([escopoId, chaveDocumento])
+  @@index([escopoId, numeroPalete])
+  @@index([escopoId, identidadeDocumento])
+  @@index([escopoId, paleteId])
+  @@map("linha_inventario")
+}
+
+/// Vínculo documental NF × palete informado por inventário (fonte e data).
+/// Não comprova quantidade por produto nem cria saldo validado; volumes ficam
+/// na unidade informada (abrangência a confirmar).
+model VinculoDocumentoPalete {
+  id                    String    @id @db.Uuid
+  escopoId              String    @map("escopo_id") @db.Uuid
+  paleteId              String    @map("palete_id") @db.Uuid
+  inventarioId          String    @map("inventario_id") @db.Uuid
+  linhaInventarioId     String    @map("linha_inventario_id") @db.Uuid
+  tipoDocumento         String?   @map("tipo_documento")
+  numeroDocumento       String    @map("numero_documento")
+  chaveDocumento        String    @map("chave_documento")
+  delivery              String?
+  volumes               Decimal?  @db.Decimal(18, 3)
+  unidadeVolumes        String    @map("unidade_volumes")
+  documentacao          String?
+  palletFull            String?   @map("pallet_full")
+  /// Chave estável (palete + documento + delivery + ordem da parcela) para reenvio e versão nova.
+  chave                 String
+  /// Identidade documental (mesmo cálculo da linha): agrupa a mesma NF em
+  /// vários paletes e separa o mesmo número em contextos diferentes.
+  identidadeDocumento   String?   @map("identidade_documento")
+  /// Chave externa do vínculo no pacote de carga em lote (reenvio não duplica).
+  chaveExterna          String?   @map("chave_externa")
+  /// Fotografia das indicações preparadas no pacote (palete full, vários
+  /// paletes, partes, pendências, volumes por linha). As indicações exibidas
+  /// são recalculadas dos vínculos atuais; esta fica como referência.
+  fotografia            Json?
+  /// ATIVO ou ENCERRADO (versão nova revisada não o contém mais; histórico preservado).
+  situacao              String
+  conferidoExternamente Boolean   @default(false) @map("conferido_externamente")
+  criadoPorId           String    @map("criado_por_id") @db.Uuid
+  criadoEm              DateTime  @map("criado_em") @db.Timestamptz(3)
+  encerradoPorId        String?   @map("encerrado_por_id") @db.Uuid
+  encerradoEm           DateTime? @map("encerrado_em") @db.Timestamptz(3)
+  motivoEncerramento    String?   @map("motivo_encerramento")
+
+  palete          Palete               @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+  inventario      InventarioReferencia @relation(fields: [escopoId, inventarioId], references: [escopoId, id])
+  linhaInventario LinhaInventario      @relation(fields: [escopoId, linhaInventarioId], references: [escopoId, id])
+  criadoPor       Usuario              @relation("VinculoDocumentoCriadoPor", fields: [criadoPorId], references: [id])
+  encerradoPor    Usuario?             @relation("VinculoDocumentoEncerradoPor", fields: [encerradoPorId], references: [id])
+
+  @@unique([escopoId, id])
+  @@index([escopoId, chaveDocumento])
+  @@index([escopoId, paleteId])
+  @@index([escopoId, chave])
+  @@index([escopoId, identidadeDocumento])
+  @@map("vinculo_documento_palete")
+}
+
+// ---------- Informações complementares da NF (carga do inventário em lote) ----------
+
+/// Cidade destino da NF (identidade documental), editável depois da carga.
+/// Fica fora da fotografia do inventário (imutável): reimportar campo vazio não
+/// apaga o que foi preenchido. Vazia = ainda não informada (nunca inferida).
+model InformacaoDocumento {
+  id                  String   @id @db.Uuid
+  escopoId            String   @map("escopo_id") @db.Uuid
+  identidadeDocumento String   @map("identidade_documento")
+  tipoDocumento       String?  @map("tipo_documento")
+  numeroDocumento     String   @map("numero_documento")
+  cidadeDestino       String   @default("") @map("cidade_destino")
+  versao              Int      @default(1)
+  atualizadoPorId     String?  @map("atualizado_por_id") @db.Uuid
+  atualizadoEm        DateTime @map("atualizado_em") @db.Timestamptz(3)
+
+  escopo        Escopo   @relation(fields: [escopoId], references: [id])
+  atualizadoPor Usuario? @relation("InformacaoDocumentoAtualizadaPor", fields: [atualizadoPorId], references: [id])
+
+  @@unique([escopoId, identidadeDocumento])
+  @@unique([escopoId, id])
+  @@map("informacao_documento")
+}
+
+/// Produto na caixa: descrição livre do vínculo NF × palete, editável. Não cria
+/// saldo por SKU nem converte volumes em peças.
+model ConteudoDocumentoPalete {
+  id                  String   @id @db.Uuid
+  escopoId            String   @map("escopo_id") @db.Uuid
+  paleteId            String   @map("palete_id") @db.Uuid
+  identidadeDocumento String   @map("identidade_documento")
+  produtoNaCaixa      String   @default("") @map("produto_na_caixa")
+  versao              Int      @default(1)
+  atualizadoPorId     String?  @map("atualizado_por_id") @db.Uuid
+  atualizadoEm        DateTime @map("atualizado_em") @db.Timestamptz(3)
+
+  palete        Palete                    @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+  atualizadoPor Usuario?                  @relation("ConteudoDocumentoAtualizadoPor", fields: [atualizadoPorId], references: [id])
+  descricoes    DescricaoCaixaDocumento[]
+
+  @@unique([escopoId, paleteId, identidadeDocumento])
+  @@unique([escopoId, id])
+  @@map("conteudo_documento_palete")
+}
+
+/// Descrição acrescentada depois para uma caixa ou grupo de caixas da mesma NF
+/// no palete (conteúdos diferentes). Retirar preserva o registro.
+model DescricaoCaixaDocumento {
+  id            String    @id @db.Uuid
+  escopoId      String    @map("escopo_id") @db.Uuid
+  conteudoId    String    @map("conteudo_id") @db.Uuid
+  /// Caixa ou grupo, como a operação identifica (ex.: "Caixa 3", "Caixas 1 a 4").
+  grupo         String
+  descricao     String
+  criadoPorId   String    @map("criado_por_id") @db.Uuid
+  criadoEm      DateTime  @map("criado_em") @db.Timestamptz(3)
+  removidaEm    DateTime? @map("removida_em") @db.Timestamptz(3)
+  removidaPorId String?   @map("removida_por_id") @db.Uuid
+  motivoRemocao String?   @map("motivo_remocao")
+
+  conteudo    ConteudoDocumentoPalete @relation(fields: [escopoId, conteudoId], references: [escopoId, id])
+  criadoPor   Usuario                 @relation("DescricaoCaixaCriadaPor", fields: [criadoPorId], references: [id])
+  removidaPor Usuario?                @relation("DescricaoCaixaRemovidaPor", fields: [removidaPorId], references: [id])
+
+  @@index([escopoId, conteudoId])
+  @@map("descricao_caixa_documento")
+}
+
+// ---------- Seleção do cliente ----------
+
+/// Solicitação do cliente (pedido/versão) importada com prévia. Não altera
+/// estoque, não reserva e não libera: identifica o material pedido. Versão
+/// nova da mesma referência substitui a anterior com diferenças registradas.
+model SelecaoCliente {
+  id               String            @id @db.Uuid
+  escopoId         String            @map("escopo_id") @db.Uuid
+  numero           Int
+  codigo           String
+  referenciaPedido String            @map("referencia_pedido")
+  /// Revisão rastreada da mesma referência (1, 2…).
+  versaoPedido     Int               @map("versao_pedido")
+  /// Versão como informada pelo cliente, quando houver.
+  rotuloVersao     String?           @map("rotulo_versao")
+  modalidade       ModalidadeSelecao
+  inventarioId     String?           @map("inventario_id") @db.Uuid
+  loteImportacaoId String            @map("lote_importacao_id") @db.Uuid
+  parametros       Json
+  situacao         SituacaoSelecao
+  substituiId      String?           @unique @map("substitui_id") @db.Uuid
+  diferencas       Json?
+  totalLinhas      Int               @map("total_linhas")
+  linhasExcluidas  Int               @map("linhas_excluidas")
+  /// Controle de concorrência (resoluções e encaminhamentos).
+  versao           Int               @default(1)
+  criadoPorId      String            @map("criado_por_id") @db.Uuid
+  criadoEm         DateTime          @map("criado_em") @db.Timestamptz(3)
+
+  escopo         Escopo                  @relation(fields: [escopoId], references: [id])
+  inventario     InventarioReferencia?   @relation(fields: [escopoId, inventarioId], references: [escopoId, id])
+  loteImportacao LoteImportacao          @relation(fields: [escopoId, loteImportacaoId], references: [escopoId, id])
+  substitui      SelecaoCliente?         @relation("VersaoSelecao", fields: [substituiId], references: [id])
+  substituidaPor SelecaoCliente?         @relation("VersaoSelecao")
+  criadoPor      Usuario                 @relation("SelecaoCriadaPor", fields: [criadoPorId], references: [id])
+  linhas         LinhaSelecao[]
+  reservas       VinculoSelecaoReserva[]
+
+  @@unique([escopoId, numero])
+  @@unique([escopoId, referenciaPedido, versaoPedido])
+  @@unique([escopoId, loteImportacaoId])
+  @@unique([escopoId, id])
+  @@map("selecao_cliente")
+}
+
+/// Solicitação explícita do cliente (uma linha do arquivo), com a abrangência
+/// registrada e os valores originais. Ausência de quantidade fica nula.
+model LinhaSelecao {
+  id                   String             @id @db.Uuid
+  escopoId             String             @map("escopo_id") @db.Uuid
+  selecaoId            String             @map("selecao_id") @db.Uuid
+  linhaArquivo         Int                @map("linha_arquivo")
+  referenciaLinha      String?            @map("referencia_linha")
+  abrangencia          AbrangenciaSelecao
+  /// Como a abrangência foi determinada (coluna ou regra configurada).
+  regraAbrangencia     String             @map("regra_abrangencia")
+  paleteReferencia     String?            @map("palete_referencia")
+  tipoDocumento        String?            @map("tipo_documento")
+  numeroDocumento      String?            @map("numero_documento")
+  chaveDocumento       String?            @map("chave_documento")
+  delivery             String?
+  referenciaInventario String?            @map("referencia_inventario")
+  janelaReferencia     String?            @map("janela_referencia")
+  sku                  String?
+  lote                 String?
+  quantidade           Decimal?           @db.Decimal(18, 3)
+  unidade              String?
+  marcacao             String?
+  observacao           String?
+  lidos                Json
+  /// Chave de negócio (duplicidade e comparação entre versões).
+  chave                String
+  /// Linha repetida agrupada com outra (decisão registrada; nada é somado).
+  duplicadaDeId        String?            @map("duplicada_de_id") @db.Uuid
+  decisaoDuplicidade   String?            @map("decisao_duplicidade")
+
+  selecao     SelecaoCliente          @relation(fields: [escopoId, selecaoId], references: [escopoId, id])
+  duplicadaDe LinhaSelecao?           @relation("DuplicidadeSelecao", fields: [duplicadaDeId], references: [id])
+  duplicatas  LinhaSelecao[]          @relation("DuplicidadeSelecao")
+  resolucoes  ResolucaoLinhaSelecao[]
+  reservas    VinculoSelecaoReserva[]
+
+  @@unique([selecaoId, linhaArquivo])
+  @@unique([escopoId, id])
+  @@index([escopoId, chaveDocumento])
+  @@map("linha_selecao")
+}
+
+/// Resolução explícita de uma identificação ambígua (candidato escolhido e
+/// motivo). Anular preserva o registro.
+model ResolucaoLinhaSelecao {
+  id             String    @id @db.Uuid
+  escopoId       String    @map("escopo_id") @db.Uuid
+  linhaSelecaoId String    @map("linha_selecao_id") @db.Uuid
+  paleteId       String?   @map("palete_id") @db.Uuid
+  chaveDocumento String?   @map("chave_documento")
+  motivo         String
+  autorId        String    @map("autor_id") @db.Uuid
+  criadoEm       DateTime  @map("criado_em") @db.Timestamptz(3)
+  anuladaEm      DateTime? @map("anulada_em") @db.Timestamptz(3)
+  anuladaPorId   String?   @map("anulada_por_id") @db.Uuid
+  motivoAnulacao String?   @map("motivo_anulacao")
+
+  linhaSelecao LinhaSelecao @relation(fields: [escopoId, linhaSelecaoId], references: [escopoId, id])
+  palete       Palete?      @relation(fields: [escopoId, paleteId], references: [escopoId, id])
+  autor        Usuario      @relation("ResolucaoSelecaoAutor", fields: [autorId], references: [id])
+  anuladaPor   Usuario?     @relation("ResolucaoSelecaoAnuladaPor", fields: [anuladaPorId], references: [id])
+
+  @@index([escopoId, linhaSelecaoId])
+  @@map("resolucao_linha_selecao")
+}
+
+/// Encaminhamento de uma linha da seleção para a reserva da etapa 08
+/// (solicitado × reservado × expedido sem dupla contagem).
+model VinculoSelecaoReserva {
+  id             String   @id @db.Uuid
+  escopoId       String   @map("escopo_id") @db.Uuid
+  selecaoId      String   @map("selecao_id") @db.Uuid
+  linhaSelecaoId String   @map("linha_selecao_id") @db.Uuid
+  reservaId      String   @map("reserva_id") @db.Uuid
+  linhaReservaId String   @map("linha_reserva_id") @db.Uuid
+  quantidade     Decimal  @db.Decimal(18, 3)
+  criadoPorId    String   @map("criado_por_id") @db.Uuid
+  criadoEm       DateTime @map("criado_em") @db.Timestamptz(3)
+
+  selecao      SelecaoCliente @relation(fields: [escopoId, selecaoId], references: [escopoId, id])
+  linhaSelecao LinhaSelecao   @relation(fields: [escopoId, linhaSelecaoId], references: [escopoId, id])
+  reserva      ReservaJanela  @relation(fields: [escopoId, reservaId], references: [escopoId, id])
+  linhaReserva LinhaReserva   @relation(fields: [escopoId, linhaReservaId], references: [escopoId, id])
+  criadoPor    Usuario        @relation("EncaminhamentoSelecaoAutor", fields: [criadoPorId], references: [id])
+
+  @@unique([linhaSelecaoId, linhaReservaId])
+  @@index([escopoId, reservaId])
+  @@map("vinculo_selecao_reserva")
+}
+
+// ---------- Planilha única e proteção dos dados ----------
+
+/// Marcação durável de que o escopo mudou (fila da planilha): gravada por
+/// gatilhos de instrução na MESMA transação da alteração (some se ela for
+/// desfeita). Só inserções; o publicador apaga as marcações que o snapshot
+/// publicado já incluiu.
+model AlteracaoPlanilha {
+  id       BigInt   @id @default(autoincrement())
+  escopoId String   @map("escopo_id") @db.Uuid
+  /// Tabela que originou a marcação.
+  origem   String
+  criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  @@index([escopoId, id])
+  @@map("alteracao_planilha")
+}
+
+/// Controle da publicação por escopo: numeração das versões, concessão
+/// exclusiva com expiração (um publicador por vez; recuperação após
+/// reinício) e falhas seguidas com a próxima tentativa.
+model ControlePlanilha {
+  escopoId           String    @id @map("escopo_id") @db.Uuid
+  versaoAtual        Int       @default(0) @map("versao_atual")
+  publicandoDesde    DateTime? @map("publicando_desde") @db.Timestamptz(3)
+  publicandoPor      String?   @map("publicando_por")
+  falhasSeguidas     Int       @default(0) @map("falhas_seguidas")
+  proximaTentativaEm DateTime? @map("proxima_tentativa_em") @db.Timestamptz(3)
+  ultimaFalha        String?   @map("ultima_falha")
+  ultimaFalhaEm      DateTime? @map("ultima_falha_em") @db.Timestamptz(3)
+
+  escopo Escopo @relation(fields: [escopoId], references: [id])
+
+  @@map("controle_planilha")
+}
+
+/// Uma tentativa de gerar e publicar a planilha do escopo (versão única por
+/// escopo). PUBLICADA = arquivo completo validado no destino independente;
+/// GERADA_LOCAL = só no disco do servidor (destino não configurado); FALHOU
+/// = nada substituído (a última versão boa continua valendo).
+model PublicacaoPlanilha {
+  id                       String    @id @db.Uuid
+  escopoId                 String    @map("escopo_id") @db.Uuid
+  versao                   Int
+  situacao                 String
+  /// ALTERACAO, RECONCILIACAO ou MANUAL.
+  motivo                   String
+  solicitadoPorId          String?   @map("solicitado_por_id") @db.Uuid
+  iniciadoEm               DateTime  @map("iniciado_em") @db.Timestamptz(3)
+  concluidoEm              DateTime? @map("concluido_em") @db.Timestamptz(3)
+  /// Instante do snapshot dos dados (todas as abas do mesmo momento).
+  instanteSnapshot         DateTime? @map("instante_snapshot") @db.Timestamptz(3)
+  alteracoesIncluidas      Int       @default(0) @map("alteracoes_incluidas")
+  registros                Json?
+  nomeArquivo              String?   @map("nome_arquivo")
+  hashArquivo              String?   @map("hash_arquivo")
+  tamanhoBytes             Int?      @map("tamanho_bytes")
+  /// PASTA (destino independente configurado) ou LOCAL.
+  destino                  String?
+  /// Identificação da publicação no destino (caminho relativo + versão; nunca URL assinada).
+  identificacaoPublicacao  String?   @map("identificacao_publicacao")
+  versaoAnteriorPreservada String?   @map("versao_anterior_preservada")
+  erro                     String?
+
+  escopo        Escopo   @relation(fields: [escopoId], references: [id])
+  solicitadoPor Usuario? @relation("PublicacaoPlanilhaSolicitadaPor", fields: [solicitadoPorId], references: [id])
+
+  @@unique([escopoId, versao])
+  @@index([escopoId, iniciadoEm])
+  @@map("publicacao_planilha")
+}
+
+/// Resultado registrado de um backup completo ou de um teste de restauração
+/// (rotina em scripts/recuperacao). Só VERIFICADO depois das verificações;
+/// nunca por ter apenas iniciado.
+model RegistroProtecao {
+  id             String   @id @db.Uuid
+  /// BACKUP ou TESTE_RESTAURACAO.
+  tipo           String
+  /// VERIFICADO ou FALHOU.
+  situacao       String
+  iniciadoEm     DateTime @map("iniciado_em") @db.Timestamptz(3)
+  concluidoEm    DateTime @map("concluido_em") @db.Timestamptz(3)
+  identificador  String?
+  tamanhoBytes   BigInt?  @map("tamanho_bytes")
+  /// Descrição do destino (sem segredo) e se fica fora do servidor da aplicação.
+  destino        String?
+  foraDoServidor Boolean  @default(false) @map("fora_do_servidor")
+  /// Banco isolado usado no teste de restauração.
+  ambiente       String?
+  /// OPERACAO ou FICTICIOS.
+  dados          String?
+  responsavel    String?
+  mensagem       String?
+  detalhes       Json?
+
+  @@index([tipo, concluidoEm])
+  @@map("registro_protecao")
+}

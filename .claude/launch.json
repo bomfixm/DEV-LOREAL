@@ -1,0 +1,36 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "praca-reversa-teste",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "praca-reversa",
+        "start"
+      ],
+      "port": 3000,
+      "url": "http://127.0.0.1:3000"
+    },
+    {
+      "name": "praca-reversa-etapa08-3100",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "praca-reversa/apps/api/dist/server.js",
+        "--porta=3100"
+      ],
+      "port": 3100,
+      "url": "http://127.0.0.1:3100"
+    },
+    {
+      "name": "praca-reversa-3100",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd praca-reversa&& set PORT=3100&& node apps/api/dist/server.js"
+      ],
+      "port": 3100,
+      "url": "http://127.0.0.1:3100"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "name": "@praca-reversa/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "API Fastify do Praça Reversa.",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch --import tsx src/server.ts --sem-interface --porta=3000",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
+    "typecheck": "prisma generate && tsc -p tsconfig.json --noEmit",
+    "db:gerar": "prisma generate",
+    "db:migrar": "prisma migrate deploy",
+    "db:nova-migracao": "prisma migrate dev --create-only",
+    "db:semear-demo": "tsx src/cli/semear-demo.ts",
+    "admin:criar": "tsx src/cli/criar-admin.ts",
+    "inventario:carregar": "tsx src/cli/carregar-inventario.ts",
+    "planilha:exemplo": "tsx src/cli/exemplo-planilha.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "11.1.2",
+    "@fastify/static": "10.1.5",
+    "@praca-reversa/contracts": "0.1.0",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "fastify": "5.12.5",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "prisma": "7.10.0",
+    "tsx": "4.23.15"
+  }
+}

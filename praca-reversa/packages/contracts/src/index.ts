@@ -1,0 +1,30 @@
+export * from './estados.js';
+export * from './decimal.js';
+export * from './codigos.js';
+export * from './praca.js';
+export * from './estoque.js';
+export * from './paletes.js';
+export * from './conferencia.js';
+export * from './movimentos.js';
+export * from './produtos.js';
+export * from './acesso.js';
+export * from './admin.js';
+export * from './consulta-praca.js';
+export * from './layout-config.js';
+export * from './etiquetas.js';
+export * from './importacao.js';
+export * from './busca.js';
+export * from './valores.js';
+export * from './claims.js';
+export * from './janelas.js';
+export * from './saude.js';
+export * from './aplicativo.js';
+export * from './ajuda.js';
+export * from './indicadores.js';
+export * from './enderecos.js';
+export * from './inventario.js';
+export * from './selecao.js';
+export * from './planilha.js';
+
+/** Prefixo das rotas da API (docs/ARQUITETURA.md). */
+export const API_PREFIXO = '/api/v1';

@@ -1,0 +1,148 @@
+{
+  "dataMode": "DEMO",
+  "notice": "Layout e registros fictícios para avaliar a interface; não representam o estoque DHL / L’Oréal.",
+  "zone": "Zona demonstrativa",
+  "rows": [
+    "A",
+    "B"
+  ],
+  "columns": [
+    "01",
+    "02",
+    "03"
+  ],
+  "pallets": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "code": "PAL-DEMO-001",
+      "address": "A-01",
+      "countState": "RECONCILIADO",
+      "releaseState": "PENDENTE",
+      "flowState": "EM_ESTOQUE",
+      "currentItems": [
+        {
+          "sku": "DEMO-101",
+          "description": "Shampoo",
+          "lot": "LOTE-DEMO-A",
+          "returnReference": "DEV-DEMO-01",
+          "quantity": 24,
+          "unit": "UN",
+          "condition": "SAUDAVEL"
+        },
+        {
+          "sku": "DEMO-102",
+          "description": "Condicionador",
+          "lot": "LOTE-DEMO-B",
+          "returnReference": "DEV-DEMO-02",
+          "quantity": 12,
+          "unit": "UN",
+          "condition": "SAUDAVEL"
+        }
+      ],
+      "pendingReason": "Documentação de expedição"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "code": "PAL-DEMO-002",
+      "address": "A-02",
+      "countState": "NAO_CONFERIDO",
+      "releaseState": "PENDENTE",
+      "flowState": "EM_ESTOQUE",
+      "currentItems": null,
+      "pendingReason": "Conteúdo desconhecido"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "code": "PAL-DEMO-003",
+      "address": "A-03",
+      "countState": "AGUARDANDO_VALIDACAO",
+      "releaseState": "BLOQUEADO",
+      "flowState": "EM_ESTOQUE",
+      "currentItems": null,
+      "observations": [
+        {
+          "sku": "DEMO-101",
+          "description": "Shampoo",
+          "lot": "LOTE-DEMO-A",
+          "returnReference": "DEV-DEMO-03",
+          "quantity": 9,
+          "unit": "UN",
+          "condition": "SAUDAVEL"
+        }
+      ],
+      "declaredItems": [
+        {
+          "sku": "DEMO-101",
+          "description": "Shampoo",
+          "lot": "LOTE-DEMO-A",
+          "returnReference": "DEV-DEMO-03",
+          "quantity": 12,
+          "unit": "UN",
+          "condition": "SAUDAVEL"
+        }
+      ],
+      "pendingReason": "Diferença de 3 unidades aguardando recontagem"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "code": "PAL-DEMO-004",
+      "address": "B-01",
+      "countState": "RECONCILIADO",
+      "releaseState": "LIBERADO",
+      "flowState": "EM_ESTOQUE",
+      "currentItems": [
+        {
+          "sku": "DEMO-103",
+          "description": "Creme capilar",
+          "lot": "LOTE-DEMO-C",
+          "returnReference": "DEV-DEMO-04",
+          "quantity": 36,
+          "unit": "UN",
+          "condition": "SAUDAVEL"
+        }
+      ],
+      "pendingReason": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "code": "PAL-DEMO-005",
+      "address": "B-02",
+      "countState": "PARCIAL",
+      "releaseState": "PENDENTE",
+      "flowState": "EM_ESTOQUE",
+      "currentItems": null,
+      "observations": [
+        {
+          "sku": "DEMO-102",
+          "description": "Condicionador",
+          "lot": null,
+          "returnReference": null,
+          "quantity": 6,
+          "unit": "UN",
+          "condition": "SAUDAVEL"
+        }
+      ],
+      "pendingReason": "Conferência parcial; origem e lote pendentes"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "code": "PAL-DEMO-006",
+      "address": "B-03",
+      "countState": "RECONCILIADO",
+      "releaseState": "BLOQUEADO",
+      "flowState": "EM_ESTOQUE",
+      "currentItems": [
+        {
+          "sku": "DEMO-103",
+          "description": "Creme capilar",
+          "lot": "LOTE-DEMO-C",
+          "returnReference": "DEV-DEMO-05",
+          "quantity": 8,
+          "unit": "UN",
+          "condition": "AVARIADO"
+        }
+      ],
+      "pendingReason": "Avaliação de avaria"
+    }
+  ]
+}

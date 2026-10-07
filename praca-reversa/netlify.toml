@@ -1,0 +1,60 @@
+# Netlify (plano Free) para o Praça Reversa. Este arquivo fica na BASE do
+# projeto: no repositório em que o código está dentro de `praca-reversa/`,
+# configure Base directory = praca-reversa no painel (os caminhos abaixo são
+# relativos a essa base; não repita "praca-reversa/" neles).
+# Nenhuma credencial aqui: DATABASE_URL, DIRECT_URL, APP_SEGREDO etc. ficam nas
+# variáveis de ambiente do site (docs/PUBLICACAO-NETLIFY-NEON.md).
+
+[build]
+  command = "npm run build:netlify"
+  publish = "apps/web/dist"
+
+[build.environment]
+  # O projeto exige Node 24 (package.json "engines"); o npm 11 vem com ele.
+  NODE_VERSION = "24"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# API: a função netlify/functions/api.mts declara `config.path = "/api/*"`.
+# Função com caminho próprio tem precedência sobre redirects e arquivos
+# estáticos (documentação de Functions), então /api/* — inclusive caminhos
+# inexistentes e erros — sempre responde JSON da API, nunca o index.html.
+# (Com caminho próprio ela não fica em /.netlify/functions/api: não redirecionar para lá.)
+
+# Interface (SPA): rotas como /paletes/<ID> abrem o index.html.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "same-origin"
+    X-Frame-Options = "DENY"
+
+# index.html, service worker e manifest sempre revalidados (atualização da PWA).
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Cache-Control = "no-cache"
+    Content-Type = "application/manifest+json"
+
+# Arquivos com hash no nome: imutáveis.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

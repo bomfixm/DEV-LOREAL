@@ -56,26 +56,82 @@ async function reconciliar(page: Page, paleteId: string, produtoId: string, quan
 }
 
 test.describe('Indicadores', () => {
-  test('painel com base explícita: praça, conferência, estoque, janelas; detalhar abre o relatório', async ({ page }) => {
+  test('dashboard com base explícita: quatro indicadores, módulos, abas e "Sobre os números"; detalhar abre o relatório', async ({ page }) => {
     await entrar(page, 'supervisorDemo');
     await aguardarMapa(page);
     await page.goto('/indicadores');
     const tela = page.getByTestId('tela-indicadores');
+    await expect(tela.getByTestId('indicadores-consultado-em')).toBeVisible();
+    // Quatro indicadores no topo: posição atual separada do período.
+    await expect(tela.getByTestId('ind-kpi-paletes')).toContainText('Posição atual');
+    await expect(tela.getByTestId('ind-kpi-livres')).toContainText('Base provisória');
+    await expect(tela.getByTestId('ind-kpi-nao-conferidos')).toContainText('estado no cadastro');
+    await expect(tela.getByTestId('ind-kpi-mudancas')).toContainText('No período');
+    // Ocupação com a base e "provisória" junto do número (não só em dica).
     await expect(tela.getByTestId('base-posicoes')).toContainText('Base: posições cadastradas — validação do layout pendente');
-    await expect(tela.getByTestId('indicadores-periodo')).toContainText('America/Sao_Paulo, início e fim inclusivos');
     await expect(tela.getByTestId('ind-ocupacao')).toContainText('%');
     await expect(tela.getByTestId('ind-ocupacao')).toContainText('provisória');
+    await expect(tela.getByTestId('ind-mod-posicoes')).toContainText('Fora da base');
+    await expect(tela.getByTestId('indicadores-periodo')).toContainText('Período');
+    // Metodologia, período com fuso e indicadores sem base em "Sobre os números".
+    await tela.getByTestId('indicadores-sobre').click();
+    const sobre = page.getByTestId('ind-sobre');
+    await expect(sobre.getByTestId('ind-sobre-periodo')).toContainText('America/Sao_Paulo, início e fim inclusivos');
+    await expect(sobre.getByTestId('ind-sobre-base')).toContainText('validação do layout pendente');
+    await expect(sobre.getByTestId('ind-indisponiveis')).toContainText('Produtividade e tempo poupado');
+    await page.keyboard.press('Escape');
+    await expect(sobre).toBeHidden();
+    // Detalhes nas abas: estoque (desconhecido não é zero, fluxo que fecha) e janelas.
+    await tela.getByTestId('ind-aba-estoque').click();
+    await expect(page).toHaveURL(/aba=estoque/);
     await expect(tela.getByTestId('ind-desconhecido')).toContainText('Conteúdo desconhecido não é zero');
     await expect(tela.getByTestId('fluxo-estoque')).toContainText('✓ fecha');
+    await tela.getByTestId('ind-aba-movimentacoes').click();
     await expect(tela.getByTestId('ind-janelas')).toBeVisible();
-    await expect(tela.getByTestId('ind-indisponiveis')).toContainText('Produtividade e tempo poupado');
-    // Os números de paletes não conferidos levam ao relatório já filtrado.
+    await expect(tela.getByTestId('ind-retirados')).toContainText('não é saída de estoque');
+    await tela.getByTestId('ind-aba-visao').click();
+    await expect(page).not.toHaveURL(/aba=/);
+    // Os paletes não conferidos levam ao relatório já filtrado.
     await tela.getByTestId('ind-conf-NAO_CONFERIDO').getByRole('button').click();
     const rel = page.getByTestId('relatorio');
     await expect(rel).toHaveAttribute('data-tipo', 'paletes');
     await expect(rel).toContainText('Conferência: Não conferido');
     await expect(page.getByTestId('relatorio-tabela')).toContainText('PAL-DEMO-002');
     await expect(page.getByTestId('relatorio-tabela')).not.toContainText('PAL-DEMO-001');
+  });
+
+  test('período aplicado fica na URL e é preservado ao trocar de aba; Atualizar consulta de novo', async ({ page }) => {
+    await entrar(page, 'supervisorDemo');
+    await page.goto('/indicadores');
+    const tela = page.getByTestId('tela-indicadores');
+    await expect(tela.getByTestId('indicadores-consultado-em')).toBeVisible();
+    // O formulário mostra o período realmente aplicado (padrão: do primeiro dia do mês até hoje).
+    const atual = await tela.getByTestId('indicadores-inicio').inputValue();
+    expect(atual).toMatch(/^\d{4}-\d{2}-01$/);
+    // Outro período (dias 1 e 2 do mês anterior): a URL leva o período novo.
+    const [ano, mes] = atual.split('-').map(Number) as [number, number];
+    const anterior = mes === 1 ? `${String(ano - 1)}-12` : `${String(ano)}-${String(mes - 1).padStart(2, '0')}`;
+    const inicio = `${anterior}-01`;
+    const fim = `${anterior}-02`;
+    await tela.getByTestId('indicadores-inicio').fill(inicio);
+    await tela.getByTestId('indicadores-fim').fill(fim);
+    await tela.getByTestId('indicadores-aplicar').click();
+    await expect(page).toHaveURL(new RegExp(`inicio=${inicio}&fim=${fim}`));
+    await expect(tela.getByTestId('indicadores-periodo')).toContainText(`01/${anterior.slice(5)} a 02/${anterior.slice(5)}/${anterior.slice(0, 4)}`);
+    await tela.getByTestId('ind-aba-conferencias').click();
+    await expect(page).toHaveURL(new RegExp(`inicio=${inicio}&fim=${fim}&aba=conferencias`));
+    await expect(tela.getByTestId('ind-conferencia-sessoes')).toContainText(`01/${anterior.slice(5)} a 02/${anterior.slice(5)}`);
+    await page.reload();
+    await expect(tela.getByTestId('ind-aba-conferencias')).toHaveAttribute('aria-selected', 'true');
+    await expect(tela.getByTestId('indicadores-fim')).toHaveValue(fim);
+    // Atualizar faz uma nova consulta do mesmo período (sem trocar a aba).
+    const resposta = page.waitForResponse((r) => r.url().includes(`/api/v1/indicadores?inicio=${inicio}&fim=${fim}`) && r.ok());
+    await tela.getByTestId('indicadores-atualizar').click();
+    await resposta;
+    await expect(tela.getByTestId('ind-aba-conferencias')).toHaveAttribute('aria-selected', 'true');
+    // Mês atual volta ao período padrão, mantendo a aba.
+    await tela.getByTestId('indicadores-mes-atual').click();
+    await expect(page).toHaveURL(/\/indicadores\?aba=conferencias$/);
   });
 
   test('perfil Consulta não recebe claims nem valores e não exporta', async ({ page }) => {
@@ -86,9 +142,10 @@ test.describe('Indicadores', () => {
       if (r.url().includes('/api/v1/indicadores')) pedidos.push(r.url());
     });
     await page.goto('/indicadores');
-    await expect(page.getByTestId('ind-praca')).toBeVisible();
-    await expect(page.getByTestId('ind-claims')).toBeHidden();
-    await expect(page.getByTestId('ind-valores')).toBeHidden();
+    await expect(page.getByTestId('ind-kpi-paletes')).toBeVisible();
+    await expect(page.getByTestId('ind-aba-claims')).toHaveCount(0);
+    await expect(page.getByTestId('ind-claims')).toHaveCount(0);
+    await expect(page.getByTestId('ind-valores')).toHaveCount(0);
     await expect(page.getByTestId('ind-restritas')).toContainText('claims e valores');
     // A própria resposta da API não traz os números restritos.
     const corpo = (await (await page.request.get('/api/v1/indicadores')).json()) as { claims: unknown; valores: unknown };
@@ -101,11 +158,19 @@ test.describe('Indicadores', () => {
     expect((await page.request.get('/api/v1/relatorios/paletes/exportar')).status()).toBe(403);
   });
 
+  test('acesso do cliente não abre os indicadores internos', async ({ page }) => {
+    await entrar(page, 'clienteDemo');
+    await page.goto('/indicadores');
+    await expect(page.getByTestId('sem-permissao')).toBeVisible();
+    expect((await page.request.get('/api/v1/indicadores')).status()).toBe(403);
+  });
+
   test('analista vê valores separados por moeda e exporta CSV com filtros, base e horário', async ({ page }, testInfo) => {
     test.skip(ehCelular(testInfo), 'Download verificado no computador.');
     await entrar(page, 'financeiroDemo');
     await aguardarMapa(page);
-    await page.goto('/indicadores');
+    await page.goto('/indicadores?aba=claims');
+    await expect(page.getByTestId('ind-aba-claims')).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByTestId('ind-valores')).toContainText('não é valor evitado');
     await page.goto('/relatorios?tipo=claims');
     await expect(page.getByTestId('relatorio')).toHaveAttribute('data-tipo', 'claims');

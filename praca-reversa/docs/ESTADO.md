@@ -1,6 +1,6 @@
 # Estado do projeto
 
-Atualizado em 21 de outubro de 2026.
+Atualizado em 22 de outubro de 2026.
 
 ## Implementação
 
@@ -36,6 +36,33 @@ Atualizado em 21 de outubro de 2026.
 | Planilha única automática e proteção dos dados | **Implementada no desenvolvimento local** (6 out. 2026): geração local automática funcionando; destino independente e agendamento do backup **não configurados** (faltam pasta/compartilhamento e autorização); teste de restauração verificado com dados fictícios |
 | Palete × posição, validação sem endereço e conferência em tabela (pedido de 21 out. 2026) | **Implementado no desenvolvimento local** (21 out. 2026): número operacional, fila de validação interna, mover/validar/cancelar em lote, conferência do palete inteiro numa tabela (130 → 126 grava 126), estado e cor atualizados; migração aplicada com backup; correção dos dados reais simulada e aplicada — ver seção abaixo |
 | Tema escuro + novo visual dos painéis | **Implementado no desenvolvimento local** (19 out. 2026): seletor Claro/Escuro (menu lateral e menu da conta), escuro DHL em todas as telas só na tela (impressão/etiquetas brancas); painéis com cartões grandes (apresentação substituída pela etapa 4, D259–D263), destaque amarelo, anel de ocupação, colunas por rua e anéis da janela — ver seção abaixo |
+| Dashboard de Indicadores (pedido de 22 out. 2026, `prompts/dashboard-indicadores/`) | **Implementado na sessão na nuvem** (22 out. 2026), verificado com bancos de teste/E2E e escopo de demonstração (dados fictícios): rota `/indicadores` na largura toda ao lado do menu, cabeçalho compacto, quatro indicadores, módulos de posições/conferência/movimentação, estoque e atenção, abas com todos os números anteriores, "Sobre os números" e impressão completa; API e cálculos inalterados — ver seção abaixo. **Não verificado com o banco real da porta 3000** |
+
+## Dashboard de Indicadores — o que existe de fato (22 out. 2026)
+
+Pedido `prompts/dashboard-indicadores/` (prompt de 22/10, `DIRECAO-DAS-REFERENCIAS.txt`, prévias e referências). Decisões D297–D303; definições em `INDICADORES.md` ("Apresentação em dashboard"). **Só interface**: API, contrato, consultas, permissões e cálculos inalterados (nenhum arquivo de `apps/api` ou `packages/contracts` mudou).
+
+- **Causa da coluna estreita**: o componente `Pagina` usa `.pagina-conteudo` com `max-width` 1100 px (base.css) / 1180 px (redesign.css) e `margin: 0 auto`. Indicadores ganhou contêiner próprio (`.principal--indicadores > .ind-tela`: largura 100%, sem `max-width`, `min-width: 0`, respiro 20–24 px / 12–16 px, altura mínima da área útil) e grade de 12 colunas por *container query* (reage ao menu compacto/expandido). `Pagina` não mudou (formulários seguem com largura de leitura).
+- **Entregue** (`apps/web/src/features/indicadores/`): cabeçalho compacto (escopo, período aplicado, "Atualizado em", De/até + Aplicar período + Mês atual; Atualizar, Imprimir e Sobre os números na linha das abas); quatro indicadores (paletes na praça, posições livres com "Base provisória", não conferidos, mudanças de localização no período); módulos Uso das posições (anel ocupadas × livres da mesma base, indisponíveis fora), Conferência dos paletes (barras por estado, sessões/observações à parte), Movimentação no período, Estoque e idade, Pontos de atenção; abas Praça e movimentações (praça agora, período, janelas e expedição), Conferências, Estoque e idade (saldo, desconhecido, base documental, idade, fluxo) e Claims e valores (só com permissão), em `?aba=` com o período preservado; "Sobre os números" (base, revisão, mudanças de configuração, período e fuso, leitura única, regras, sem base de medição, ajuda); impressão com todas as abas e a metodologia; estados de carregamento, erro, falha ao atualizar (números anteriores com o horário), vazio e sem permissão. Tokens visuais locais claro/escuro, sem CSS global.
+- **Ambiente da sessão na nuvem**: sem banco real nem servidor da porta 3000; verificado com os bancos `praca_reversa_teste`/`praca_reversa_e2e` e o escopo de demonstração (dados fictícios). Node 24.22.1 (nvm), PostgreSQL 17 embutido rodando com o usuário `postgres` (o `initdb` recusa root), Playwright 1.63 com o Chromium 141 da máquina (mapeado no caminho esperado; o lockfile pede o 153).
+- **Indicadores que não aparecem por falta de base** (não preenchidos): série diária (sem curva/sparkline/tendência — a API só tem totais do período), capacidade física validada (ocupação continua "provisória"), faixas de idade e metas do cliente, produtividade/tempo poupado, volumes movimentados (mudanças de localização são eventos). Saldo validado aparece por unidade quando existe; senão "Saldo validado indisponível" com os paletes sem conteúdo validado. Reconferência vencida não está nesta rota (fica no Painel da operação; não é o mesmo que "não conferido").
+- **Pendência de negócio registrada (D303, `DESCOBERTA.md`)**: "Não conferido" usa `palete.estado_conferencia` (conferência por produto); a conferência de volumes em tabela não muda esse estado e o mapa mostra a de volumes. A tela avisa; o cálculo não foi alterado.
+
+### Verificações (22 out. 2026, nuvem)
+
+| Comando / verificação | Resultado |
+| --- | --- |
+| `npm run typecheck` | Aprovado |
+| `npm run lint` (monorepo inteiro) | Aprovado |
+| `npx vitest run` (unidade + banco, PostgreSQL de teste) | **77 arquivos, 652 testes aprovados** (3 pulados, já existentes); novos: `dashboard-dados.test.ts` (6) e rota `?aba` em `rotas.test.ts` |
+| `npm run build` | Aprovado |
+| E2E `indicadores.spec.ts` (computador e celular), atualizado para o dashboard | **11 aprovados** (6 computador + 5 celular; exportação CSV só no computador): base e "provisória" junto do número, quatro indicadores, Sobre os números (período com fuso, base, sem base de medição), abas na URL com o período preservado e recarga, Atualizar refaz a consulta, Mês atual, relatório filtrado pelo estado, perfil Consulta sem claims/valores (nem na API), cliente sem acesso (tela e API 403), consolidação |
+| E2E `indicadores-dashboard.spec.ts` (aceite de leiaute) | 1920×1080, 2560×1440, 1366×768, 1280×720, 768×1024, 390×844, 320×640 e 1366×768 a 200% (683×384), menu compacto/expandido, claro/escuro, Visão geral e as quatro abas: sem rolagem horizontal, sem faixas laterais, sem transform/zoom, fonte ≥ 12 px, altura útil ocupada; menu alternado na mesma tela sem espaço reservado — aprovado |
+| E2E completo (`npm run test:e2e`: build + Playwright, Chromium da máquina) | **145 aprovados, 0 falhas** (94 pulados por projeto/celular), 8,7 min |
+| Capturas (`docs/capturas/indicadores-dashboard/`, dados fictícios) | `antes-*` (build anterior: coluna central de ~1.100 px) e `depois-*`: 1920 claro (menu compacto) e escuro (expandido), 2560, 1366 (expandido), 1280 escuro, 768, 390 claro/escuro, 320, abas e "Sobre os números" |
+| Impressão | PDF do Chromium (A4): Visão geral, abas e metodologia, papel branco; não testado em impressora |
+
+**Limites**: verificação na nuvem com dados fictícios; **não** conferido com o banco real da porta 3000 (no computador local: `npm run build`; a tarefa "Praca Reversa - servidor 3000" reinicia sozinha depois do build). Zoom de 200% emulado pela largura equivalente em CSS. Datas nos campos De/até seguem o idioma do navegador.
 
 ## Palete × posição, validação sem endereço e conferência em tabela — o que existe de fato (21 out. 2026)
 
@@ -601,6 +628,7 @@ Medidos neste computador com dados fictícios; não são metas nem o RTO da oper
 
 ## Próximo passo
 
+0. **Indicadores (22/10)**: trazer o PR para o computador local, `npm run build` e conferir `/indicadores` na porta 3000 com os dados reais (mesmo período das capturas de 22/10, comparando com `prompts/dashboard-indicadores/DADOS-DAS-CAPTURAS.json` só como significado); decidir a pendência D303 (conferência de volumes no indicador "não conferido").
 1. Com a operação: identificar o **inventário definitivo** e a **lista real da seleção**, responder as perguntas do complemento em `DESCOBERTA.md` e informar as **sequências de endereço** de cada faixa (início, fim, sentido; Fileira 11 e GR primeiro); confirmar a tabela em Layout da praça → Endereços reais.
 2. Importar o inventário definitivo num ambiente do piloto (prévia revisada pelo responsável), depois a seleção, e revisar as pendências com quem as resolve.
 3. Piloto físico da etapa 10 (`ROTEIRO-DO-PILOTO.md`): HTTPS e endereço estável, aparelhos reais (matriz acima), rotina de backup com responsável e restauração ensaiada no ambiente do piloto.

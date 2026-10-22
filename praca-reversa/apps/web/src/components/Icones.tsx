@@ -174,3 +174,26 @@ export const IconeReticencias = () => (
     <path d="M5 12h.01M12 12h.01M19 12h.01" />
   </Svg>
 );
+
+/** Posição na praça (marcador de local). */
+export const IconePosicao = () => (
+  <Svg>
+    <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" />
+    <circle cx="12" cy="10" r="2.3" />
+  </Svg>
+);
+
+/** Mudança de localização (setas nos dois sentidos). */
+export const IconeSetas = () => (
+  <Svg>
+    <path d="M4 8h15M15 4l4 4-4 4M20 16H5M9 12l-4 4 4 4" />
+  </Svg>
+);
+
+/** Informação (sobre os números, metodologia). */
+export const IconeInfo = () => (
+  <Svg>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 11v5M12 8h.01" />
+  </Svg>
+);

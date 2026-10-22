@@ -61,6 +61,14 @@ describe('rotas', () => {
     expect(lerRota('/painel/janelas/nao-e-id', '').tipo).toBe('desconhecida');
   });
 
+  it('indicadores guardam período e aba na URL (aba desconhecida = Visão geral)', () => {
+    expect(lerRota('/indicadores', '?inicio=2026-10-01&fim=2026-10-22&aba=estoque')).toEqual({ tipo: 'indicadores', inicio: '2026-10-01', fim: '2026-10-22', aba: 'estoque' });
+    expect(lerRota('/indicadores', '?aba=outra&inicio=x')).toEqual({ tipo: 'indicadores', inicio: null, fim: null });
+    expect(caminhoDe({ tipo: 'indicadores', inicio: '2026-10-01', fim: null, aba: 'conferencias' })).toBe('/indicadores?inicio=2026-10-01&aba=conferencias');
+    expect(caminhoDe({ tipo: 'indicadores', inicio: null, fim: null })).toBe('/indicadores');
+    expect(destinoSeguro('/indicadores?aba=movimentacoes')).toBe('/indicadores?aba=movimentacoes');
+  });
+
   it('destino de retorno só aceita caminhos internos conhecidos', () => {
     expect(destinoSeguro(`/paletes/${ID}`)).toBe(`/paletes/${ID}`);
     expect(destinoSeguro(`/etiquetas?ids=${ID}`)).toBe(`/etiquetas?ids=${ID}`);

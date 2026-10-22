@@ -1,0 +1,33 @@
+COMO USAR AS CINCO NOVAS REFERÊNCIAS
+Imagens recebidas em 22/10/2026. Aplicação: rota Indicadores do Praça Reversa.
+
+06-ref-atividade-roxa.png (primeira imagem)
+Um módulo principal roxo concentra gráfico e três números, acompanhado por cartões de destaque e módulos brancos. O menu é compacto. Há hierarquia de tamanho e cor; o peso das partes não é igual.
+Aproveitar: contraste entre cartão de destaque e superfície clara, módulos arredondados independentes, informação agrupada por assunto.
+Adaptar: amarelo DHL, grafite e off-white. Não copiar dados esportivos, amigos, mapa de pessoas ou coluna social. As grandes margens da apresentação não pertencem ao app.
+
+07-ref-analitico-lilas.png (segunda)
+Indicadores do topo ficam leves, sem uma caixa pesada em volta de cada texto. O gráfico central tem prioridade; contadores e uma área de composição circular ficam ao lado. Há espaço entre os grupos.
+Aproveitar: tipografia, respiro, filtros curtos e informação secundária discreta.
+Adaptar: números de paletes, posições, conferência e eventos. Não copiar calendário, receita ou seguidores. A tela real não pode herdar o recuo amplo das bordas dessa imagem.
+
+08-ref-analytics-claro.png (terceira) — BASE PRINCIPAL DE ORGANIZAÇÃO
+Quatro indicadores no topo, gráfico amplo à esquerda, composição circular à direita, lista e tabela abaixo. O conteúdo é distribuído com clareza em uma grade.
+Aproveitar: leitura de cima para baixo, proporção entre KPIs e gráficos, faixas de informação e detalhe acessível.
+Adaptar: os quatro indicadores devem ter dados disponíveis e significado claro. Barras de conferência podem ocupar a área principal quando não há série diária. Ocupação só usa a base apropriada e mantém “provisória”.
+Não copiar as quatro cores saturadas de forma literal nem as curvas/percentuais e dados financeiros. Não copiar a moldura externa como limite da página.
+
+09-ref-dark-risco.png (quarta)
+Fundo escuro em camadas, grandes grupos com contraste discreto, gráfico central e resumos laterais. O gráfico de arco ocupa uma área forte de leitura.
+Aproveitar: separação entre superfícies no escuro, hierarquia de números e organização de informações secundárias.
+Adaptar: amarelo DHL como acento e cores semânticas reais da operação. Não transformar ausência de conferência em “risco 741” ou outro score inventado. Evitar caixas dentro de caixas como acontece hoje na tela.
+
+10-ref-dark-finance.png (quinta) — BASE DE DENSIDADE E ACABAMENTO ESCURO
+Indicadores, gráficos e detalhes se distribuem por toda a área ao lado do menu. Há organização compacta, números fortes, bordas discretas e uma cor de acento que conduz o olhar. Mini gráficos nos cards dependem de séries do domínio daquela referência.
+Aproveitar: aproveitamento de largura, densidade, alinhamento, topo enxuto, proporção dos cartões e interação de gráfico com tooltip.
+Adaptar: acento amarelo DHL, dados de logística reversa e legenda clara. Não copiar laranja como marca, dados financeiros ou botões comerciais de upgrade. Não copiar sparklines sem histórico nem a faixa de “insights” como se houvesse análise automática implantada.
+
+COMBINAÇÃO FINAL
+Organização da terceira + aproveitamento da quinta + variedade de superfícies da primeira + respiro da segunda + separação das camadas da quarta.
+Preservar a identidade atual do projeto, o menu aprovado e a preferência claro/escuro.
+As prévias do pacote demonstram essa síntese com os números visíveis nas capturas da operação. Elas não são uma auditoria dos indicadores nem capturas de uma aplicação integrada.

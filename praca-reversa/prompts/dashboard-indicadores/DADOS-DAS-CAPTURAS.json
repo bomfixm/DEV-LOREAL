@@ -1,0 +1,61 @@
+{
+  "origem": "Transcrição limitada das três capturas enviadas pelo usuário em 22/10/2026. Não é consulta ao banco.",
+  "consultado_em_local": "2026-10-22T09:27:00",
+  "fuso": "America/Sao_Paulo",
+  "periodo": {
+    "inicio": "2026-10-01",
+    "fim": "2026-10-22",
+    "limites_inclusivos": true
+  },
+  "posicao_atual": {
+    "paletes": 187,
+    "paletes_com_posicao": 187,
+    "localizacao_pendente": 0,
+    "posicoes_elegiveis": 194,
+    "posicoes_ocupadas_na_base": 187,
+    "posicoes_livres_na_base": 7,
+    "posicoes_indisponiveis_fora_da_base": 300,
+    "ocupacao_exibida_percentual": 96.4,
+    "ocupacao_provisoria": true,
+    "capacidade_fisica_validada": null
+  },
+  "periodo_eventos": {
+    "paletes_cadastrados": 187,
+    "mudancas_de_localizacao": 230,
+    "paletes_vazios_retirados_consolidacao": 0,
+    "paletes_que_sairam_inteiros_expedicao": 0
+  },
+  "conferencia_posicao_atual": {
+    "nao_conferido": 187,
+    "parcial": 0,
+    "contado_aguardando_validacao": 0,
+    "reconciliado": 0,
+    "conferencias_em_andamento": 0,
+    "observacoes_pendentes": 0
+  },
+  "conferencias_no_periodo": {
+    "iniciadas": 0,
+    "concluidas": 0,
+    "reconciliadas": 0,
+    "recontagens": 0,
+    "canceladas": 0
+  },
+  "estoque": {
+    "saldo_validado": null,
+    "paletes_sem_conteudo_totalmente_validado": 187,
+    "idade_por_entrada_fisica_validada": null
+  },
+  "metodologia_visivel": {
+    "validacao_layout_pendente": true,
+    "revisao_layout": 37,
+    "codigos_posicao_provisorios": 494,
+    "alteracoes_configuracao_no_periodo": 36
+  },
+  "limites": [
+    "Não usar os valores como mock persistente do aplicativo.",
+    "Os dados não comprovam estoque físico atual, capacidade física, conferência vencida ou tendência.",
+    "Paletes, posições, documentos, sessões, eventos e volumes são unidades diferentes.",
+    "Saldo indisponível não é zero.",
+    "As prévias mostram apresentação de dados; o projeto real deve consultar o backend e preservar seus critérios."
+  ]
+}

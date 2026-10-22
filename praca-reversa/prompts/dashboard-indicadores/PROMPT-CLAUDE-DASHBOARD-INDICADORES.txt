@@ -1,0 +1,151 @@
+PRAÇA REVERSA — REFAZER A TELA DE INDICADORES
+Pedido de 22/10/2026. Aplicar no projeto existente.
+
+OBJETIVO
+A rota Indicadores reúne muitos dados, mas hoje parece um relatório de caixas pequenas e textos longos. Quero um dashboard completo, bonito e simples de entender, com a linguagem visual que já aprovamos: módulos independentes, superfícies claras e escuras combinadas, amarelo DHL como destaque e boa hierarquia.
+
+Esta tela deve aproveitar TODA A LARGURA ÚTIL em qualquer dispositivo. Nas capturas, o conteúdo está numa coluna central limitada, deixando grandes faixas vazias dos lados. Investigue os ancestrais da página e corrija a causa. Não basta aumentar um cartão dentro de um container que continua estreito.
+
+ESCOPO EXCLUSIVO
+Refinar estrutura, visual e apresentação dos indicadores. Preservar as regras e dados do sistema. Importador Python, ajustes de paletes, recontagem operacional, motion, preços e negociação comercial são tarefas separadas. Não criar aplicativo novo, landing page ou uma segunda fonte de dados.
+
+Leia AGENTS.md, o shell atual, a rota Indicadores, os componentes de gráfico e os tokens de tema. Inspecione as consultas e o contrato dos indicadores antes de trocar nomes ou somar campos. A prévia anexa é direção visual, não uma tela já integrada nem um banco novo.
+
+ARQUIVOS
+- previas/INDICADORES-DESKTOP-CLARO.png: proposta visual principal.
+- previas/INDICADORES-DESKTOP-ESCURO.png: adaptação de tema.
+- previas/INDICADORES-MOBILE.png: exemplo de reorganização em largura pequena.
+- previas/*.svg: versões vetoriais editáveis das composições.
+- referencias/01-atual-topo.png, 02-atual-detalhes.png, 03-atual-tela-inteira.png: capturas que motivaram o ajuste.
+- referencias/04-composicao-aprovada.png: referência anterior de superfícies variadas e módulos soltos.
+- referencias/05-menu-aprovado.png: contexto da navegação já solicitada; não refazer o menu nesta tarefa.
+- referencias/06-ref-atividade-roxa.png, 07-ref-analitico-lilas.png, 08-ref-analytics-claro.png, 09-ref-dark-risco.png e 10-ref-dark-finance.png: cinco NOVAS referências de dashboard escolhidas pelo usuário. São as referências principais para o acabamento desta tela.
+- DIRECAO-DAS-REFERENCIAS.txt: o que aproveitar de cada uma, sem importar métricas de outros setores.
+- DADOS-DAS-CAPTURAS.json: transcrição limitada do que aparece nas capturas. Serve para comparar significado, não para popular o dashboard.
+
+PARTE 1 — LARGURA, ALTURA E ESTRUTURA
+1. Localize onde a rota recebe max-width, container fixo, margin auto, colunas vazias ou padding excessivo. Verifique também o componente pai e o shell da aplicação. Corrija a rota usando toda a área disponível ao lado do menu existente.
+2. O conteúdo precisa de width: 100%, max-width: none e min-width: 0 no nível apropriado, com box-sizing coerente. Faça o ajuste com as convenções do projeto, sem classes duplicadas e overrides espalhados.
+3. Preserve o menu atual e seu comportamento compacto/expandido. A largura do dashboard deve reagir à expansão sem deixar um espaço reservado quando o menu é recolhido. No celular, não reservar a coluna do menu fechado.
+4. Use respiro real de layout: aproximadamente 20–24 px em desktop e 12–16 px em celular. O objetivo é remover desperdício, não colar texto nas bordas.
+5. Faça a página aproveitar ao menos a altura útil da janela, descontado o cabeçalho real. Use unidades de viewport adequadas ao celular e o shell existente. Não esticar um painel vazio para preencher altura à força.
+6. Evite width: 100vw dentro de um shell com sidebar, pois pode provocar rolagem horizontal. Elementos de grid/flex precisam de min-width: 0; gráficos devem medir o próprio container.
+7. Não usar zoom global, transform: scale, fonte minúscula, altura fixa com conteúdo cortado ou overflow:hidden no corpo para fingir que tudo cabe.
+8. “Tela inteira” aqui significa toda a área útil da aplicação. Não exigir F11, não abrir janela nova e não cobrir o menu com position:fixed.
+
+PARTE 2 — CABEÇALHO COMPACTO E DASHBOARD DE VERDADE
+O cabeçalho deve conter um título principal, escopo, período efetivamente aplicado e ações compactas. Se o shell já mostra o título da rota, evitar repeti-lo em outra faixa gigante.
+
+- Filtros de data em uma linha quando houver espaço, com período refletindo os parâmetros realmente aplicados.
+- Manter Aplicar período / Mês atual, atualização e impressão conforme as ações existentes. Agrupar os controles; Imprimir deixa de ocupar uma faixa inteira.
+- Escopo/unidade e “Atualizado em 22/10, 09:27” podem caber em linhas curtas. Usar os valores reais e o fuso existente da operação, não a data do computador como se fosse consulta ao banco.
+- Ajuda geral vira botão/ícone com painel expansível. O texto “Como fazer: Consultar palete ou produto” não deve consumir uma linha permanente do dashboard se essa orientação não explica os indicadores.
+- “Sobre os números” abre a metodologia, base, revisão do mapa, disponibilidade de dados, fuso, limites e atualização. Preservar as informações necessárias; não apagar a explicação das métricas para limpar a tela.
+- Avisos que mudam a interpretação continuam visíveis de forma curta junto ao número. Detalhe técnico pode ficar no painel. Não esconder uma base provisória apenas em tooltip.
+
+COMPOSIÇÃO DA VISÃO GERAL
+Linha 1: quatro indicadores principais, sem um monte de caixas dentro de caixas. Direção, adaptável aos campos existentes:
+1) Paletes na praça, como posição atual, com informação secundária de localização se disponível.
+2) Posições livres cadastradas, com indicação de base provisória quando necessária.
+3) Paletes não conferidos, usando a definição real do cadastro.
+4) Mudanças de localização no período, com o intervalo visível.
+
+Um número grande, um nome claro, unidade e contexto curto são suficientes. Separar visualmente Posição atual de No período. Não apresentar um total de eventos do mês como se fosse saldo atual.
+
+Linha 2: módulos principais, com pesos e superfícies diferentes:
+- Uso das posições cadastradas: ocupadas/livres da mesma base, com ocupação provisória claramente identificada se o layout não estiver validado.
+- Conferência dos paletes: barras por estado atual, com contagem e nome completo legíveis.
+- Movimentação no período: resumo visual dos eventos e cadastros reais. Se houver série diária confiável, usar gráfico por dia; se só houver totais, apresentar totais bem compostos. Não inventar uma curva.
+
+Linha 3: estoque/idade e atenção operacional em módulos compactos. Mostrar informação útil ou a indisponibilidade real com um acesso ao detalhe, sem uma área enorme em branco.
+
+Essa organização é a referência, não um motivo para duplicar números ou preencher seis gráficos sem conteúdo. Nos viewports maiores, os módulos podem ganhar área e reorganização proporcional. Em telas pequenas, empilhar com leitura confortável.
+
+DETALHES COMPLETOS, SEM EMPILHAR TODO O RELATÓRIO NA PRIMEIRA TELA
+Preservar os dados existentes e torná-los acessíveis por abas ou seções claras, por exemplo:
+- Visão geral.
+- Movimentações: cadastros, mudanças de localização, consolidação e saídas, com unidade e critérios.
+- Conferências: estados dos paletes e sessões iniciadas, concluídas, reconciliadas, recontagens e cancelamentos no período.
+- Estoque e idade: saldos validados por unidade, referência documental separada e idade conforme fonte disponível.
+
+Reutilizar a navegação interna do projeto. Não criar novas rotas globais sem necessidade. Ao trocar de aba, preservar escopo e filtros. Todos os indicadores anteriores permanecem acessíveis; não excluir consulta ou componente só porque ficou fora da primeira visão.
+
+PARTE 3 — VISUAL NA MESMA LINGUAGEM JÁ APROVADA
+Use a composição anexa e os componentes atuais do app:
+- Priorizar a organização da nova referência 08 (a terceira das cinco): indicadores no topo, área central realmente gráfica e detalhamento em uma faixa inferior. Usar a referência 10 (a quinta) para densidade, leitura e acabamento no tema escuro. A 06 contribui com contraste entre módulos; a 07 com respiro e indicadores leves; a 09 com hierarquia das camadas escuras.
+- As referências 06 a 10 são imagens de demonstração enquadradas em uma apresentação. NÃO copiar as grandes margens externas da imagem, molduras de aparelho ou uma largura fixa centralizada. O aplicativo real usa a área útil inteira.
+- Não copiar o arco de risco 741, percentuais, metas, dinheiro, vendas, seguidores, ameaças ou hábitos. Dados e rótulos continuam sendo os da logística reversa.
+- As pequenas curvas dos cards da referência 10 só entram se houver uma série temporal real para aquele indicador. Não criar sparklines decorativas, percentuais de crescimento aleatórios ou indicadores de “inteligência” sem cálculo e evidência.
+- Fundo neutro, cartões independentes, cantos consistentes e áreas bem alinhadas.
+- Misturar de forma controlada superfícies off-white/brancas, um módulo grafite e destaques amarelos. Não deixar tudo preto, tudo branco ou tudo amarelo.
+- Identidade de referência: amarelo DHL #FFCC00, grafite #17191C, off-white #FAF9F5, neutro #EEEDE7, amarelo suave #FFF0AE; vermelho #D40511 restrito à marca/semântica apropriada.
+- Reutilizar tokens de tema e contrastes do projeto. A referência clara é direção de composição; não forçar o usuário a abandonar o tema escolhido.
+- O modo escuro também diferencia fundo, cartões e destaques. Não injetar CSS global que altere o mapa ou as demais telas.
+- Verde continua significando livre/estado compatível; não usar verde decorativo para sugerir conferência aprovada ou ocupação física validada.
+- Títulos de módulos legíveis, corpo próximo de 14–16 px, números principais com presença. Não encolher rótulos para caber mais cartões.
+- Ícones finos e consistentes com o conjunto existente. Não adicionar relógio, clima, avatares, receita, produtividade ou indicadores de outras referências sem dados e necessidade.
+- Gráficos devem ter nomes/unidades e cores consistentes. Evitar gráficos 3D, efeitos pesados, textos girados e legendas minúsculas.
+- Transições curtas para filtros e abas, respeitando redução de movimento. Não animar contadores do zero ou mostrar números aleatórios durante o carregamento.
+
+PARTE 4 — SIGNIFICADO DOS DADOS E AVISOS
+VALORES OBSERVADOS NAS CAPTURAS DE 22/10/2026, 09:27
+187 paletes na praça; 187 com posição; localização pendente 0; 194 posições elegíveis, sendo 187 ocupadas e 7 livres; 300 indisponíveis fora desse denominador; ocupação exibida 96,4%, PROVISÓRIA.
+No período de 01/10 a 22/10: 187 paletes cadastrados e 230 mudanças de localização. Saídas inteiras e retirada de vazios aparecem como zero.
+Conferência: não conferidos 187; parciais 0; contados aguardando validação 0; reconciliados 0. Sessões e outros contadores do período aparecem com zero nas capturas.
+Saldo validado indisponível; 187 paletes sem conteúdo totalmente validado. Idade do material sem saldo validado para compor o indicador.
+
+Esses números não devem ser hardcoded no app. São dados de uma captura, não de uma conexão atual. O dashboard deve receber os valores do backend conforme escopo, filtro e permissão.
+
+REGRAS OBRIGATÓRIAS DE APRESENTAÇÃO
+1. Não tratar 494 códigos cadastrados como capacidade física confirmada. O aviso informa base provisória, capacidade física desconhecida e mudanças de configuração.
+2. O gráfico de ocupação deve dizer a base. Os 300 indisponíveis estão fora do denominador 194; não somar como se fossem posições livres ou ocupadas da mesma composição. Não fazer uma pizza de 494 com o percentual de 187/194 no centro.
+3. Manter “provisória” junto à ocupação. Não mudar para “capacidade validada” só porque redesenhou o gráfico. Preservar os detalhes de revisão e alterações da configuração no painel Sobre os números.
+4. Não transformar dado desconhecido em zero. “Sem saldo validado” não significa que não há caixas no piso. Não calcular total de volumes a partir de quantidade de paletes ou de documentos.
+5. Zero confirmado deve aparecer como zero, com contexto. Erro de consulta, falta de permissão e ausência de dados são estados distintos.
+6. Estoque validado, conteúdo/documentos registrados e valores documentais são bases distintas. Se já houver volumetria registrada confiável, pode aparecer como “Volumes registrados”, separada de “Volumes validados”. Não criar um total assumido nem promover importação documental a conferência física.
+7. Estados de paletes não devem ser somados com sessões de conferência ou observações pendentes. Só usar gráfico de partes de um total se as categorias forem mutuamente exclusivas, cobrirem a base e tiverem a mesma unidade. Caso contrário, usar barras/contadores independentes.
+8. “Não conferido” não significa automaticamente “há mais de 20 dias sem movimentação”. O indicador de reconferência vencida, se existir, precisa da regra e fonte próprias. Não inventar vencimento.
+9. Idade do estoque depende da primeira entrada física validada conforme o processo. A regra de 20 dias de reconferência é outra coisa. Não usar data de importação ou data documental como entrada física por suposição.
+10. Não adicionar faixas de idade, metas do cliente, SLA ou comparativo mensal sem critérios e histórico. A base de posições mudou no período; tendência de ocupação precisa de denominadores históricos compatíveis.
+11. As 230 mudanças de localização são eventos, não volumes movimentados ou paletes distintos. Retirada de palete vazio por consolidação não equivale a saída de estoque na expedição.
+12. Não alterar cálculo, endpoint ou estado operacional para fazer aparecer um gráfico bonito. Se for necessário um agrupamento somente de leitura, usar a mesma definição do domínio e explicar o que foi acrescentado. Erros de negócio encontrados ficam registrados como pendência separada.
+
+INTERAÇÃO E CONFIANÇA
+- Um card clicável abre o detalhamento da mesma métrica, com filtros/escopo coerentes. Se não houver detalhe disponível, não fazer o card parecer um botão que não funciona.
+- Usar os componentes de modal/drawer já existentes, com título, lista pertinente e fechamento simples.
+- Snapshot e atualização devem ser coerentes entre módulos. Evitar números de momentos diferentes na mesma composição.
+- Evitar buscas duplicadas por widget quando já existe uma consulta agregada. Não baixar todo o inventário para calcular no navegador sem necessidade.
+- Ao trocar filtros, evitar que uma resposta antiga sobrescreva o período novo. Manter os estados reais de loading, vazio, erro e revalidação.
+- “Atualizar” deve reconsultar quando permitido. Uma data estática não substitui a atualização.
+- Respeitar escopo e permissão no backend. Cliente não recebe dados de validação interna, ainda que o widget esteja visualmente oculto.
+- A impressão/exportação existente deve continuar correta e incluir contexto e metodologia necessários, mesmo que os detalhes estejam recolhidos na tela. Imprimir relatório não é imprimir apenas o pedaço visível do viewport.
+
+PARTE 5 — RESPONSIVIDADE SEM DESPERDIÇAR LARGURA
+Desktop grande: grid fluido, preferencialmente 12 colunas, com indicadores e módulos distribuídos por toda a área útil. Não manter max-width de 1.100/1.200 px no conteúdo principal.
+Notebook: visão geral compacta, priorizando os quatro indicadores e os módulos principais. Evitar rolagem longa para chegar ao primeiro gráfico. Ajustar espaço e composição, não a escala global da página.
+Tablet: reorganizar para duas colunas quando couber, com filtros quebrando de forma intencional.
+Celular: uma coluna de módulos, indicadores em duas colunas apenas se continuarem legíveis. Pode e deve haver rolagem vertical. Usar toda a largura não significa colocar todos os indicadores na altura de uma única tela de celular.
+
+Referência de implementação, a adaptar ao shell real: grid com minmax(0, 1fr), gap de 12–20 px, padding responsivo e min-height da área útil. Definir alturas de gráfico proporcionais ao espaço disponível sem reservar 300 px de vazio para um gráfico inexistente. Cards de informação devem ter altura conforme o conteúdo.
+
+VALIDAÇÃO E ENTREGA
+Faça a alteração no projeto existente; não termine entregando só o layout desta prévia.
+Execute em partes: (1) estrutura e largura, (2) composição/temas, (3) todos os indicadores e detalhes, (4) verificação de dados e responsividade. Prossiga entre as partes sem pedir confirmação a cada ajuste reversível.
+
+Verificar a interface real em:
+- 1920×1080 e 2560×1440, com aproveitamento da área útil.
+- 1366×768 e 1280×720, em zoom 100%, sem fonte minúscula e sem corte.
+- 768×1024, 390×844 e 320 px de largura.
+- Zoom de acessibilidade 200% com reorganização e rolagem adequada.
+- Menu compacto e expandido; claro e escuro; perfis internos e de cliente se a rota for autorizada.
+
+Aceite:
+1. Sem faixas laterais enormes causadas pelo container e sem rolagem horizontal da página. Tabelas extensas podem rolar dentro de uma área identificada, sem quebrar o dashboard.
+2. Cabeçalho compacto, indicadores principais no início e detalhes acessíveis.
+3. Mesmos valores, escopos e significados antes/depois para uma consulta equivalente. Verificar com snapshot consistente, não com capturas em horários diferentes.
+4. Base provisória e indisponibilidade real ainda identificadas; nenhum zero, gráfico ou percentual inventado.
+5. Filtros, navegação, atualização, impressão, teclado/foco e ações funcionando.
+6. Sem perda de indicador, dado, permissão ou função da tela anterior.
+7. Capturas da tela completa em desktop e celular, informando tamanho e tema, e resumo dos checks efetivamente executados.
+
+Entregar a tela aplicada no aplicativo, citar os arquivos alterados e explicar qualquer indicador que não pôde ser mostrado por falta de base. Não preencher essa falta com demonstração silenciosa.

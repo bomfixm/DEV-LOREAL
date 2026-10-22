@@ -1,0 +1,16 @@
+REDESENHO DA TELA INDICADORES
+
+Envie o prompt e este pacote ao Claude que está com o projeto.
+A implementação deve acontecer na rota Indicadores do aplicativo atual.
+
+As prévias são guias visuais estáticos, produzidos a partir dos números que aparecem nas três capturas enviadas em 22/10/2026. Não estão conectadas ao banco e não são uma versão do app já corrigida. O cliente/filtro, dados e avisos da implementação real precisam vir do projeto.
+
+O pedido contém cinco partes no mesmo prompt: estrutura, composição, linguagem visual, significado dos dados e responsividade/validação. As partes pertencem à mesma mudança de interface.
+
+A prévia clara retoma a mistura de módulos claros, grafite e amarelo da referência já aprovada. Entre as cinco novas referências, a terceira guia a organização e a quinta guia a densidade e o acabamento escuro. A versão celular mostra o empilhamento com rolagem vertical e largura aproveitada.
+
+As três capturas da tela atual, as duas referências anteriores e as cinco novas referências estão na pasta referencias. O arquivo DIRECAO-DAS-REFERENCIAS.txt explica o que aproveitar de cada uma.
+
+As prévias ilustram o conteúdo da rota, sem reproduzir o menu do aplicativo. O menu já existente deve continuar funcionando. O ajuste principal é remover a limitação da coluna central nesta tela, melhorar a hierarquia e substituir os blocos grandes de texto por contexto curto e detalhes acessíveis.
+
+Os indicadores não foram auditados no código nem no banco por esta entrega. As condições “base provisória” e “sem saldo validado” foram mantidas; a prévia não confirma capacidade física nem a correção dos cadastros.

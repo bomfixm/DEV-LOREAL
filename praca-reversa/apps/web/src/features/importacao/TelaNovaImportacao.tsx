@@ -4,7 +4,7 @@ import {
   CAMPOS_IMPORTACAO,
   LimitesImportacaoSchema,
   ResultadoEnvioSchema,
-  TIPOS_IMPORTACAO,
+  TIPOS_IMPORTACAO_GERAL,
   tiposImportacaoPermitidos,
   type ArquivoModelo,
   type Permissao,
@@ -30,6 +30,7 @@ function tipoDoModelo(m: ArquivoModelo): TipoImportacao {
   if (m.startsWith('claims')) return 'CLAIMS';
   if (m.startsWith('inventario')) return 'INVENTARIO';
   if (m.startsWith('selecao')) return 'SELECAO_CLIENTE';
+  if (m.startsWith('bipagem')) return 'BIPAGEM';
   return 'DEVOLUCOES';
 }
 
@@ -45,7 +46,8 @@ export function TelaNovaImportacao({ permissoes, inicial, aoNavegar }: { permiss
   const chaves = useChaves();
   const arquivoRef = useRef<HTMLInputElement>(null);
   // Só os tipos permitidos ao perfil (o servidor confere de novo).
-  const permitidos = tiposImportacaoPermitidos(permissoes, 'executar');
+  // A bipagem começa pelo palete, no mapa.
+  const permitidos = tiposImportacaoPermitidos(permissoes, 'executar').filter((t) => TIPOS_IMPORTACAO_GERAL.includes(t));
   const [tipo, setTipo] = useState<TipoImportacao | null>(inicial !== undefined && permitidos.includes(inicial) ? inicial : null);
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -98,7 +100,7 @@ export function TelaNovaImportacao({ permissoes, inicial, aoNavegar }: { permiss
       </button>
       <fieldset className="cartao">
         <legend className="campo-rotulo">1. O que será importado</legend>
-        {TIPOS_IMPORTACAO.map((t) => (
+        {TIPOS_IMPORTACAO_GERAL.map((t) => (
           <label key={t} className="opcao opcao--bloco">
             <input
               type="radio"

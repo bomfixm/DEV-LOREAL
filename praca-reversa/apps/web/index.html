@@ -9,6 +9,17 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png" />
     <title>Praça Reversa · Demonstração</title>
+    <script>
+      // Tema antes da primeira pintura (sem piscar): escolha salva neste navegador ou o tema do sistema. Ver src/tema.ts.
+      (function () {
+        var tema = null;
+        try {
+          tema = window.localStorage.getItem('praca-reversa:tema');
+        } catch (e) {}
+        if (tema !== 'claro' && tema !== 'escuro') tema = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'escuro' : 'claro';
+        document.documentElement.setAttribute('data-tema', tema);
+      })();
+    </script>
   </head>
   <body>
     <div id="raiz"></div>

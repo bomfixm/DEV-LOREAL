@@ -100,13 +100,28 @@ const SINONIMOS: Readonly<Record<string, readonly string[]>> = {
   scope: ['abrangencia'],
 };
 
+/**
+ * Exportação real da bipagem (amostra de 19 out. 2026): Tipo, Número, Lidos,
+ * CNPJ Remetente e Remetente, reconhecidos pelo nome (sem acentos, maiúsculas,
+ * pontuação nem espaços extras). "Leituras" e "Série" nunca são confundidas
+ * com Lidos e Número (comparação do título inteiro, não de partes).
+ */
+const SINONIMOS_BIPAGEM: Readonly<Record<string, readonly string[]>> = {
+  documentType: ['tipo', 'tipo documento', 'tipo do documento', 'tipo de documento', 'tipo doc'],
+  documentNumber: ['numero', 'numero do documento', 'numero documento', 'n documento', 'no documento', 'n', 'no', 'numero da nota', 'numero nf', 'documento'],
+  readVolumes: ['lidos', 'volumes lidos', 'qtd lidos', 'qtde lidos', 'quantidade lida', 'quantidade de lidos', 'lidas'],
+  senderCnpj: ['cnpj remetente', 'cnpj do remetente', 'remetente cnpj', 'cnpj cpf remetente', 'cpf cnpj remetente', 'cnpj'],
+  sender: ['remetente', 'nome do remetente', 'remetente nome', 'nome remetente', 'razao social remetente', 'razao social do remetente'],
+  lastRead: ['ultima leitura', 'data ultima leitura', 'data da ultima leitura', 'data leitura', 'data da leitura', 'ultima bipagem'],
+};
+
 /** Coluna sugerida para cada campo do tipo (igualdade com um sinônimo; cada coluna é usada uma vez). */
 export function sugerirColunas(tipo: TipoImportacao, cabecalhos: readonly { indice: number; texto: string }[]): Record<string, number | null> {
   const normalizados = cabecalhos.map((c) => ({ indice: c.indice, texto: normalizarCabecalho(c.texto) }));
   const usadas = new Set<number>();
   const sugestao: Record<string, number | null> = {};
   for (const definicao of camposDoTipo(tipo)) {
-    const sinonimos = SINONIMOS[definicao.campo] ?? [];
+    const sinonimos = (tipo === 'BIPAGEM' ? SINONIMOS_BIPAGEM[definicao.campo] : SINONIMOS[definicao.campo]) ?? [];
     let escolhida: number | null = null;
     for (const s of [normalizarCabecalho(definicao.rotulo), ...sinonimos]) {
       const achada = normalizados.find((c) => c.texto === s && !usadas.has(c.indice));

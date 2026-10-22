@@ -334,7 +334,7 @@ export function LinhasConferencia({
       {detalhe.pending.length > 0 && (
         <div className="bloco-itens bloco-pendencias" data-testid="pendencias-conferencia">
           <h4>Pendências a resolver ({detalhe.pending.length})</h4>
-          <p className="bloco-nota">Não entram em saldo. Cadastre o código ou aprove o fator; no rascunho, corrija a linha; depois de concluída, solicite recontagem.</p>
+          <p className="bloco-nota">Não entram em saldo. Inclua o código ou o fator pela importação "Cadastro de produtos"; no rascunho, corrija a linha; depois de concluída, solicite recontagem.</p>
           <ul className="itens">
             {detalhe.pending.map((p) => (
               <li key={p.lineId} className="item-conteudo">

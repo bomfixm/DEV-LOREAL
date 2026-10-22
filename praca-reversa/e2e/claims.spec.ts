@@ -141,12 +141,14 @@ test.describe('claims', () => {
     // 4. Ver no mapa: centraliza o palete certo; "Voltar ao claim" reabre linha e candidatos.
     await page.locator(`[data-testid="candidato"][data-palete="${compativel.code}"]`).getByTestId('ver-no-mapa').click();
     await aguardarMapa(page);
-    await expect(page.getByTestId('detalhe').getByRole('heading', { level: 2 })).toHaveText(compativel.code);
+    await expect(page.getByTestId('janela-palete')).toContainText(compativel.code);
     await aguardarMapaParado(page);
     const noMapa = await centroDaCaixa(forma(page, compativel.code));
     const centro = await centroDaCaixa(mapa(page));
     expect(Math.abs(noMapa.x - centro.x)).toBeLessThan(6);
     expect(Math.abs(noMapa.y - centro.y)).toBeLessThan(6);
+    // A janela do palete cobre a página: fecha antes de voltar ao claim.
+    await page.keyboard.press('Escape');
     await page.getByTestId('voltar-ao-claim').click();
     await expect(page.getByTestId('secao-candidatos')).toBeVisible();
     await expect(page).toHaveURL(/aba=candidatos/);

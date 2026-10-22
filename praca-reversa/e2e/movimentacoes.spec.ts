@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type APIResponse, type Page, type TestInfo } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { abrirMenuConta, aguardarMapa, aguardarMapaParado, centroDaCaixa, entrar, forma, obterPraca, type PracaApi } from './apoio';
+import { abrirPalete, abrirMenuConta, aguardarMapa, aguardarMapaParado, centroDaCaixa, entrar, forma, obterPraca, type PracaApi, verMais } from './apoio';
 import { credenciais, type Credenciais } from './credenciais';
 
 /**
@@ -203,7 +203,7 @@ test.describe('movimentações com histórico', () => {
     await trocarUsuario(page, 'operador');
 
     // ---- Mover palete (aberto pelo link do QR) ----
-    await page.goto(`/paletes/${origem.id}`);
+    await abrirPalete(page, origem.id);
     await page.getByTestId('acao-mover').click();
     await expect(page).toHaveURL(new RegExp(`/paletes/${origem.id}/mover$`));
     await expect(page.getByTestId('endereco-atual')).toHaveText(origem.positionCode ?? '');
@@ -241,12 +241,14 @@ test.describe('movimentações com histórico', () => {
     await page.getByTestId('confirmar-movimento').click();
     await expect(page.getByTestId('movimento-confirmado')).toContainText(`agora em ${d2.code}`);
     await page.getByRole('button', { name: 'Ver o palete no mapa' }).click();
-    await expect(page.getByTestId('detalhe').locator('.detalhe-local')).toContainText(d2.code);
+    await verMais(page);
+    await expect(page.getByTestId('secao-identificacao')).toContainText(d2.code);
     const praca = await obterPraca(page);
     expect(praca.pallets.find((p) => p.id === origem.id)?.positionCode).toBe(d2.code);
     expect(praca.pallets.find((p) => p.positionCode === origem.positionCode)).toBeUndefined();
 
     // ---- Transferir produtos ----
+    await verMais(page);
     await page.getByTestId('acao-transferir').click();
     await expect(page).toHaveURL(new RegExp(`/paletes/${origem.id}/transferir$`));
     await page.getByRole('radio').first().check();
@@ -342,7 +344,7 @@ test.describe('movimentações com histórico', () => {
     await entrar(page, 'supervisor');
     const { origem } = await prepararCenario(page, testInfo, 'P1');
     await trocarUsuario(page, 'consultaCadastro');
-    await page.goto(`/paletes/${origem.id}`);
+    await abrirPalete(page, origem.id);
     await expect(page.getByTestId('secao-movimentacoes')).toBeVisible();
     await expect(page.getByTestId('acao-mover')).toHaveCount(0);
     await expect(page.getByTestId('acao-transferir')).toHaveCount(0);
@@ -371,9 +373,10 @@ test.describe('movimentações com histórico', () => {
     await entrar(page, 'supervisor');
     const { origem } = await prepararCenario(page, testInfo, 'T3');
     const antes = { praca: await obterPraca(page), palete: await palete(page, origem.id), historico: await historico(page, origem.id) };
-    await page.goto(`/paletes/${origem.id}`);
+    await abrirPalete(page, origem.id);
     await aguardarMapa(page);
-    await page.getByRole('button', { name: 'Centralizar no mapa' }).click();
+    // "Centralizar" da janela: fecha a janela e centraliza o palete.
+    await page.getByTestId('janela-centralizar').click();
     await aguardarMapaParado(page);
     const { x, y } = await centroDaCaixa(forma(page, origem.code));
     // Arraste começando sobre o palete, zoom com a roda e visão geral.
@@ -383,7 +386,7 @@ test.describe('movimentações com histórico', () => {
     await page.mouse.up();
     await page.mouse.wheel(0, -400);
     await aguardarMapaParado(page);
-    await page.getByRole('button', { name: 'Visão geral' }).click();
+    await page.getByRole('button', { name: 'Ver praça completa' }).click();
     await aguardarMapaParado(page);
     const depois = { praca: await obterPraca(page), palete: await palete(page, origem.id), historico: await historico(page, origem.id) };
     expect(depois.praca.pallets.map((p) => [p.id, p.positionId])).toEqual(antes.praca.pallets.map((p) => [p.id, p.positionId]));
@@ -400,7 +403,7 @@ test.describe('movimentações com histórico', () => {
     await entrar(page, 'supervisor');
     const { origem, destino } = await prepararCenario(page, testInfo, 'C5');
     await trocarUsuario(page, 'operador');
-    await page.goto(`/paletes/${origem.id}`);
+    await abrirPalete(page, origem.id);
     await page.getByTestId('acao-mover').tap();
     const [livre] = livres(await obterPraca(page));
     if (!livre) throw new Error('Sem posição livre em F04.');

@@ -17,14 +17,14 @@ export function registrarRotasPraca(app: FastifyInstance, deps: Dependencias, au
   app.get(`${API_PREFIXO}/paletes`, { preHandler: auth.exigirPermissao('palete.consultar') }, (request) => {
     const filtro = FiltroPaletesSchema.safeParse(request.query);
     if (!filtro.success) throw requisicaoInvalida('Filtro inválido: texto até 64 caracteres e limite de 1 a 500.');
-    return filtrarPaletes(deps.db, escopoAtivoDe(request), filtro.data);
+    return filtrarPaletes(deps.db, escopoAtivoDe(request), filtro.data, deps.agora());
   });
 
   app.get(`${API_PREFIXO}/paletes/:id`, { preHandler: auth.exigirPermissao('palete.consultar') }, async (request) => {
     const parametros = ParametrosPaleteSchema.safeParse(request.params);
     if (!parametros.success) throw requisicaoInvalida('Identificador de palete inválido.');
     const escopo = escopoAtivoDe(request);
-    const detalhe = await consultarPalete(deps.db, escopo, parametros.data.id);
+    const detalhe = await consultarPalete(deps.db, escopo, parametros.data.id, deps.agora());
     if (detalhe) return detalhe;
 
     // Mesmo 404 para inexistente e para palete de outro escopo; a tentativa

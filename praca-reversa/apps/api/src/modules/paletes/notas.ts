@@ -36,6 +36,8 @@ import { ehViolacaoUnica } from '../../db/erros.js';
 import { ErroHttp, naoEncontrado } from '../../http/erros.js';
 import { registrarEvento } from '../auditoria/registrar.js';
 import { identidadeDocumento, lerMarcadoresFull } from '../importacao/identidade.js';
+import { LINHA_VIGENTE, linhasAtuaisDosVinculos } from '../importacao/linhas-vigentes.js';
+import { quantidadesAtuais } from '../conteudos/estado.js';
 
 type Db = Banco | Transacao;
 type DadosCidade = z.output<typeof AlterarCidadeDestinoSchema>;
@@ -59,6 +61,8 @@ interface Fotografia {
   partesFullNesteEndereco?: number[];
   pendencias?: string[];
   volumesNaOrigem?: { linha: number; valor: string | null; texto: string }[];
+  /** Bipagem: total da nota informado no arquivo (não atribuído ao palete). */
+  totalDaNota?: string | null;
 }
 
 function fotografiaDe(v: unknown): Fotografia | null {
@@ -75,17 +79,27 @@ const TEXTO_PENDENCIA: Readonly<Record<string, string>> = {
   TOTAL_PALETES_FULL_CONFLITANTE: 'Total de paletes no PALLET FULL diverge entre as linhas desta NF.',
   TIPO_DOCUMENTAL_PENDENTE: 'Tipo do documento não informado na origem (não é tratado como NFD).',
   DOCUMENTO_DE_OUTRO_TIPO: 'Documento de outro tipo (não é NFD).',
+  BIPAGEM_TOTAL_DA_NOTA: 'A bipagem informou o total da nota, não os volumes deste palete: volumes do palete pendentes.',
+  BIPAGEM_VOLUMES_SEM_IDENTIFICACAO: 'Bipagem sem identificação individual de todos os volumes: volumes pendentes por decisão na importação.',
+  BIPAGEM_IDENTIDADE_SO_NUMERO: 'Importada da bipagem só com o número (sem delivery, remetente, chave nem emitente): confira se é a nota certa.',
 };
 
-/** Endereço completo informado no inventário ativo, por palete (linhas aplicadas, a mais recente). */
+/**
+ * Endereço completo informado no inventário, por palete: a linha vigente mais
+ * recente (do inventário ativo ou que sustenta um vínculo ativo); o código é o
+ * do inventário ativo que cita o endereço, quando houver.
+ */
 export async function enderecosInformados(db: Db, escopoId: string, paleteIds: readonly string[]): Promise<Map<string, { endereco: string; inventario: string }>> {
   if (paleteIds.length === 0) return new Map();
   const linhas = await db.$queryRaw<{ palete_id: string; endereco: string; inventario: string }[]>`
-    SELECT DISTINCT ON (li.palete_id) li.palete_id::text, li.endereco_canonico AS endereco, i.codigo AS inventario
+    SELECT DISTINCT ON (li.palete_id) li.palete_id::text, li.endereco_canonico AS endereco,
+           coalesce((SELECT ia.codigo FROM linha_inventario la JOIN inventario_referencia ia ON ia.id = la.inventario_id
+                      WHERE la.escopo_id = li.escopo_id AND la.endereco_canonico = li.endereco_canonico AND ia.situacao = 'ATIVO' AND ia.origem <> 'BIPAGEM'
+                      ORDER BY la.criado_em DESC LIMIT 1), i.codigo) AS inventario
       FROM linha_inventario li
       JOIN inventario_referencia i ON i.id = li.inventario_id
      WHERE li.escopo_id = ${escopoId}::uuid AND li.palete_id = ANY(${[...new Set(paleteIds)]}::uuid[])
-       AND li.aplicada AND NOT li.endereco_livre AND li.endereco_canonico IS NOT NULL AND i.situacao = 'ATIVO'
+       AND li.endereco_canonico IS NOT NULL AND ${LINHA_VIGENTE}
      ORDER BY li.palete_id, li.criado_em DESC, li.linha_arquivo`;
   return new Map(linhas.map((l) => [l.palete_id, { endereco: l.endereco, inventario: l.inventario }]));
 }
@@ -113,17 +127,26 @@ export async function notasDoPalete(db: Db, escopoId: string, paleteId: string):
     select: { id: true, codigo: true, posicaoId: true, posicao: { select: { codigo: true, endereco: { select: { endereco: true, situacao: true } } } } },
   });
   if (!palete) throw naoEncontrado('Palete não encontrado neste escopo.');
+  // Ocorrências em validação (sem endereço) não são notas do palete; canceladas aparecem como encerradas.
   const vinculos = await db.vinculoDocumentoPalete.findMany({
-    where: { escopoId, paleteId },
+    where: { escopoId, paleteId, situacao: { in: ['ATIVO', 'ENCERRADO', 'CANCELADO'] } },
     orderBy: [{ situacao: 'asc' }, { tipoDocumento: 'asc' }, { numeroDocumento: 'asc' }, { criadoEm: 'asc' }],
     include: {
       inventario: { select: { id: true, codigo: true, descricao: true, referenciaConferencia: true, dataConferencia: true } },
-      linhaInventario: { select: { linhaArquivo: true, enderecoCanonico: true, enderecoLido: true, remetente: true } },
+      linhaInventario: { select: { linhaArquivo: true, enderecoCanonico: true, enderecoLido: true, remetente: true, mesAgenda: true, janelaReferencia: true } },
     },
   });
   const identidadeDe = (v: (typeof vinculos)[number]) =>
     v.identidadeDocumento ?? identidadeDocumento(v.tipoDocumento, v.numeroDocumento, v.delivery, v.linhaInventario.remetente);
   const ativos = vinculos.filter((v) => v.situacao === 'ATIVO');
+  // Vínculo mantido de versão substituída: a origem citada é a linha da planilha atual.
+  const atuais = await linhasAtuaisDosVinculos(db, escopoId, ativos.map((v) => v.id));
+  // Volumes atuais = a contagem mais recente da ocorrência (130 recontado como 126 mostra 126); sem contagem, o do inventário.
+  const quantidades = await quantidadesAtuais(
+    db,
+    escopoId,
+    ativos.map((v) => v.id),
+  );
   const numeros = [...new Set(ativos.map((v) => v.numeroDocumento))];
   const identidades = [...new Set(ativos.map(identidadeDe))];
 
@@ -216,6 +239,10 @@ export async function notasDoPalete(db: Db, escopoId: string, paleteId: string):
   if (identidades.length >= 2) {
     full = 'MISTO';
     motivo = `${String(identidades.length)} documentos diferentes neste palete.`;
+  } else if (identidades.length === 1 && ativos.some((v) => (v.palletFull ?? '').trim().toUpperCase() === 'FRACIONADO')) {
+    // FRACIONADO preservado: uma nota só no palete não basta para tratá-lo como full.
+    full = 'NAO_INFORMADO';
+    motivo = 'Uma única nota identificada, mas o inventário marca FRACIONADO: não é tratado como full.';
   } else if (identidades.length === 1 && ativos.every((v) => v.tipoDocumento === 'NFD') && semDocumento.length === 0) {
     full = 'FULL';
     motivo = 'Uma única NFD neste palete, com registros suficientes.';
@@ -275,40 +302,49 @@ export async function notasDoPalete(db: Db, escopoId: string, paleteId: string):
     const volumesPorLinha = foto?.volumesNaOrigem ?? [];
     const pendencias = [
       ...(v.volumes === null && !(foto?.pendencias ?? []).includes('VOLUMES_EM_MULTIPLAS_LINHAS_A_CONFIRMAR') ? ['Volumes pendentes: quantidade desconhecida (não é saldo disponível).'] : []),
-      ...(foto?.pendencias ?? []).flatMap((p) => (p === 'VOLUMES_NAO_INFORMADOS_OU_INVALIDOS' && v.volumes === null ? [] : [TEXTO_PENDENCIA[p] ?? p])),
+      ...(foto?.pendencias ?? []).flatMap((p) =>
+        p === 'VOLUMES_NAO_INFORMADOS_OU_INVALIDOS' && v.volumes === null
+          ? []
+          : p === 'BIPAGEM_TOTAL_DA_NOTA' && typeof foto?.totalDaNota === 'string'
+            ? [`A bipagem informou o total da nota (${foto.totalDaNota} volumes), não os volumes deste palete: volumes do palete pendentes.`]
+            : [TEXTO_PENDENCIA[p] ?? p],
+      ),
       ...(v.tipoDocumento !== 'NFD' && !(foto?.pendencias ?? []).some((p) => p === 'TIPO_DOCUMENTAL_PENDENTE' || p === 'DOCUMENTO_DE_OUTRO_TIPO')
         ? [v.tipoDocumento === null ? (TEXTO_PENDENCIA.TIPO_DOCUMENTAL_PENDENTE ?? '') : `Documento ${v.tipoDocumento} (não é NFD).`]
         : []),
     ];
     const cidade = cidadePor.get(identidade);
     const conteudo = conteudoPor.get(identidade);
+    const linha = atuais.get(v.id) ?? { ...v.linhaInventario, inventario: v.inventario };
     return {
       id: v.id,
       documentType: v.tipoDocumento,
       documentNumber: v.numeroDocumento,
       documentKey: v.chaveDocumento,
       delivery: v.delivery,
-      volumes: v.volumes === null ? null : normalizarQuantidade(v.volumes.toFixed()),
+      volumes: ((q) => (q !== null && q !== undefined ? String(q) : v.volumes === null ? null : normalizarQuantidade(v.volumes.toFixed())))(v.situacao === 'ATIVO' ? quantidades.get(v.id) : null),
       volumesUnit: v.unidadeVolumes,
       documentation: v.documentacao,
       palletFull: v.palletFull,
-      state: v.situacao === 'ENCERRADO' ? 'ENCERRADO' : 'ATIVO',
+      state: v.situacao === 'ATIVO' ? 'ATIVO' : 'ENCERRADO',
       externalCount: v.conferidoExternamente,
       endedAt: v.encerradoEm?.toISOString() ?? null,
       endReason: v.motivoEncerramento,
-      informedAddress: v.linhaInventario.enderecoCanonico ?? v.linhaInventario.enderecoLido,
+      informedAddress: (linha.enderecoCanonico ?? linha.enderecoLido),
       source: {
-        inventoryId: v.inventario.id,
-        inventoryCode: v.inventario.codigo,
-        description: v.inventario.descricao,
-        countReference: v.inventario.referenciaConferencia,
-        countDate: dia(v.inventario.dataConferencia),
-        row: v.linhaInventario.linhaArquivo,
+        inventoryId: linha.inventario.id,
+        inventoryCode: linha.inventario.codigo,
+        description: linha.inventario.descricao,
+        countReference: linha.inventario.referenciaConferencia,
+        countDate: dia(linha.inventario.dataConferencia),
+        row: linha.linhaArquivo,
         importedAt: v.criadoEm.toISOString(),
       },
       identity: identidade,
       isNfd: v.tipoDocumento === 'NFD',
-      sender: v.linhaInventario.remetente,
+      sender: linha.remetente,
+      scheduleMonth: linha.mesAgenda,
+      windowRef: linha.janelaReferencia,
       destinationCity: { value: cidade?.cidadeDestino ?? '', version: cidade?.versao ?? 0 },
       productInBox: {
         value: conteudo?.produtoNaCaixa ?? '',

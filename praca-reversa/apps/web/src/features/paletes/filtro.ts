@@ -3,9 +3,11 @@ import { API_PREFIXO, LIMITE_MAXIMO_PALETES, type EstadoConferencia, type Layout
 export interface Filtro {
   texto: string;
   conferencia: EstadoConferencia | 'TODOS';
+  /** Só paletes com reconferência necessária (prazo de 20 dias, calculado no servidor). */
+  reconferencia?: boolean;
 }
 
-export const FILTRO_VAZIO: Filtro = { texto: '', conferencia: 'TODOS' };
+export const FILTRO_VAZIO: Filtro = { texto: '', conferencia: 'TODOS', reconferencia: false };
 
 /** Minúsculas, sem acentos e sem separadores: "F01-P02" e "f01p02" se equivalem. */
 export function normalizar(texto: string): string {
@@ -17,7 +19,7 @@ export function normalizar(texto: string): string {
 }
 
 export function filtroAtivo(filtro: Filtro): boolean {
-  return normalizar(filtro.texto) !== '' || filtro.conferencia !== 'TODOS';
+  return normalizar(filtro.texto) !== '' || filtro.conferencia !== 'TODOS' || filtro.reconferencia === true;
 }
 
 /** Consulta do filtro no servidor (mesma validação e limites da API). */
@@ -26,6 +28,7 @@ export function urlFiltro(filtro: Filtro): string {
   const texto = filtro.texto.trim().slice(0, 64);
   if (texto) parametros.set('texto', texto);
   if (filtro.conferencia !== 'TODOS') parametros.set('conferencia', filtro.conferencia);
+  if (filtro.reconferencia === true) parametros.set('reconferencia', 'sim');
   parametros.set('limite', String(LIMITE_MAXIMO_PALETES));
   return `${API_PREFIXO}/paletes?${parametros.toString()}`;
 }

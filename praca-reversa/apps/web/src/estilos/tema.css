@@ -1,0 +1,228 @@
+/*
+ * Praça Reversa — tema da tela (out. 2026): seletor Claro/Escuro e cores do escuro.
+ * O escuro vale com <html data-tema="escuro"> (escolha do usuário ou do sistema, ver src/tema.ts)
+ * e SÓ na tela: impressão, etiquetas e a prévia da folha A4 continuam no papel branco.
+ * Identidade DHL no escuro: fundo quase preto, amarelo #FFCC00 cheio nas ações (texto quase
+ * preto) e vermelho DHL nos alertas. Cor de situação continua acompanhada de texto/marcador.
+ */
+
+@media screen {
+  /* ---------- Seletor de tema (os dois temas) ---------- */
+
+  .seletor-tema {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 12px;
+    background: var(--fundo);
+  }
+
+  .seletor-tema button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--tinta-suave);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .seletor-tema button .icone {
+    width: 16px;
+    height: 16px;
+  }
+
+  .seletor-tema button:hover {
+    color: var(--tinta);
+  }
+
+  .seletor-tema button[aria-pressed='true'] {
+    background: var(--superficie);
+    color: var(--tinta);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.14);
+  }
+
+  .barra-lateral .seletor-tema {
+    margin: 4px 4px 0;
+  }
+
+  .menu-conta-tema {
+    display: grid;
+    gap: 6px;
+  }
+
+  /* ---------- Cores do tema escuro ---------- */
+
+  :root[data-tema='escuro'] {
+    color-scheme: dark;
+
+    --fundo: #0e0e10;
+    --superficie: #18181b;
+    --superficie-2: #1f1f23;
+    --tinta: #f4f4f5;
+    --tinta-suave: #a1a1aa;
+    --borda: #2a2a30;
+    --borda-forte: #3f3f46;
+    --borda-suave: #232328;
+    --foco: #ffcc00;
+    --sombra: 0 1px 2px rgb(0 0 0 / 0.5), 0 4px 16px rgb(0 0 0 / 0.35);
+    --sombra-flutuante: 0 2px 6px rgb(0 0 0 / 0.5), 0 12px 32px rgb(0 0 0 / 0.55);
+
+    /* Vermelho DHL cheio em marcas; em texto, um tom claro que passa o contraste no fundo escuro. */
+    --vermelho-escuro: #ff6b72;
+    --erro: #ff6b72;
+    --ok: #5fd38d;
+
+    --amarelo-acao: #ffcc00;
+    --amarelo-acao-forte: #ffd94d;
+    --amarelo-acao-borda: #ffcc00;
+    --amarelo-suave: #2e2708;
+    --tinta-acao: #121212;
+
+    --livre-suave: #133322;
+    --livre-texto: #5fd38d;
+    --st-livre: #2e9e57;
+    --st-livre-borda: #5fd38d;
+    --agenda: #2a1f3a;
+    --agenda-texto: #c9a8f0;
+    --agenda-mapa: #3d2b57;
+    --agenda-borda: #b18ae6;
+    --reconferencia-mapa: #4d2a0a;
+    --reconferencia-texto: #ffa257;
+    --divergencia: #35260f;
+    --divergencia-texto: #f2b866;
+    --divergencia-borda: #f2b866;
+    --estoque: #2a2a30;
+
+    --st-nao-conferido: #3a3d42;
+    --st-nao-conferido-borda: #a8b0ba;
+    --st-parcial: #5a3a10;
+    --st-parcial-borda: #f6b04d;
+    --st-aguardando: #173a5c;
+    --st-aguardando-borda: #8ec0ee;
+    --st-reconciliado: #2c3450;
+    --st-reconciliado-borda: #a9b6d9;
+
+    --tom-erro-fundo: #3a1518;
+    --tom-aviso-fundo: #35260f;
+    --tom-aviso-texto: #f2b866;
+    --tom-amarelo-fundo: #2e2708;
+    --tom-amarelo-suave: #221e0c;
+    --tom-amarelo-borda: #5c4c0f;
+    --tom-amarelo-texto: #ffd84d;
+    --tom-ok-fundo: #133322;
+    --tom-info-fundo: #142a40;
+    --tom-neutro-fundo: #232328;
+    --tom-roxo-fundo: #2a1f3a;
+    --tom-roxo-texto: #c9a8f0;
+
+    /* Painéis: amarelo DHL puro nas séries (o escuro aguenta o tom cheio), vermelho um passo mais claro. */
+    --painel-serie-1: #ffcc00;
+    --painel-serie-2: #e8323c;
+    --painel-livre: #3fb067;
+    --painel-neutro: #52525b;
+    --painel-trilho: #27272c;
+
+    --vidro: rgb(24 24 27 / 0.94);
+    --mapa-fundo: #111113;
+    --mapa-zona: #18181b;
+    --mapa-zona-borda: #2f2f35;
+    --mapa-bloco: #161619;
+    --mapa-bloco-borda: #34343a;
+    --mapa-corredor: #131316;
+    --mapa-pos-desconhecida: #1f1f23;
+    --mapa-pos-borda: #4a4a52;
+    --mapa-pos-vazia: #1b1b1f;
+    --mapa-pos-desativada: #26262b;
+    --mapa-pos-desativada-borda: #3a3a40;
+  }
+
+  /* Texto escuro onde o fundo ficou claro/vivo no escuro (selos e rótulos cheios). */
+  :root[data-tema='escuro'] .selo-livre,
+  :root[data-tema='escuro'] .pr-rotulo-reconferencia,
+  :root[data-tema='escuro'] .pr-rotulo-agenda {
+    color: #121212;
+  }
+
+  /* Palete selecionado no mapa: amarelo cheio com texto escuro. */
+  :root[data-tema='escuro'] .pr-rotulo-palete--selecionado,
+  :root[data-tema='escuro'] .pr-rotulo-palete--selecionado .pr-rotulo-codigo,
+  :root[data-tema='escuro'] .pr-rotulo-palete--selecionado .pr-rotulo-estado {
+    color: var(--tinta-acao);
+  }
+
+  /* Elementos do mapa que ainda usam as cores do desenho base. */
+  :root[data-tema='escuro'] .mapa-praca .pr-fundo {
+    fill: var(--mapa-fundo);
+    stroke: #3a3a40;
+  }
+
+  :root[data-tema='escuro'] .mapa-praca .pr-elemento--DOCA {
+    fill: #3a3108;
+    stroke: #ffcc00;
+  }
+
+  :root[data-tema='escuro'] .pr-titulo--DOCA {
+    color: var(--tom-amarelo-texto);
+  }
+
+  :root[data-tema='escuro'] .mapa-praca .pr-posicao--indisponivel {
+    fill: #26292e;
+    stroke: #6b737c;
+  }
+
+  :root[data-tema='escuro'] .mapa-praca .pr-palete--NAO_CONFERIDO {
+    stroke: #6b737c;
+  }
+
+  :root[data-tema='escuro'] .amostra--desconhecida {
+    background: repeating-linear-gradient(-45deg, #2a2a30 0 3px, #1f1f23 3px 6px);
+  }
+
+  :root[data-tema='escuro'] .amostra--desativada {
+    background: #2a2a30;
+    border-color: #4a4a52;
+  }
+
+  :root[data-tema='escuro'] .amostra--indisponivel {
+    background: linear-gradient(to top right, transparent 45%, #6b737c 45% 55%, transparent 55%), #26292e;
+  }
+
+  :root[data-tema='escuro'] .amostra--doca {
+    background: #3a3108;
+    border-color: #ffcc00;
+  }
+
+  :root[data-tema='escuro'] .campo-pesquisa--topo:focus-within {
+    box-shadow: 0 0 0 3px rgb(255 204 0 / 0.18);
+  }
+
+  /* Etapa atual do recebimento: número em amarelo no círculo escuro (o fundo da etapa é amarelo cheio). */
+  :root[data-tema='escuro'] .etapa-recebimento--atual::before {
+    background: var(--tinta-acao);
+    color: var(--amarelo-acao);
+  }
+
+  /* Links de ação em amarelo DHL (no claro seguem o verde da prévia aprovada). */
+  :root[data-tema='escuro'] .botao-link {
+    color: var(--amarelo-acao);
+  }
+
+  :root[data-tema='escuro'] .botao-ajuda:hover {
+    background: var(--superficie-2);
+  }
+
+  /* Menu lateral um tom abaixo do conteúdo, como nas referências escuras. */
+  :root[data-tema='escuro'] .barra-lateral,
+  :root[data-tema='escuro'] .topo {
+    background: #121214;
+  }
+}

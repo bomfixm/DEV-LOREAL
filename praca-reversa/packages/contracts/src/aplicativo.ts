@@ -11,9 +11,9 @@ import { ChaveIdempotenciaSchema } from './admin.js';
  * de servir a interfaces já abertas (rota, campo obrigatório ou significado
  * alterados). Interface e API do mesmo build têm o mesmo número.
  */
-export const VERSAO_CONTRATO = 9;
+export const VERSAO_CONTRATO = 11;
 /** Menor contrato de interface que a API aceita em gravações. */
-export const CONTRATO_MINIMO_INTERFACE = 9;
+export const CONTRATO_MINIMO_INTERFACE = 11;
 /** Contrato da interface (no pedido) e da API (na resposta). */
 export const CABECALHO_CONTRATO = 'x-praca-contrato';
 

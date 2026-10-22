@@ -1,7 +1,7 @@
 import { expect, test, type APIResponse, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { aguardarMapa, ehCelular, entrar, obterPraca } from './apoio';
+import { abrirPalete, aguardarMapa, ehCelular, entrar, obterPraca } from './apoio';
 
 /**
  * Indicadores, relatórios e retirada de palete vazio pela interface (etapa
@@ -153,7 +153,7 @@ test.describe('Consolidação pela interface', () => {
       200,
     );
     const antes = (await (await page.request.get('/api/v1/indicadores')).json()) as { praca: { positions: { occupied: number } }; estoque: { current: { unit: string; validated: string }[] } };
-    await page.goto(`/paletes/${origem.id}`);
+    await abrirPalete(page, origem.id);
     await page.getByTestId('acao-retirar').click();
     const tela = page.getByTestId('tela-retirar');
     await expect(tela).toContainText('Não é saída de estoque');

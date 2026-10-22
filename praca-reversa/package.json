@@ -23,6 +23,8 @@
     "db:semear-demo": "npm run db:semear-demo -w @praca-reversa/api",
     "admin:criar": "npm run admin:criar -w @praca-reversa/api --",
     "inventario:carregar": "npm run inventario:carregar -w @praca-reversa/api --",
+    "paletes:numeracao": "npm run paletes:numeracao -w @praca-reversa/api --",
+    "paletes:corrigir": "npm run paletes:corrigir -w @praca-reversa/api --",
     "planilha:exemplo": "npm run planilha:exemplo -w @praca-reversa/api",
     "backup:criar": "node scripts/recuperacao/criar-backup.mjs",
     "backup:restaurar": "node scripts/recuperacao/restaurar-backup.mjs",

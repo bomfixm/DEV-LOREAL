@@ -45,6 +45,12 @@ const DADOS: Readonly<Record<TipoImportacao, readonly (readonly Valor[])[]>> = {
   ],
   // Palete, NF, tipo, delivery, linha do inventário, linha do pedido, SKU, lote, quantidade, unidade, marcação,
   // abrangência, janela, endereço informado, observação (fictícios).
+  // Tipo, Número, Lidos, CNPJ Remetente, Remetente (layout da exportação real; demais colunas são ignoradas) — fictícios.
+  BIPAGEM: [
+    ['NF-e', '900001', 3, '11.111.111/0001-11', 'Remetente fictício A'],
+    ['NF-e', '900002', 0, '11.111.111/0001-11', 'Remetente fictício A'],
+    ['Minuta', '501', 1, '22.222.222/0001-22', 'Remetente fictício B'],
+  ],
   SELECAO_CLIENTE: [
     [null, 'MOD000123401', 'NFD', null, null, '1', null, null, null, null, null, 'NF', '2', null, 'Material da NF que consta do inventário'],
     ['M9003', null, null, null, null, '2', null, null, null, null, null, 'PALETE', '2', 'GR - 5', 'Palete inteiro'],
@@ -58,6 +64,7 @@ const NOMES: Readonly<Record<TipoImportacao, string>> = {
   CLAIMS: 'Claims',
   INVENTARIO: 'Inventário',
   SELECAO_CLIENTE: 'Seleção',
+  BIPAGEM: 'Bipagem',
 };
 
 /** Tipo do modelo pelo nome do arquivo. */
@@ -66,6 +73,7 @@ export function tipoDoModelo(arquivo: ArquivoModelo): TipoImportacao {
   if (arquivo.startsWith('claims')) return 'CLAIMS';
   if (arquivo.startsWith('inventario')) return 'INVENTARIO';
   if (arquivo.startsWith('selecao')) return 'SELECAO_CLIENTE';
+  if (arquivo.startsWith('bipagem')) return 'BIPAGEM';
   return 'DEVOLUCOES';
 }
 
@@ -92,7 +100,14 @@ function instrucoes(tipo: TipoImportacao): PlanilhaModelo {
               ['Observação', '', 'Endereço livre: escolha na prévia a cor de fonte da coluna RUA (XLSX) ou os valores da coluna "Situação do endereço" (CSV) que significam endereço livre.'],
               ['Observação', '', 'Mesma NF em várias linhas do mesmo palete = parcelas (volumes nunca somados). PALLET FULL (ex.: 01\\07) é preservado como texto.'],
             ] as const)
-          : tipo === 'SELECAO_CLIENTE'
+          : tipo === 'BIPAGEM'
+            ? ([
+                ['Observação', '', 'Modelo fictício no layout da exportação da bipagem: Tipo (NF-e ou Minuta), Número, Lidos, CNPJ Remetente e Remetente, em qualquer ordem. Outras colunas (Status, Série, Leituras, Destino…) podem ficar no arquivo e são ignoradas.'],
+                ['Observação', '', 'Lidos = volumes lidos daquele documento no palete (Leituras não é usada). Lidos = 0 fica registrado no lote e não muda o palete.'],
+                ['Observação', '', 'Cada documento com leitura vira um conteúdo do palete com a contagem informada. Reenvio com a mesma contagem não duplica; contagem nova substitui a anterior (nunca soma).'],
+                ['Observação', '', 'Delivery, SKU e validade são complementos opcionais, preenchidos depois. Importar não libera, não reserva e não expede.'],
+              ] as const)
+            : tipo === 'SELECAO_CLIENTE'
             ? ([
                 ['Observação', '', 'Seleção do cliente: cada linha é uma solicitação (ou, no inventário com marcação, só as linhas com o valor escolhido na prévia).'],
                 ['Observação', '', 'Abrangência: PALETE (palete inteiro), NF (material da NF/devolução) ou LINHA (produto e quantidade). Vazio = regra pela identificação da linha.'],

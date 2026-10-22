@@ -41,13 +41,14 @@ test('caminho-base /praca/: manifest, service worker, login, QR profundo, etique
 
   // Rota profunda aberta "pelo QR" (endereço completo) mostra o palete certo, autenticado.
   await page.goto(`${origem}/praca/paletes/${palete.id}`);
-  await expect(page.getByTestId('detalhe')).toContainText(palete.code);
+  await expect(page.getByTestId('janela-palete')).toContainText(palete.code);
   expect(new URL(page.url()).pathname).toBe(`/praca/paletes/${palete.id}`);
 
-  // Navegação interna mantém o prefixo.
+  // Navegação interna mantém o prefixo (a janela do palete fecha antes).
+  await page.keyboard.press('Escape');
   await page.getByTestId('menu-conta').locator('summary').click();
   await page.getByRole('button', { name: 'Aplicativo e aparelho' }).click();
   await expect(page.getByTestId('tela-aplicativo')).toBeVisible();
   expect(new URL(page.url()).pathname).toBe('/praca/aplicativo');
-  await expect(page.getByTestId('versoes')).toContainText('contrato 9');
+  await expect(page.getByTestId('versoes')).toContainText('contrato 11');
 });

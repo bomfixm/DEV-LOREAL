@@ -6,4 +6,5 @@ export const ROTULOS_PERFIL: Record<Perfil, string> = {
   SUPERVISOR_ESTOQUE: 'Supervisor de estoque',
   ANALISTA_CLAIMS: 'Analista de claims',
   ADMINISTRADOR: 'Administrador',
+  CLIENTE_CONSULTA: 'Cliente (consulta)',
 };

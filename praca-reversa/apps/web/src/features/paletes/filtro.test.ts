@@ -28,9 +28,9 @@ const layout: Layout = {
     { id: F2, code: 'F02', label: 'F02', order: 2, blockCode: 'B02', x: 0, y: 110, width: 300, height: 30, labelBox: { x: 0, y: 110, width: 30, height: 30 }, side: null },
   ],
   positions: [
-    { id: pos(1), code: 'F01-P01', provisionalCode: true, rowId: F1, number: 1, x: 40, y: 10, width: 40, height: 30, available: true, unavailableReason: null, occupancySurveyed: false, deactivated: false, address: null },
-    { id: pos(2), code: 'F01-P02', provisionalCode: true, rowId: F1, number: 2, x: 90, y: 10, width: 40, height: 30, available: true, unavailableReason: null, occupancySurveyed: false, deactivated: false, address: null },
-    { id: pos(3), code: 'F02-P01', provisionalCode: true, rowId: F2, number: 1, x: 40, y: 110, width: 40, height: 30, available: true, unavailableReason: null, occupancySurveyed: false, deactivated: false, address: null },
+    { id: pos(1), code: 'F01-P01', provisionalCode: true, rowId: F1, number: 1, x: 40, y: 10, width: 40, height: 30, available: true, unavailableReason: null, occupancySurveyed: false, deactivated: false, address: null, freeConfirmed: null },
+    { id: pos(2), code: 'F01-P02', provisionalCode: true, rowId: F1, number: 2, x: 90, y: 10, width: 40, height: 30, available: true, unavailableReason: null, occupancySurveyed: false, deactivated: false, address: null, freeConfirmed: null },
+    { id: pos(3), code: 'F02-P01', provisionalCode: true, rowId: F2, number: 1, x: 40, y: 110, width: 40, height: 30, available: true, unavailableReason: null, occupancySurveyed: false, deactivated: false, address: null, freeConfirmed: null },
   ],
 };
 
@@ -46,6 +46,9 @@ function resumo(n: number, posicao: number | null): PaleteResumo {
     flowState: 'EM_ESTOQUE',
     pendingReason: null,
     activeCountId: null,
+    reconference: null,
+    volumeCheck: null,
+    legacyCode: null,
   };
 }
 

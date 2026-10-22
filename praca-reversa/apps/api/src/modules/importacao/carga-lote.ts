@@ -6,11 +6,21 @@
  *
  * Usa as mesmas estruturas e serviços da importação do inventário conferido:
  * lote (CONFIRMADO, arquivo privado) → inventário de referência (fotografia,
- * todas as linhas de origem) → paletes pelo cadastro existente (código gerado
- * pela sequência do escopo; N° Pallet da planilha só como referência externa)
- * → vínculos documentais, com auditoria. Regras:
+ * todas as linhas de origem) → paletes pelo cadastro existente → vínculos
+ * documentais, com auditoria. Regras:
  *
- * - Identidade do palete = endereço completo ("15 - A120" ≠ "13 - A120").
+ * - Identidade do palete (21 out. 2026): o N° Pallet ÚNICO do endereço (só
+ *   nesse endereço da fonte) é o número operacional do palete — o palete com
+ *   esse código, ou o ainda sem número (PR-…) ligado a ele por versão anterior,
+ *   que passa a usá-lo; sem palete, um novo com esse número. Nunca o palete
+ *   que estava antes no endereço com outro número. Sem número único (vazio,
+ *   dois números no endereço ou o número em dois endereços), vale o endereço
+ *   completo ("15 - A120" ≠ "13 - A120"), como antes.
+ * - Nada desfaz decisões posteriores: palete movido fica onde está (endereço
+ *   divergente avisado); posição com outro palete numerado → o novo entra sem
+ *   posição; ocorrência movida (mover/resolver a validação) continua no palete
+ *   para onde foi levada, mesmo atualizada, e não é encerrada como ausente;
+ *   nota em validação ou cancelada não é recriada (requer resolução).
  *   Endereço livre (verde em RUA) não ocupa posição nem cria palete: as NFs
  *   dele ficam como referência fora da praça (local atual não informado).
  * - Posição do mapa só pela tabela de correspondência CONFIRMADA; sem ela, o
@@ -26,9 +36,20 @@
  *   confirmada depois da carga) de paletes nunca movimentados.
  * - Cidade destino e produto na caixa: valor não vazio do pacote só preenche o
  *   que está vazio; vazio nunca apaga o que foi preenchido no aplicativo.
+ * - Extensão de 20/10/2026 (inventário L'Oréal preparado, base provisória):
+ *   `linhas_em_revisao` = linhas com bloqueio da preparação, gravadas no
+ *   inventário como "requer resolução", sem alocação, palete ou vínculo (nada
+ *   escolhido por suposição); `extras` por linha (classificação, conferência
+ *   informada, etiquetas FULL, pendências); `em_validacao` marca a base como
+ *   provisória. Com `manterAusentes`, a substituição não encerra os vínculos
+ *   ativos que não constam da versão nova (continuam ativos, a validar).
+ * - Extensão de 21/10/2026: `reconferencia_exigida` = endereços cujo palete
+ *   fica com "Reconferência necessária" (motivo gravado) até a reconferência
+ *   completa seguinte — notas de linhas em revisão alocadas por decisão.
  */
 import {
   FORMATO_QUANTIDADE,
+  chaveDeCodigo,
   normalizarEndereco,
   normalizarQuantidade,
   type Escopo,
@@ -43,9 +64,12 @@ import { ErroHttp } from '../../http/erros.js';
 import { registrarEvento } from '../auditoria/registrar.js';
 import { jsonCanonico } from '../idempotencia/executar.js';
 import { resolverEnderecos, type EnderecoResolvido } from '../layout/enderecos.js';
+import { registrarHistoricoConteudo } from '../conteudos/acoes.js';
 import { moverPalete } from '../movimentos/servico.js';
+import { atribuirNumeroOperacional, ehCodigoGerado } from '../paletes/numero-operacional.js';
 import { cadastrarPalete } from '../paletes/servico.js';
 import { contextoDocumental, hashContexto } from './identidade.js';
+import { paletesPorEndereco } from './linhas-vigentes.js';
 import { UNIDADE_VOLUMES, chaveDocumento, chaveVinculo, proximoNumeroInventario } from './inventario.js';
 
 export const SCHEMA_PACOTE = 'praca-reversa.importacao-inventario.v1';
@@ -80,8 +104,12 @@ const LinhaFonteSchema = z.object({
   contexto_documental: z.tuple([z.string(), z.string(), z.string(), z.string()]),
   chave_documento: Hex64.nullable(),
   campos_originais: z.record(z.string(), z.string()),
+  /** Dados de origem que não têm coluna própria (classificação, conferência informada, etiquetas FULL, pendências). */
+  extras: z.record(z.string(), z.unknown()).default({}),
 });
 export type LinhaFonte = z.infer<typeof LinhaFonteSchema>;
+
+const MotivoRevisaoSchema = z.object({ codigo: z.string().min(1).max(80), nivel: z.string().max(40), descricao: z.string().max(500) });
 
 const VinculoPacoteSchema = z.object({
   chave_vinculo: Hex64,
@@ -176,6 +204,16 @@ export const PacoteCargaSchema = z.object({
   documentos_fora_da_praca: z.array(VinculoPacoteSchema),
   documentos_tipo_pendente_na_praca: z.array(VinculoPacoteSchema),
   linhas_sem_numero_documento: z.array(LinhaFonteSchema),
+  /** Referências sem RUA: preservadas como pendentes, sem criar palete. */
+  linhas_sem_endereco: z.array(LinhaFonteSchema).default([]),
+  /** Linhas com bloqueio da preparação: preservadas como pendentes, sem alocação, palete ou vínculo. */
+  linhas_em_revisao: z.array(z.object({ linha: Linha, motivos: z.array(MotivoRevisaoSchema).min(1) })).default([]),
+  /** Base provisória (conferência em andamento): "Inventário em validação". */
+  em_validacao: z.boolean().default(false),
+  /** Data-base do arquivo (não é a data de conferência). */
+  data_base: z.iso.date().nullable().default(null),
+  /** Paletes destes endereços ficam com reconferência exigida (decisão registrada), até a reconferência completa seguinte. */
+  reconferencia_exigida: z.array(z.object({ endereco: z.string().min(1), motivo: z.string().trim().min(1).max(500) })).default([]),
   repeticoes_exatas: z.array(z.object({ linhas: z.array(Linha).min(2), endereco: z.string(), numero: z.string(), tratamento: z.string() })),
   numeros_na_planilha_em_varios_enderecos: z.array(z.object({ numero_na_planilha: z.string(), enderecos: z.array(z.string()), tratamento: z.string() })),
   linhas_fonte: z.array(LinhaFonteSchema).min(1),
@@ -240,6 +278,8 @@ export function conferirPacote(p: PacoteCarga): string[] {
   if (enderecosPosicao.size !== p.posicoes.length) erros.push('Endereço repetido em posicoes.');
   const conferirVinculo = (v: VinculoPacote, grupo: 'NFD' | 'PENDENTE' | 'FORA') => {
     const rot = `${v.tipo_documento ?? 'tipo pendente'} ${v.numero_documento}`;
+    // Número composto (lista por vírgulas) é conservado por inteiro até o limite do vínculo documental.
+    if (v.numero_documento.length > 200 || v.numero_documento !== v.numero_documento.trim()) erros.push(`${rot.slice(0, 80)}: número do documento acima de 200 caracteres ou com espaços nas pontas.`);
     if (grupo === 'NFD' && (v.tipo_documento !== 'NFD' || v.nfd !== v.numero_documento)) erros.push(`${rot}: vínculo da praça sem tipo NFD.`);
     if (grupo === 'PENDENTE' && (v.tipo_documento === 'NFD' || v.nfd !== null)) erros.push(`${rot}: documento de tipo pendente marcado como NFD.`);
     if (grupo !== 'FORA' && (v.endereco === null || v.situacao_localizacao !== 'INFORMADA_NO_INVENTARIO')) erros.push(`${rot}: vínculo da praça sem endereço.`);
@@ -265,7 +305,20 @@ export function conferirPacote(p: PacoteCarga): string[] {
     cobrir(l.linha, 'linha sem número');
     if (l.numero !== '') erros.push(`Linha ${String(l.linha)}: listada sem número, mas tem número.`);
   }
+  for (const l of p.linhas_sem_endereco) {
+    cobrir(l.linha, 'linha sem endereço');
+    if (l.endereco.trim() !== '' || l.endereco_livre) erros.push('Linha sem endereço deve estar sem endereço e não pode ser marcada como livre.');
+    if (jsonCanonico(linhas.get(l.linha)) !== jsonCanonico(l)) erros.push('Linha sem endereço não corresponde à linha de origem.');
+  }
+  const emRevisao = new Set<number>();
+  for (const r of p.linhas_em_revisao) {
+    cobrir(r.linha, 'linha em revisão');
+    emRevisao.add(r.linha);
+    if (!linhas.has(r.linha)) erros.push(`Linha em revisão ${String(r.linha)} não existe em linhas_fonte.`);
+  }
   for (const n of linhas.keys()) if (!cobertas.has(n)) erros.push(`Linha ${String(n)} não está em nenhum vínculo nem nas linhas sem número.`);
+  const ocupados = new Set(p.posicoes.filter((x) => !x.endereco_livre).map((x) => x.endereco));
+  for (const r of p.reconferencia_exigida) if (!ocupados.has(r.endereco)) erros.push(`Reconferência exigida em ${r.endereco}: endereço sem posição ocupada no pacote.`);
   const chaves = new Set([...N, ...T, ...F].map((v) => v.chave_vinculo));
   if (chaves.size !== N.length + T.length + F.length) erros.push('chave_vinculo repetida.');
   const naPosicao = new Map<string, string>();
@@ -283,7 +336,7 @@ export function conferirPacote(p: PacoteCarga): string[] {
     if (enderecosPosicao.get(v.endereco ?? '')?.endereco_livre !== false) erros.push(`${v.numero_documento}: endereço ${v.endereco ?? ''} não é posição ocupada do pacote.`);
   }
   for (const x of p.posicoes) {
-    const doEndereco = p.linhas_fonte.filter((l) => l.endereco === x.endereco).map((l) => String(l.linha));
+    const doEndereco = p.linhas_fonte.filter((l) => l.endereco === x.endereco && !emRevisao.has(l.linha)).map((l) => String(l.linha));
     if (!mesmoConjunto(doEndereco, x.linhas_origem.map(String))) erros.push(`${x.endereco}: linhas de origem da posição diferentes das linhas do endereço.`);
   }
   return erros.slice(0, 50);
@@ -318,12 +371,24 @@ interface PaleteAtual {
   fluxo: string;
   /** Já teve mudança de localização registrada (movimento posterior prevalece). */
   movimentado: boolean;
+  /** Código gerado pelo sistema (PR-…): ainda sem número operacional. */
+  semNumero: boolean;
 }
 
 interface VinculoExistente {
   id: string;
   paleteId: string;
+  paleteCodigo: string;
   assinatura: string;
+  /** Mudou de palete depois de importado (mover/resolver a validação): a carga não o leva de volta. */
+  alocadoEm: Date | null;
+}
+
+/** Ocorrência da mesma nota fora do estoque ativo (validação sem endereço ou cancelada): a carga não a recria. */
+interface ForaDoEstoque {
+  situacao: 'VALIDACAO' | 'CANCELADO';
+  paleteCodigo: string;
+  motivo: string | null;
 }
 
 interface LoteExistente {
@@ -336,11 +401,31 @@ interface LoteExistente {
 export interface EstadoCarga {
   loteExistente: LoteExistente | null;
   enderecos: Map<string, EnderecoResolvido>;
-  /** Palete ligado ao endereço (chave "15|A120") por inventário ativo anterior. */
+  /** Palete ligado ao endereço (chave "15|A120") por versão anterior do inventário — só para endereço sem N° Pallet único. */
   paletePorEndereco: Map<string, PaleteAtual>;
+  /**
+   * Palete do N° Pallet (chave do código): o que tem esse número como código
+   * (inclusive arquivado/expedido: número nunca reutilizado) ou, sem ele, o
+   * palete ainda sem número (PR-…) ligado a esse N° Pallet pela linha mais
+   * recente de uma versão anterior.
+   */
+  paletePorNumero: Map<string, PaleteAtual>;
+  /** Códigos de posição (chave): um N° Pallet igual a um deles não vira código de palete. */
+  codigosPosicao: Set<string>;
   vinculosPorChaveExterna: Map<string, VinculoExistente>;
+  /** Vínculos ativos por identidade documental: o palete que mudou de endereço leva a mesma nota (casada no palete, não recriada). */
+  ativosPorIdentidade: Map<string, VinculoExistente[]>;
+  /** Por chave externa do vínculo (validação ou cancelado) e por identidade documental (só validação). */
+  foraPorChave: Map<string, ForaDoEstoque>;
+  emValidacaoPorIdentidade: Map<string, ForaDoEstoque>;
   substitui: { id: string; codigo: string } | null;
+  /** Inventário substituído: vínculos ativos e endereços aplicados (diferenças mostradas na prévia). */
+  anterior: { vinculosAtivos: Set<string>; enderecos: string[] } | null;
+  /** Inventários ativos do escopo (fora da bipagem), para avisar quando a substituição não foi indicada. */
+  inventariosAtivos: string[];
   temLayout: boolean;
+  /** Vínculos documentais ativos do escopo (qualquer versão): base dos ausentes da versão nova. */
+  ativosNoEscopo: { id: string; descricao: string }[];
 }
 
 const assinaturaVinculo = (x: { paleteId: string; tipo: string | null; numero: string; delivery: string | null; volumes: string | null; documentacao: string | null; palletFull: string | null; identidade: string | null }) =>
@@ -355,9 +440,69 @@ async function carregarPaletes(db: Banco | Transacao, escopoId: string, ids: rea
   return new Map(
     paletes.map((x) => [
       x.id,
-      { id: x.id, codigo: x.codigo, versao: x.versao, posicaoId: x.posicaoId, posicaoCodigo: x.posicao?.codigo ?? null, arquivado: x.arquivadoEm !== null, fluxo: x.estadoFluxo, movimentado: x._count.localizacoes > 0 },
+      {
+        id: x.id,
+        codigo: x.codigo,
+        versao: x.versao,
+        posicaoId: x.posicaoId,
+        posicaoCodigo: x.posicao?.codigo ?? null,
+        arquivado: x.arquivadoEm !== null,
+        fluxo: x.estadoFluxo,
+        movimentado: x._count.localizacoes > 0,
+        semNumero: ehCodigoGerado(x.codigo),
+      },
     ]),
   );
+}
+
+/** N° Pallet de cada endereço ocupado do pacote (linhas da posição, sem vazios), em ordem. */
+function numerosDoEndereco(pacote: PacoteCarga): Map<string, string[]> {
+  const porLinha = new Map(pacote.linhas_fonte.map((l) => [l.linha, l]));
+  return new Map(
+    pacote.posicoes
+      .filter((x) => !x.endereco_livre)
+      .map((x) => [x.endereco, [...new Set(x.linhas_origem.flatMap((n) => ((porLinha.get(n)?.numero_na_planilha ?? '').trim() === '' ? [] : [(porLinha.get(n)?.numero_na_planilha ?? '').trim()])))]]),
+  );
+}
+
+/**
+ * Palete de cada N° Pallet: o que tem o número como código; senão, o palete
+ * ainda sem número ligado a ele pela linha mais recente de outra versão (se o
+ * mesmo palete aparece para dois números, fica com o de linha mais recente).
+ */
+async function paletesPorNumero(db: Banco | Transacao, escopoId: string, numeros: readonly string[]): Promise<Map<string, PaleteAtual>> {
+  const chaves = [...new Set(numeros.map(chaveDeCodigo))];
+  if (chaves.length === 0) return new Map();
+  const porCodigo = await db.palete.findMany({ where: { escopoId, codigoBusca: { in: chaves } }, select: { id: true, codigoBusca: true } });
+  const restantes = chaves.filter((c) => !porCodigo.some((p) => p.codigoBusca === c));
+  const porLinha =
+    restantes.length === 0
+      ? []
+      : await db.$queryRaw<{ chave: string; palete_id: string; em: Date }[]>`
+          SELECT DISTINCT ON (x.chave) x.chave, x.palete_id::text, x.em
+            FROM (SELECT regexp_replace(upper(btrim(li.numero_palete)), '[^A-Z0-9]', '', 'g') AS chave, li.palete_id, li.criado_em AS em, li.linha_arquivo
+                    FROM linha_inventario li
+                   WHERE li.escopo_id = ${escopoId}::uuid AND li.palete_id IS NOT NULL AND NOT li.endereco_livre AND li.numero_palete IS NOT NULL) x
+           WHERE x.chave = ANY(${restantes}::text[])
+           ORDER BY x.chave, x.em DESC, x.linha_arquivo`;
+  const paletes = await carregarPaletes(db, escopoId, [...porCodigo.map((p) => p.id), ...porLinha.map((l) => l.palete_id)]);
+  const mapa = new Map<string, PaleteAtual>();
+  for (const p of porCodigo) {
+    const palete = paletes.get(p.id);
+    if (palete) mapa.set(p.codigoBusca, palete);
+  }
+  // Pela linha anterior só vale palete ainda sem número; o mesmo palete fica com o número da linha mais recente.
+  const melhor = new Map<string, { chave: string; em: Date }>();
+  for (const l of porLinha) {
+    if (paletes.get(l.palete_id)?.semNumero !== true) continue;
+    const atual = melhor.get(l.palete_id);
+    if (atual === undefined || l.em.getTime() > atual.em.getTime()) melhor.set(l.palete_id, { chave: l.chave, em: l.em });
+  }
+  for (const [paleteId, m] of melhor) {
+    const palete = paletes.get(paleteId);
+    if (palete) mapa.set(m.chave, palete);
+  }
+  return mapa;
 }
 
 export async function carregarEstadoCarga(db: Banco | Transacao, escopoId: string, p: PacoteLido, substituiCodigo: string | null): Promise<EstadoCarga> {
@@ -371,17 +516,71 @@ export async function carregarEstadoCarga(db: Banco | Transacao, escopoId: strin
   const normalizados = pacote.posicoes.map((x) => normalizarEndereco(x.endereco)).filter((n) => n.ok);
   const enderecos = await resolverEnderecos(db, escopoId, normalizados);
   const temLayout = (await db.layout.count({ where: { escopoId, ativo: true } })) > 0;
-  // Palete do endereço por inventário ativo anterior (linha aplicada mais recente).
-  const ligados = await db.$queryRaw<{ endereco: string; palete_id: string }[]>`
-    SELECT DISTINCT ON (li.endereco_canonico) li.endereco_canonico AS endereco, li.palete_id::text
-      FROM linha_inventario li JOIN inventario_referencia i ON i.id = li.inventario_id
-     WHERE li.escopo_id = ${escopoId}::uuid AND li.aplicada AND NOT li.endereco_livre AND li.palete_id IS NOT NULL
-       AND li.endereco_canonico = ANY(${pacote.posicoes.map((x) => x.endereco)}::text[]) AND i.situacao = 'ATIVO'
-     ORDER BY li.endereco_canonico, li.criado_em DESC`;
+  // Palete do endereço por qualquer versão anterior do inventário (linha mais recente com palete).
+  const ligados = [...(await paletesPorEndereco(db, escopoId, pacote.posicoes.map((x) => x.endereco)))].map(([endereco, palete_id]) => ({ endereco, palete_id }));
+  const vinculosDoPacote = [...pacote.nfds_na_praca, ...pacote.documentos_tipo_pendente_na_praca];
   const vinculos = await db.vinculoDocumentoPalete.findMany({
-    where: { escopoId, situacao: 'ATIVO', chaveExterna: { in: [...pacote.nfds_na_praca, ...pacote.documentos_tipo_pendente_na_praca].map((v) => v.chave_vinculo) } },
-    select: { id: true, paleteId: true, chaveExterna: true, tipoDocumento: true, numeroDocumento: true, delivery: true, volumes: true, documentacao: true, palletFull: true, identidadeDocumento: true },
+    where: { escopoId, situacao: 'ATIVO', chaveExterna: { in: vinculosDoPacote.map((v) => v.chave_vinculo) } },
+    select: {
+      id: true,
+      paleteId: true,
+      chaveExterna: true,
+      tipoDocumento: true,
+      numeroDocumento: true,
+      delivery: true,
+      volumes: true,
+      documentacao: true,
+      palletFull: true,
+      identidadeDocumento: true,
+      alocadoEm: true,
+      palete: { select: { codigo: true } },
+    },
   });
+  const porIdentidade = await db.vinculoDocumentoPalete.findMany({
+    where: { escopoId, situacao: 'ATIVO', identidadeDocumento: { in: [...new Set(vinculosDoPacote.map((v) => v.chave_documento))] } },
+    select: {
+      id: true,
+      paleteId: true,
+      tipoDocumento: true,
+      numeroDocumento: true,
+      delivery: true,
+      volumes: true,
+      documentacao: true,
+      palletFull: true,
+      identidadeDocumento: true,
+      alocadoEm: true,
+      palete: { select: { codigo: true } },
+    },
+    orderBy: [{ criadoEm: 'asc' }, { id: 'asc' }],
+  });
+  // Mesma nota fora do estoque ativo: em validação (pela chave ou pela identidade) ou cancelada (pela chave).
+  const fora = await db.vinculoDocumentoPalete.findMany({
+    where: {
+      escopoId,
+      situacao: { in: ['VALIDACAO', 'CANCELADO'] },
+      OR: [{ chaveExterna: { in: vinculosDoPacote.map((v) => v.chave_vinculo) } }, { identidadeDocumento: { in: [...new Set(vinculosDoPacote.map((v) => v.chave_documento))] }, situacao: 'VALIDACAO' }],
+    },
+    select: { chaveExterna: true, identidadeDocumento: true, situacao: true, motivoEncerramento: true, palete: { select: { codigo: true } } },
+  });
+  const foraPorChave = new Map<string, ForaDoEstoque>();
+  const emValidacaoPorIdentidade = new Map<string, ForaDoEstoque>();
+  for (const f of fora) {
+    const item: ForaDoEstoque = { situacao: f.situacao === 'CANCELADO' ? 'CANCELADO' : 'VALIDACAO', paleteCodigo: f.palete.codigo, motivo: f.motivoEncerramento };
+    if (f.chaveExterna !== null) foraPorChave.set(f.chaveExterna, item);
+    if (item.situacao === 'VALIDACAO' && f.identidadeDocumento !== null) emValidacaoPorIdentidade.set(f.identidadeDocumento, item);
+  }
+  const numeros = [...new Set([...numerosDoEndereco(pacote).values()].flat())];
+  const paletePorNumero = await paletesPorNumero(db, escopoId, numeros);
+  const chavesNumeros = [...new Set(numeros.map(chaveDeCodigo))];
+  const codigosPosicao = new Set(
+    chavesNumeros.length === 0
+      ? []
+      : (
+          await db.$queryRaw<{ chave: string }[]>`
+            SELECT DISTINCT regexp_replace(upper(codigo), '[^A-Z0-9]', '', 'g') AS chave FROM posicao
+             WHERE escopo_id = ${escopoId}::uuid AND regexp_replace(upper(codigo), '[^A-Z0-9]', '', 'g') = ANY(${chavesNumeros}::text[])`
+        ).map((x) => x.chave),
+  );
   const paletes = await carregarPaletes(db, escopoId, ligados.map((l) => l.palete_id));
   const paletePorEndereco = new Map<string, PaleteAtual>();
   for (const l of ligados) {
@@ -390,17 +589,35 @@ export async function carregarEstadoCarga(db: Banco | Transacao, escopoId: strin
     if (n.ok && palete) paletePorEndereco.set(n.chave, palete);
   }
   let substitui: EstadoCarga['substitui'] = null;
-  if (substituiCodigo !== null) {
+  // Reenvio do mesmo pacote: nada é gravado e a substituição indicada já foi feita por ele (o mesmo comando pode ser repetido).
+  if (substituiCodigo !== null && lote.length === 0) {
     const inv = await db.inventarioReferencia.findFirst({ where: { escopoId, codigo: substituiCodigo }, select: { id: true, codigo: true, situacao: true } });
     if (!inv) throw new ErroHttp(404, 'NAO_ENCONTRADO', `Inventário ${substituiCodigo} não encontrado neste escopo.`);
     if (inv.situacao !== 'ATIVO') throw new ErroHttp(409, 'CONFLITO', `O ${inv.codigo} já foi substituído por outra versão.`);
     substitui = { id: inv.id, codigo: inv.codigo };
   }
+  let anterior: EstadoCarga['anterior'] = null;
+  if (substitui !== null) {
+    const ativos = await db.vinculoDocumentoPalete.findMany({ where: { escopoId, inventarioId: substitui.id, situacao: 'ATIVO' }, select: { id: true } });
+    const enderecosAnteriores = await db.$queryRaw<{ endereco: string }[]>`
+      SELECT DISTINCT endereco_canonico AS endereco FROM linha_inventario
+       WHERE escopo_id = ${escopoId}::uuid AND inventario_id = ${substitui.id}::uuid AND aplicada AND endereco_canonico IS NOT NULL`;
+    anterior = { vinculosAtivos: new Set(ativos.map((v) => v.id)), enderecos: enderecosAnteriores.map((x) => x.endereco) };
+  }
+  const inventariosAtivos = (await db.inventarioReferencia.findMany({ where: { escopoId, situacao: 'ATIVO', origem: { not: 'BIPAGEM' } }, select: { codigo: true }, orderBy: { numero: 'asc' } })).map((x) => x.codigo);
+  const ativosNoEscopo = (
+    await db.vinculoDocumentoPalete.findMany({
+      where: { escopoId, situacao: 'ATIVO' },
+      select: { id: true, tipoDocumento: true, numeroDocumento: true, palete: { select: { codigo: true } } },
+    })
+  ).map((v) => ({ id: v.id, descricao: `${v.tipoDocumento ?? 'Documento'} ${v.numeroDocumento} (${v.palete.codigo})` }));
   const [existente] = lote;
   return {
     loteExistente: existente ? { id: existente.id, confirmadoEm: existente.confirmado_em, inventarioId: existente.inventario_id, inventarioCodigo: existente.inventario_codigo } : null,
     enderecos,
     paletePorEndereco,
+    paletePorNumero,
+    codigosPosicao,
     vinculosPorChaveExterna: new Map(
       vinculos.flatMap((v) =>
         v.chaveExterna === null
@@ -411,14 +628,33 @@ export async function carregarEstadoCarga(db: Banco | Transacao, escopoId: strin
                 {
                   id: v.id,
                   paleteId: v.paleteId,
+                  paleteCodigo: v.palete.codigo,
                   assinatura: assinaturaVinculo({ paleteId: v.paleteId, tipo: v.tipoDocumento, numero: v.numeroDocumento, delivery: v.delivery, volumes: v.volumes?.toFixed() ?? null, documentacao: v.documentacao, palletFull: v.palletFull, identidade: v.identidadeDocumento }),
+                  alocadoEm: v.alocadoEm,
                 },
               ] as const,
             ],
       ),
     ),
+    ativosPorIdentidade: porIdentidade.reduce((mapa, v) => {
+      if (v.identidadeDocumento === null) return mapa;
+      const item: VinculoExistente = {
+        id: v.id,
+        paleteId: v.paleteId,
+        paleteCodigo: v.palete.codigo,
+        assinatura: assinaturaVinculo({ paleteId: v.paleteId, tipo: v.tipoDocumento, numero: v.numeroDocumento, delivery: v.delivery, volumes: v.volumes?.toFixed() ?? null, documentacao: v.documentacao, palletFull: v.palletFull, identidade: v.identidadeDocumento }),
+        alocadoEm: v.alocadoEm,
+      };
+      mapa.set(v.identidadeDocumento, [...(mapa.get(v.identidadeDocumento) ?? []), item]);
+      return mapa;
+    }, new Map<string, VinculoExistente[]>()),
+    foraPorChave,
+    emValidacaoPorIdentidade,
     substitui,
+    anterior,
+    inventariosAtivos,
     temLayout,
+    ativosNoEscopo,
   };
 }
 
@@ -445,6 +681,10 @@ export interface PlanoEndereco {
   motivos: MotivoLinha[];
   conflito: MotivoLinha | null;
   linhas: number[];
+  /** N° Pallet único do endereço que identifica o palete (`null` = sem número único: vale o endereço). */
+  numero: string | null;
+  /** Palete existente ainda sem número (PR-…) que passa a usar este número operacional. */
+  atribuirNumero: string | null;
 }
 
 export type AcaoVinculo = 'CRIAR' | 'ATUALIZAR' | 'JA_IMPORTADO' | 'CONFLITO';
@@ -456,6 +696,114 @@ export interface PlanoVinculo {
   acao: AcaoVinculo;
   encerrarId: string | null;
   linhaPrincipal: number;
+  /** Ocorrência movida depois de importada: continua no palete para onde foi levada (a carga não desfaz). */
+  paleteAlvo: { id: string; codigo: string } | null;
+  /** Alocação manual preservada na versão nova do vínculo. */
+  alocadoEm: Date | null;
+  /** Conflito do próprio vínculo (nota em validação ou cancelada). */
+  motivo: MotivoLinha | null;
+}
+
+/** Identidade do palete de cada endereço do pacote (N° Pallet único ou, sem ele, o endereço). */
+interface IdentidadeEndereco {
+  numero: string | null;
+  existente: PaleteAtual | null;
+  atribuirNumero: string | null;
+  /** A posição do endereço tem outro palete numerado: o palete deste número é cadastrado sem posição. */
+  semPosicao: boolean;
+  conflito: MotivoLinha | null;
+  avisos: MotivoLinha[];
+}
+
+/**
+ * Identidade do palete por endereço (21 out. 2026): com um N° Pallet único
+ * no endereço (e só nesse endereço), o palete é o desse número — o que tem o
+ * número como código ou o ainda sem número ligado a ele —, nunca o palete que
+ * estava antes no endereço. Sem número único, vale o endereço (regra antiga).
+ * Posição ocupada por outro palete numerado: o palete deste número é
+ * cadastrado sem posição (nada é movido nem sobrescrito); por palete sem
+ * número (PR-…), conflito (pode ser o mesmo palete).
+ */
+function identificarEnderecos(pacote: PacoteCarga, estado: EstadoCarga, porEndereco = false): Map<string, IdentidadeEndereco> {
+  const numeros = numerosDoEndereco(pacote);
+  const enderecosDoNumero = new Map<string, number>();
+  for (const ns of numeros.values()) for (const num of ns) enderecosDoNumero.set(chaveDeCodigo(num), (enderecosDoNumero.get(chaveDeCodigo(num)) ?? 0) + 1);
+  const resultado = new Map<string, IdentidadeEndereco>();
+  const reivindicados = new Set<string>();
+  const unico = (endereco: string): string | null => {
+    const ns = numeros.get(endereco) ?? [];
+    const [n] = ns;
+    return ns.length === 1 && n !== undefined && (enderecosDoNumero.get(chaveDeCodigo(n)) ?? 0) === 1 ? n : null;
+  };
+  // 1. Endereços com N° Pallet único: identidade pelo número.
+  for (const x of pacote.posicoes) {
+    if (x.endereco_livre || porEndereco) continue;
+    const numero = unico(x.endereco);
+    if (numero === null) continue;
+    const k = chaveDeCodigo(numero);
+    const n = normalizarEndereco(x.endereco);
+    const resolvido = n.ok ? (estado.enderecos.get(n.chave) ?? null) : null;
+    const base: IdentidadeEndereco = { numero, existente: null, atribuirNumero: null, semPosicao: false, conflito: null, avisos: [] };
+    if (estado.codigosPosicao.has(k)) {
+      resultado.set(x.endereco, { ...base, conflito: aviso('PALETE_IGUAL_POSICAO', 'palletNumber', `N° Pallet ${numero} é igual ao código de uma posição: identidade e localização precisam ser distintas (revise a linha).`) });
+      continue;
+    }
+    const p = estado.paletePorNumero.get(k) ?? null;
+    if (p !== null) {
+      if (p.arquivado || p.fluxo === 'EXPEDIDO') {
+        resultado.set(x.endereco, {
+          ...base,
+          conflito: aviso('PALETE_NUMERO_SAIU', 'palletNumber', `O palete ${p.codigo} (N° Pallet ${numero}) ${p.arquivado ? 'está arquivado' : 'já saiu da praça (expedido)'}: o número não é reutilizado; as linhas deste endereço não são aplicadas — revise a fonte.`),
+        });
+        continue;
+      }
+      reivindicados.add(p.id);
+      resultado.set(x.endereco, { ...base, existente: p, atribuirNumero: p.semNumero ? numero : null });
+      continue;
+    }
+    const ocupante = resolvido?.resolucao === 'POSICAO' && resolvido.ocupanteId !== null ? resolvido : null;
+    if (ocupante !== null) {
+      if (ehCodigoGerado(ocupante.ocupanteCodigo ?? '')) {
+        resultado.set(x.endereco, {
+          ...base,
+          conflito: aviso(
+            'POSICAO_COM_PALETE_SEM_NUMERO',
+            'address',
+            `Nos registros atuais a posição ${ocupante.posicaoCodigo ?? ''} (${x.endereco}) tem o palete ${ocupante.ocupanteCodigo ?? ''}, ainda sem número; a fonte informa o palete ${numero}: pode ser o mesmo palete. As linhas não são aplicadas — confirme no piso (número do palete ou saída dele).`,
+          ),
+        });
+        continue;
+      }
+      resultado.set(x.endereco, {
+        ...base,
+        semPosicao: true,
+        avisos: [
+          aviso(
+            'POSICAO_COM_OUTRO_PALETE',
+            'address',
+            `Nos registros atuais a posição ${ocupante.posicaoCodigo ?? ''} (${x.endereco}) tem o palete ${ocupante.ocupanteCodigo ?? ''}; a fonte informa o palete ${numero} neste endereço: o ${numero} é cadastrado sem posição e o ${ocupante.ocupanteCodigo ?? ''} fica onde está (registre a saída dele e reenvie a carga para localizar o ${numero}).`,
+          ),
+        ],
+      });
+      continue;
+    }
+    resultado.set(x.endereco, base);
+  }
+  // 2. Sem número único: o palete ligado ao endereço por versão anterior, se nenhum número o reivindicou.
+  for (const x of pacote.posicoes) {
+    if (x.endereco_livre || resultado.has(x.endereco)) continue;
+    const n = normalizarEndereco(x.endereco);
+    const ligado = n.ok ? (estado.paletePorEndereco.get(n.chave) ?? null) : null;
+    const ns = numeros.get(x.endereco) ?? [];
+    const avisos =
+      ns.length > 1
+        ? [aviso('NUMERO_PALETE_A_CONFIRMAR', 'palletNumber', `Mais de um N° Pallet em ${x.endereco} (${ns.join(', ')}): vale o palete do endereço; número a confirmar no piso.`)]
+        : ns.length === 1
+          ? [aviso('NUMERO_PALETE_EM_VARIOS_ENDERECOS', 'palletNumber', `O N° Pallet ${ns[0] ?? ''} aparece em mais de um endereço nesta fonte: vale o palete do endereço; número a confirmar.`)]
+          : [];
+    resultado.set(x.endereco, { numero: null, existente: ligado !== null && reivindicados.has(ligado.id) ? null : ligado, atribuirNumero: null, semPosicao: false, conflito: null, avisos });
+  }
+  return resultado;
 }
 
 export type AcaoLinha = 'VINCULAR' | 'CRIAR_CADASTRO' | 'ATUALIZAR' | 'JA_IMPORTADO' | 'REFERENCIA_HISTORICA' | 'DUPLICADA_ARQUIVO' | 'REQUER_RESOLUCAO';
@@ -480,6 +828,8 @@ export interface PlanoCarga {
   resumo: string[];
   /** Pendências para tratar depois (lista pequena, agrupada). */
   pendencias: string[];
+  /** Vínculos antigos (não movidos) de notas que esta versão põe noutro palete: encerrados, a ocorrência atual representa a nota. */
+  encerrarOutroPalete: { id: string; descricao: string; motivo: string }[];
 }
 
 /** Ordem de leitura: fileira 11…16, GR; código pelo número (não como texto). */
@@ -492,12 +842,12 @@ export function ordemEndereco(a: string, b: string): number {
   return prefixo(pa.prefixo) - prefixo(pb.prefixo) || numero(pa.codigoLocal) - numero(pb.codigoLocal) || pa.codigoLocal.localeCompare(pb.codigoLocal);
 }
 
-function planejarEndereco(x: PosicaoPacote, estado: EstadoCarga): PlanoEndereco {
+function planejarEndereco(x: PosicaoPacote, estado: EstadoCarga, identidade: IdentidadeEndereco): PlanoEndereco {
   const n = normalizarEndereco(x.endereco);
   const chave = n.ok ? n.chave : null;
   const resolvido = chave === null ? null : (estado.enderecos.get(chave) ?? null);
-  const existente = chave === null ? null : (estado.paletePorEndereco.get(chave) ?? null);
-  const motivos: MotivoLinha[] = [];
+  const existente = identidade.existente;
+  const motivos: MotivoLinha[] = [...identidade.avisos];
   const base: PlanoEndereco = {
     endereco: x.endereco,
     chave,
@@ -512,7 +862,12 @@ function planejarEndereco(x: PosicaoPacote, estado: EstadoCarga): PlanoEndereco 
     motivos,
     conflito: null,
     linhas: x.linhas_origem,
+    numero: identidade.numero,
+    atribuirNumero: identidade.atribuirNumero,
   };
+  if (identidade.conflito !== null) return { ...base, acao: 'CONFLITO', conflito: identidade.conflito };
+  // Outro palete numerado na posição: o deste número entra sem posição (o registro atual prevalece).
+  if (identidade.semPosicao) return base;
   const pendenteMapa = () =>
     motivos.push(
       aviso(
@@ -534,7 +889,7 @@ function planejarEndereco(x: PosicaoPacote, estado: EstadoCarga): PlanoEndereco 
         conflito: aviso(
           existente.arquivado ? 'PALETE_ARQUIVADO' : 'PALETE_EXPEDIDO',
           'address',
-          `O palete ${existente.codigo}, ligado a ${x.endereco} por inventário anterior, ${existente.arquivado ? 'está arquivado' : 'já foi expedido (saiu da praça)'}: as linhas deste endereço não são aplicadas; revise antes de reapresentar.`,
+          `O palete ${existente.codigo}, ligado a ${x.endereco} ${identidade.numero === null ? 'por inventário anterior' : `pelo N° Pallet ${identidade.numero}`}, ${existente.arquivado ? 'está arquivado' : 'já foi expedido (saiu da praça)'}: as linhas deste endereço não são aplicadas; revise antes de reapresentar.`,
         ),
       };
     }
@@ -579,25 +934,70 @@ const TEXTO_SITUACAO: Readonly<Record<PosicaoPacote['situacao'], string>> = {
   CONTEUDO_NAO_INFORMADO: 'conteúdo não informado',
 };
 
-export function planejarCarga(p: PacoteLido, estado: EstadoCarga): PlanoCarga {
+export interface OpcoesPlano {
+  /** Substituição sem encerrar os vínculos ativos que não constam da versão nova (ficam ativos, a validar). */
+  manterAusentes?: boolean;
+  /**
+   * Compatibilidade: regra anterior a 21/10/2026 (palete pelo endereço, N° Pallet só referência).
+   * Não é exposta no comando; serve para reproduzir dados antigos nos testes da correção.
+   */
+  identidadePorEndereco?: boolean;
+}
+
+export function planejarCarga(p: PacoteLido, estado: EstadoCarga, opcoes: OpcoesPlano = {}): PlanoCarga {
   const pacote = p.pacote;
-  const enderecos = pacote.posicoes.filter((x) => !x.endereco_livre).map((x) => planejarEndereco(x, estado));
+  const revisaoPorLinha = new Map(pacote.linhas_em_revisao.map((r) => [r.linha, r]));
+  // Compatibilidade (só testes da correção): regra anterior, sem identidade pelo número nem os ajustes de 21/10.
+  const legado = opcoes.identidadePorEndereco === true;
+  const identidades = identificarEnderecos(pacote, estado, legado);
+  const enderecos = pacote.posicoes
+    .filter((x) => !x.endereco_livre)
+    .map((x) => planejarEndereco(x, estado, identidades.get(x.endereco) ?? { numero: null, existente: null, atribuirNumero: null, semPosicao: false, conflito: null, avisos: [] }));
   enderecos.sort((a, b) => ordemEndereco(a.endereco, b.endereco));
   const enderecoPor = new Map(enderecos.map((e) => [e.endereco, e]));
   const livres = new Map(pacote.posicoes.filter((x) => x.endereco_livre).map((x) => [x.endereco, x]));
 
-  const vinculos: PlanoVinculo[] = [...pacote.nfds_na_praca.map((v) => ({ v, grupo: 'NFD' as const })), ...pacote.documentos_tipo_pendente_na_praca.map((v) => ({ v, grupo: 'PENDENTE' as const }))].map(({ v, grupo }) => {
+  const entradas = [...pacote.nfds_na_praca.map((v) => ({ v, grupo: 'NFD' as const })), ...pacote.documentos_tipo_pendente_na_praca.map((v) => ({ v, grupo: 'PENDENTE' as const }))];
+  // Cada vínculo existente é casado no máximo uma vez: primeiro pela chave externa, depois pela identidade da nota no mesmo palete.
+  const casados = new Set<string>();
+  for (const { v } of entradas) {
+    const porChave = estado.vinculosPorChaveExterna.get(v.chave_vinculo);
+    if (porChave) casados.add(porChave.id);
+  }
+  const vinculos: PlanoVinculo[] = entradas.map(({ v, grupo }) => {
     const endereco = enderecoPor.get(v.endereco ?? '');
     if (!endereco) throw new Error(`Endereço ${v.endereco ?? ''} sem plano.`);
     const linhaPrincipal = Math.min(...v.linhas_origem);
-    if (endereco.acao === 'CONFLITO') return { v, grupo, endereco, acao: 'CONFLITO' as const, encerrarId: null, linhaPrincipal };
-    const existente = estado.vinculosPorChaveExterna.get(v.chave_vinculo);
-    if (!existente) return { v, grupo, endereco, acao: 'CRIAR' as const, encerrarId: null, linhaPrincipal };
+    const plano = (acao: AcaoVinculo, extra: Partial<PlanoVinculo> = {}): PlanoVinculo => ({ v, grupo, endereco, acao, encerrarId: null, linhaPrincipal, paleteAlvo: null, alocadoEm: null, motivo: null, ...extra });
+    if (endereco.acao === 'CONFLITO') return plano('CONFLITO');
+    let existente = estado.vinculosPorChaveExterna.get(v.chave_vinculo);
+    if (!existente && endereco.existente !== null && !legado) {
+      // Palete que mudou de endereço entre versões: a mesma nota já está nele (outra chave de endereço) — não é recriada.
+      const doPalete = endereco.existente.id;
+      existente = (estado.ativosPorIdentidade.get(v.chave_documento) ?? []).find((x) => x.paleteId === doPalete && !casados.has(x.id));
+      if (existente) casados.add(existente.id);
+    }
+    if (!existente) {
+      // A mesma nota fora do estoque ativo (validação ou cancelada) não é recriada pela carga.
+      const fora = estado.foraPorChave.get(v.chave_vinculo) ?? estado.emValidacaoPorIdentidade.get(v.chave_documento);
+      if (fora !== undefined) {
+        return plano('CONFLITO', {
+          motivo:
+            fora.situacao === 'VALIDACAO'
+              ? aviso('NOTA_EM_VALIDACAO', 'documentNumber', `${v.tipo_documento ?? 'Documento'} ${v.numero_documento} está na fila "Validação urgente — sem endereço" (último conhecido: palete ${fora.paleteCodigo}); a fonte a informa em ${endereco.endereco}. A carga não cria outra ocorrência: resolva na fila escolhendo esse destino.`)
+              : aviso('NOTA_CANCELADA', 'documentNumber', `${v.tipo_documento ?? 'Documento'} ${v.numero_documento} foi cancelada como registro incorreto no palete ${fora.paleteCodigo}${fora.motivo === null ? '' : ` (${fora.motivo})`}: a carga não a recria; confira antes de registrar de novo.`),
+        });
+      }
+      return plano('CRIAR');
+    }
+    // Ocorrência movida depois de importada (mover/resolver a validação): fica no palete para onde foi levada.
+    const movida = existente.alocadoEm !== null && existente.paleteId !== endereco.existente?.id;
+    const paleteComparado = movida ? existente.paleteId : endereco.existente?.id;
     const igual =
-      endereco.existente !== null &&
+      paleteComparado !== undefined &&
       existente.assinatura ===
         assinaturaVinculo({
-          paleteId: endereco.existente.id,
+          paleteId: paleteComparado,
           tipo: v.tipo_documento,
           numero: v.numero_documento,
           delivery: v.delivery,
@@ -606,8 +1006,33 @@ export function planejarCarga(p: PacoteLido, estado: EstadoCarga): PlanoCarga {
           palletFull: marcadoresDe(v),
           identidade: v.chave_documento,
         });
-    return igual ? { v, grupo, endereco, acao: 'JA_IMPORTADO' as const, encerrarId: existente.id, linhaPrincipal } : { v, grupo, endereco, acao: 'ATUALIZAR' as const, encerrarId: existente.id, linhaPrincipal };
+    const alvo = movida ? { paleteAlvo: { id: existente.paleteId, codigo: existente.paleteCodigo }, alocadoEm: existente.alocadoEm } : {};
+    return plano(igual ? 'JA_IMPORTADO' : 'ATUALIZAR', { encerrarId: existente.id, ...alvo });
   });
+  // Nota que esta versão põe noutro palete: o vínculo antigo não casado (e não movido no piso) é encerrado — a ocorrência
+  // atual a representa. Só numa versão nova (--substitui); nada é apagado.
+  const encerrarOutroPalete: PlanoCarga['encerrarOutroPalete'] = [];
+  if (estado.substitui !== null && estado.loteExistente === null && !legado) {
+    const destinos = new Map<string, { ids: Set<string>; onde: Set<string>; documento: string }>();
+    for (const pv of vinculos) {
+      if (pv.acao === 'CONFLITO') continue;
+      const e = pv.endereco;
+      const id = pv.paleteAlvo?.id ?? e.existente?.id ?? `novo:${e.endereco}`;
+      const codigo = pv.paleteAlvo?.codigo ?? (e.existente === null ? (e.numero ?? 'novo') : (e.atribuirNumero ?? e.existente.codigo));
+      const d = destinos.get(pv.v.chave_documento) ?? { ids: new Set<string>(), onde: new Set<string>(), documento: `${pv.v.tipo_documento ?? 'Documento'} ${pv.v.numero_documento}` };
+      d.ids.add(id);
+      d.onde.add(`palete ${codigo} (${e.endereco})`);
+      destinos.set(pv.v.chave_documento, d);
+    }
+    for (const [identidade, existentes] of estado.ativosPorIdentidade) {
+      const d = destinos.get(identidade);
+      if (!d) continue;
+      for (const x of existentes) {
+        if (casados.has(x.id) || x.alocadoEm !== null || d.ids.has(x.paleteId)) continue;
+        encerrarOutroPalete.push({ id: x.id, descricao: `${d.documento} (palete ${x.paleteCodigo})`, motivo: `consta desta versão no ${[...d.onde].join(', ')}` });
+      }
+    }
+  }
   const vinculoPorLinha = new Map<number, PlanoVinculo>();
   for (const pv of vinculos) vinculoPorLinha.set(pv.linhaPrincipal, pv);
   const agrupadaEm = new Map<number, number>();
@@ -624,6 +1049,26 @@ export function planejarCarga(p: PacoteLido, estado: EstadoCarga): PlanoCarga {
     .map((l) => {
       const n = normalizarEndereco(l.endereco);
       const enderecoCanonico = n.ok ? n.endereco : null;
+      const revisao = revisaoPorLinha.get(l.linha);
+      if (revisao !== undefined) {
+        // Bloqueio da preparação: nada é alocado nem resolvido por suposição; a linha fica visível na consulta interna.
+        return {
+          l, endereco: null, enderecoCanonico,
+          acao: 'REQUER_RESOLUCAO' as const, aplicada: false, vinculo: null,
+          motivos: [
+            aviso('EM_REVISAO', 'address', 'Linha em revisão (conflito, repetição, número ausente ou local não confirmado): preservada no inventário, sem alocação, palete ou vínculo.'),
+            // Bloqueio = causa da revisão (REVISAO_*); atenção = observação (ATENCAO_*).
+            ...revisao.motivos.map((m) => aviso(`${m.nivel === 'bloqueio' ? 'REVISAO' : 'ATENCAO'}_${m.codigo.toUpperCase().replace(/[^A-Z0-9_]/g, '_')}`, null, m.descricao)),
+          ],
+        };
+      }
+      if (l.endereco.trim() === '') {
+        return {
+          l, endereco: null, enderecoCanonico: null,
+          acao: 'REQUER_RESOLUCAO' as const, aplicada: false, vinculo: null,
+          motivos: [aviso('ENDERECO_NAO_INFORMADO', 'address', 'Documento sem RUA na origem: preservado no inventário, sem criar palete ou presumir saída da praça.')],
+        };
+      }
       if (l.endereco_livre) {
         const fora = foraPorLinha.get(l.linha);
         const ocupante = n.ok ? estado.enderecos.get(n.chave) : undefined;
@@ -658,6 +1103,12 @@ export function planejarCarga(p: PacoteLido, estado: EstadoCarga): PlanoCarga {
         return { l, endereco, enderecoCanonico, acao: 'DUPLICADA_ARQUIVO' as const, aplicada: false, vinculo: null, motivos };
       }
       const pv = vinculoPorLinha.get(l.linha) ?? null;
+      if (pv !== null && pv.acao === 'CONFLITO' && pv.motivo !== null) {
+        return { l, endereco, enderecoCanonico, acao: 'REQUER_RESOLUCAO' as const, aplicada: false, vinculo: pv, motivos: [pv.motivo, ...motivos] };
+      }
+      if (pv?.paleteAlvo != null) {
+        motivos.unshift(aviso('OCORRENCIA_MOVIDA', null, `Ocorrência movida para o palete ${pv.paleteAlvo.codigo} depois da importação: continua lá (a carga não desfaz a movimentação).`));
+      }
       if (pv !== null && pv.acao === 'JA_IMPORTADO') {
         motivos.unshift(aviso('JA_IMPORTADO', null, 'Vínculo já registrado por carga anterior com os mesmos dados (chave externa): nada a gravar.'));
         return { l, endereco, enderecoCanonico, acao: 'JA_IMPORTADO' as const, aplicada: false, vinculo: pv, motivos };
@@ -676,6 +1127,8 @@ export function planejarCarga(p: PacoteLido, estado: EstadoCarga): PlanoCarga {
     });
 
   const conta = (a: AcaoLinha) => linhas.filter((x) => x.acao === a).length;
+  const semEndereco = linhas.filter((x) => x.motivos.some((m) => m.code === 'ENDERECO_NAO_INFORMADO')).length;
+  const emRevisao = linhas.filter((x) => x.motivos.some((m) => m.code === 'EM_REVISAO'));
   const criar = enderecos.filter((e) => e.acao === 'CRIAR');
   const comPosicao = criar.filter((e) => e.posicaoNova !== null).length + enderecos.filter((e) => e.registrarPosicao !== null).length;
   const pendentesMapa = enderecos.filter((e) => e.acao !== 'CONFLITO' && e.posicaoNova === null && e.registrarPosicao === null && !(e.existente?.posicaoId != null)).length;
@@ -683,13 +1136,26 @@ export function planejarCarga(p: PacoteLido, estado: EstadoCarga): PlanoCarga {
   const vConta = (a: AcaoVinculo, g?: 'NFD' | 'PENDENTE') => vinculos.filter((v) => v.acao === a && (g === undefined || v.grupo === g)).length;
   const resumo = [
     `Pacote ${pacote.id_lote.slice(0, 12)}… (${pacote.schema}) · fonte ${pacote.fonte.arquivo}, aba ${pacote.fonte.aba} (SHA-256 ${pacote.fonte.sha256.slice(0, 12)}…).`,
-    `Linhas de origem: ${String(linhas.length)} — ${String(conta('CRIAR_CADASTRO'))} criam palete, ${String(conta('VINCULAR'))} vinculam, ${String(conta('ATUALIZAR'))} atualizam, ${String(conta('JA_IMPORTADO'))} já importadas, ${String(conta('DUPLICADA_ARQUIVO'))} repetidas (agrupadas sem somar), ${String(conta('REFERENCIA_HISTORICA'))} de endereço livre (referência), ${String(conta('REQUER_RESOLUCAO'))} requerem resolução.`,
+    `Linhas de origem: ${String(linhas.length)} — ${String(conta('CRIAR_CADASTRO'))} criam palete, ${String(conta('VINCULAR'))} vinculam, ${String(conta('ATUALIZAR'))} atualizam, ${String(conta('JA_IMPORTADO'))} já importadas, ${String(conta('DUPLICADA_ARQUIVO'))} repetidas (agrupadas sem somar), ${String(conta('REFERENCIA_HISTORICA'))} de endereço livre (referência), ${String(conta('REQUER_RESOLUCAO'))} requerem resolução (${String(semEndereco)} sem endereço, ${String(emRevisao.length)} em revisão — sem alocação).`,
+    ...(pacote.em_validacao ? [`Base provisória${pacote.data_base === null ? '' : ` de ${pacote.data_base}`} (conferência em andamento): mostrada como "Inventário em validação"; volumes não são disponibilidade certificada.`] : []),
+    ...(pacote.reconferencia_exigida.length > 0
+      ? [`Reconferência necessária: ${String(pacote.reconferencia_exigida.length)} palete(s) marcados por decisão registrada (some com a reconferência completa seguinte): ${pacote.reconferencia_exigida.slice(0, 12).map((r) => r.endereco).join(', ')}${pacote.reconferencia_exigida.length > 12 ? ` … (+${String(pacote.reconferencia_exigida.length - 12)})` : ''}.`]
+      : []),
     `Endereços ocupados: ${String(enderecos.length)} (${String(porSituacao('COM_NFD_INFORMADA'))} com NFD, ${String(porSituacao('DOCUMENTO_PENDENTE'))} só com documento pendente/outro tipo, ${String(porSituacao('CONTEUDO_NAO_INFORMADO'))} com conteúdo não informado) · ${String(livres.size)} livres (não ocupam posição).`,
-    `Paletes: ${String(criar.length)} a cadastrar (código gerado; N° Pallet só como referência externa), ${String(enderecos.filter((e) => e.acao === 'EXISTENTE').length)} já existentes (ID preservado), ${String(enderecos.filter((e) => e.acao === 'CONFLITO').length)} endereço(s) em conflito.`,
+    `Paletes: ${String(criar.length)} a cadastrar (${String(criar.filter((e) => e.numero !== null).length)} com o N° Pallet como número, ${String(criar.filter((e) => e.numero === null).length)} com código gerado por falta de número único), ${String(enderecos.filter((e) => e.acao === 'EXISTENTE').length)} já existentes (ID preservado; ${String(enderecos.filter((e) => e.atribuirNumero !== null).length)} recebem o número operacional), ${String(enderecos.filter((e) => e.acao === 'CONFLITO').length)} endereço(s) em conflito. Identidade: N° Pallet único do endereço; sem ele, o endereço.`,
+    ...(enderecos.some((e) => e.motivos.some((m) => m.code === 'POSICAO_COM_OUTRO_PALETE'))
+      ? [`Posição com outro palete nos registros: ${String(enderecos.filter((e) => e.motivos.some((m) => m.code === 'POSICAO_COM_OUTRO_PALETE')).length)} palete(s) novo(s) cadastrado(s) sem posição (o atual fica onde está; registre a saída dele e reenvie para localizar).`]
+      : []),
+    ...(vinculos.some((v) => v.paleteAlvo !== null) ? [`Ocorrências movidas depois da importação: ${String(vinculos.filter((v) => v.paleteAlvo !== null).length)} continuam no palete para onde foram levadas.`] : []),
+    ...(encerrarOutroPalete.length > 0
+      ? [`Notas que esta versão põe noutro palete: ${String(encerrarOutroPalete.length)} vínculo(s) anterior(es) encerrado(s) (a ocorrência atual representa a nota; movidos no piso não entram): ${encerrarOutroPalete.slice(0, 10).map((x) => x.descricao).join(', ')}${encerrarOutroPalete.length > 10 ? ' …' : ''}.`]
+      : []),
+    ...(vinculos.some((v) => v.motivo !== null) ? [`Notas fora do estoque ativo (validação sem endereço ou canceladas): ${String(vinculos.filter((v) => v.motivo !== null).length)} não são recriadas (resolver na fila).`] : []),
     `Mapa: ${String(comPosicao)} posição(ões) a registrar pela tabela confirmada; ${String(pendentesMapa)} palete(s) com posição no mapa pendente (endereço informado guardado).`,
     `Vínculos NFD: ${String(vConta('CRIAR', 'NFD'))} novos, ${String(vConta('ATUALIZAR', 'NFD'))} atualizados, ${String(vConta('JA_IMPORTADO', 'NFD'))} já existentes, ${String(vConta('CONFLITO', 'NFD'))} em conflito · documentos de tipo pendente/MI: ${String(vConta('CRIAR', 'PENDENTE') + vConta('ATUALIZAR', 'PENDENTE'))} novos/atualizados, ${String(vConta('JA_IMPORTADO', 'PENDENTE'))} já existentes.`,
     `Referências fora da praça: ${String(pacote.documentos_fora_da_praca.length)} vínculos em endereço livre (localização atual não informada; nada é expedido nem proposto).`,
     'Saldo por SKU, liberação, reserva, claims e expedição: nada muda (volumes ficam na unidade do inventário; desconhecido continua desconhecido).',
+    ...diferencasSubstituicao(pacote, estado, vinculos, opcoes.manterAusentes === true),
   ];
   const volumesPendentes = vinculos.filter((x) => x.v.volumes === null);
   const tipoPendente = vinculos.filter((x) => x.grupo === 'PENDENTE');
@@ -699,7 +1165,14 @@ export function planejarCarga(p: PacoteLido, estado: EstadoCarga): PlanoCarga {
   const foraRegra = pacote.posicoes.filter((x) => !normalizarEndereco(x.endereco).ok || x.fileira === null).map((x) => `${x.endereco} (${TEXTO_SITUACAO[x.situacao]})`);
   const conflitos = enderecos.filter((e) => e.conflito !== null);
   const lista = (itens: readonly string[], max = 12) => `${itens.slice(0, max).join(', ')}${itens.length > max ? ` … (+${String(itens.length - max)})` : ''}`;
+  const outrosAtivos = estado.inventariosAtivos.filter((c) => c !== estado.substitui?.codigo && c !== estado.loteExistente?.inventarioCodigo);
   const pendencias = [
+    ...(estado.substitui === null && estado.loteExistente === null && outrosAtivos.length > 0
+      ? [`Inventário ativo anterior neste escopo: ${outrosAtivos.join(', ')}. Se esta planilha é a versão nova dele, use --substitui ${outrosAtivos[outrosAtivos.length - 1] ?? ''} (sem isso, os vínculos antigos que não constam desta versão continuam ativos).`]
+      : []),
+    ...(pacote.linhas_sem_endereco.length > 0 ? ['Linhas sem endereço (preservadas, sem alocação): ' + lista(pacote.linhas_sem_endereco.map((l) => 'linha ' + String(l.linha) + ': ' + l.numero)) + '.'] : []),
+    ...gruposEmRevisao(pacote).map((g) => `Em revisão — ${g.codigo} (${String(g.linhas.length)} linha${g.linhas.length === 1 ? '' : 's'}${g.enderecos.length > 0 ? `; ${lista(g.enderecos, 10)}` : ''}): ${g.descricao}`),
+    ...ausentesDaVersao(estado, vinculos, opcoes.manterAusentes === true, lista),
     ...(conflitos.length > 0 ? [`Conflitos com registros atuais (não aplicados): ${lista(conflitos.map((c) => `${c.endereco}: ${c.conflito?.message ?? ''}`), 20)}`] : []),
     `Volumes pendentes (${String(volumesPendentes.length)} vínculos; desconhecido ≠ zero): ${lista(volumesPendentes.map((x) => `NFD ${x.v.numero_documento} em ${x.endereco.endereco}${x.v.linhas_origem.length > 1 ? ` (linhas ${x.v.linhas_origem.join(' e ')} iguais)` : ''}`), 25)}.`,
     `Documentos de tipo pendente/outro tipo na praça (${String(tipoPendente.length)}; ${String(tipoPendente.filter((x) => x.v.tipo_documento === 'MI').length)} MI): confirmar o tipo antes de tratá-los como NFD.`,
@@ -708,10 +1181,63 @@ export function planejarCarga(p: PacoteLido, estado: EstadoCarga): PlanoCarga {
     `Posição no mapa pendente: ${String(pendentesMapa)} palete(s) — confirme as sequências de endereço por faixa em Layout da praça → Endereços reais e rode a carga de novo para registrar as posições (nada é presumido).`,
     `Mesmo número em contextos documentais distintos (${String(candidatos.length)} números; candidatos mostrados na nota): ${lista(candidatos)}.`,
     ...(fullConflitante.length > 0 ? [`Total de paletes do PALLET FULL divergente entre linhas: NFD ${fullConflitante.join(', ')}.`] : []),
-    ...pacote.numeros_na_planilha_em_varios_enderecos.map((x) => `N° Pallet ${x.numero_na_planilha} da planilha em ${x.enderecos.join(' e ')}: referência externa, não identifica palete (cada endereço tem o próprio palete).`),
+    ...pacote.numeros_na_planilha_em_varios_enderecos.filter((x) => x.enderecos.length > 1).map((x) => `N° Pallet ${x.numero_na_planilha} da planilha em ${x.enderecos.join(' e ')}: número em mais de um endereço não identifica o palete (vale o endereço; número a confirmar).`),
     ...(foraRegra.length > 0 ? [`Endereços fora da regra conhecida (referência pendente): ${foraRegra.join(', ')}.`] : []),
   ];
-  return { pacote: p, estado, enderecos, vinculos, linhas, resumo, pendencias };
+  return { pacote: p, estado, enderecos, vinculos, linhas, resumo, pendencias, encerrarOutroPalete };
+}
+
+/**
+ * Diferenças em relação ao inventário substituído: vínculos mantidos (mesma
+ * chave externa e dados), atualizados (anterior encerrado, histórico
+ * preservado) e encerrados por não constarem desta versão; endereços do
+ * anterior ausentes nesta versão (paletes preservados, nada apagado).
+ */
+function diferencasSubstituicao(pacote: PacoteCarga, estado: EstadoCarga, vinculos: readonly PlanoVinculo[], manterAusentes: boolean): string[] {
+  if (estado.substitui === null || estado.anterior === null || estado.loteExistente !== null) return [];
+  const anteriores = estado.anterior.vinculosAtivos;
+  const doAnterior = (acao: AcaoVinculo) => vinculos.filter((v) => v.acao === acao && v.encerrarId !== null && anteriores.has(v.encerrarId)).length;
+  const mantidos = doAnterior('JA_IMPORTADO');
+  const atualizados = doAnterior('ATUALIZAR');
+  const novos = new Set(pacote.posicoes.map((x) => x.endereco));
+  const ausentes = estado.anterior.enderecos.filter((e) => !novos.has(e)).sort(ordemEndereco);
+  const lista = ausentes.slice(0, 20).join(', ') + (ausentes.length > 20 ? ` … (+${String(ausentes.length - 20)})` : '');
+  return [
+    `Substitui ${estado.substitui.codigo}: ${String(anteriores.size)} vínculos ativos — ${String(mantidos)} mantidos, ${String(atualizados)} atualizados (anterior encerrado, histórico preservado), ${String(anteriores.size - mantidos - atualizados)} ${manterAusentes ? 'continuam ativos sem constar desta versão (nada encerrado; validar no piso)' : 'encerrados por não constarem desta versão'}. Conteúdos registrados, bipagens e movimentos não são alterados.`,
+    `Endereços do ${estado.substitui.codigo} fora desta versão: ${String(ausentes.length)}${ausentes.length > 0 ? ` (paletes preservados, ${manterAusentes ? 'vínculos mantidos a validar no piso' : 'sem vínculo ativo do inventário'}): ${lista}` : ''}.`,
+  ];
+}
+
+/** Linhas em revisão agrupadas por causa (código da preparação), com os endereços citados. */
+export function gruposEmRevisao(pacote: PacoteCarga): { codigo: string; descricao: string; linhas: number[]; enderecos: string[] }[] {
+  const porLinha = new Map(pacote.linhas_fonte.map((l) => [l.linha, l]));
+  const grupos = new Map<string, { codigo: string; descricao: string; linhas: number[]; enderecos: Set<string> }>();
+  for (const r of pacote.linhas_em_revisao) {
+    for (const m of r.motivos.filter((x) => x.nivel === 'bloqueio')) {
+      const g = grupos.get(m.codigo) ?? { codigo: m.codigo, descricao: m.descricao, linhas: [], enderecos: new Set<string>() };
+      g.linhas.push(r.linha);
+      const l = porLinha.get(r.linha);
+      const endereco = l === undefined ? '' : l.endereco !== '' ? l.endereco : l.endereco_original;
+      if (endereco.trim() !== '') g.enderecos.add(endereco);
+      grupos.set(m.codigo, g);
+    }
+  }
+  return [...grupos.values()].sort((a, b) => b.linhas.length - a.linhas.length).map((g) => ({ ...g, enderecos: [...g.enderecos].sort(ordemEndereco) }));
+}
+
+/** Vínculos ativos do escopo que esta versão não confirma (nem mantém nem atualiza). */
+function ausentesNaVersao(estado: EstadoCarga, vinculos: readonly PlanoVinculo[]): { id: string; descricao: string }[] {
+  const tocados = new Set(vinculos.flatMap((v) => (v.encerrarId === null ? [] : [v.encerrarId])));
+  return estado.ativosNoEscopo.filter((v) => !tocados.has(v.id));
+}
+
+function ausentesDaVersao(estado: EstadoCarga, vinculos: readonly PlanoVinculo[], manterAusentes: boolean, lista: (itens: readonly string[], max?: number) => string): string[] {
+  if (!manterAusentes || estado.loteExistente !== null) return [];
+  const ausentes = ausentesNaVersao(estado, vinculos);
+  if (ausentes.length === 0) return [];
+  return [
+    `Vínculos ativos que não constam desta versão (${String(ausentes.length)}): continuam ativos e aparecem como "não consta do inventário atual" — validar no piso antes de encerrar (nada é excluído ou zerado automaticamente): ${lista(ausentes.map((a) => a.descricao), 15)}.`,
+  ];
 }
 
 function documentacaoDe(pacote: PacoteCarga, v: VinculoPacote): string | null {
@@ -732,9 +1258,12 @@ export interface ResultadoCarga {
   inventarioId: string;
   inventarioCodigo: string;
   confirmadoEm: string | null;
-  linhas: { total: number; aplicadas: number; historicas: number; repetidas: number; jaImportadas: number; pendentes: number };
-  vinculos: { criados: number; atualizados: number; jaExistentes: number; emConflito: number; tipoPendente: number };
-  paletes: { criados: number; existentes: number; emConflito: number; localizacoesRegistradas: number; posicaoNoMapaPendente: number };
+  /** `pendentes` = requerem resolução (conflito, sem endereço ou em revisão); `semEndereco` e `emRevisao` = partes delas sem alocação. */
+  linhas: { total: number; aplicadas: number; historicas: number; repetidas: number; jaImportadas: number; pendentes: number; semEndereco: number; emRevisao: number };
+  /** `mantidosAusentes` = vínculos ativos que não constam da versão nova e continuam ativos (--manter-ausentes). */
+  vinculos: { criados: number; atualizados: number; jaExistentes: number; emConflito: number; tipoPendente: number; mantidosAusentes: number; encerradosOutroPalete: number };
+  /** `reconferenciaExigida` = paletes marcados com "Reconferência necessária" por decisão registrada no pacote. */
+  paletes: { criados: number; existentes: number; emConflito: number; localizacoesRegistradas: number; posicaoNoMapaPendente: number; reconferenciaExigida: number; numerosAtribuidos: number };
   referenciasForaDaPraca: number;
   volumesPendentes: number;
   camposPreenchidos: { cidades: number; produtos: number };
@@ -789,7 +1318,7 @@ function linhaDoLote(x: PlanoLinha, rotulo: ReadonlyMap<string, string>, paleteC
   const posicao = x.endereco?.posicaoNova?.codigo ?? x.endereco?.registrarPosicao?.codigo ?? (x.endereco?.posicaoResolvidaId ? (x.endereco.resolvido?.posicaoCodigo ?? null) : null);
   return {
     classificacao,
-    chave: `${x.enderecoCanonico ?? l.endereco}${l.numero !== '' ? ` · ${l.tipo || '?'} ${l.numero}` : ''}`,
+    chave: `${x.enderecoCanonico ?? (l.endereco.trim() === '' ? 'sem endereço' : l.endereco)}${l.numero !== '' ? ` · ${l.tipo || '?'} ${l.numero}` : ''}`,
     valores: {
       palletNumber: vazioParaNulo(l.numero_na_planilha),
       pallet: paleteCodigo,
@@ -799,7 +1328,7 @@ function linhaDoLote(x: PlanoLinha, rotulo: ReadonlyMap<string, string>, paleteC
       delivery: vazioParaNulo(l.delivery),
       address: x.enderecoCanonico,
       position: l.endereco_livre ? null : posicao,
-      positionState: l.endereco_livre ? 'endereço livre' : posicao !== null ? 'confirmada' : 'pendente',
+      positionState: l.endereco_livre ? 'endereço livre' : l.endereco.trim() === '' ? 'sem alocação / endereço não informado' : posicao !== null ? 'confirmada' : 'pendente',
       locate: x.endereco?.posicaoNova?.codigo ?? x.endereco?.registrarPosicao?.codigo ?? null,
       volumes: l.volumes,
       volumesUnit: l.volumes === null ? null : UNIDADE_VOLUMES,
@@ -825,27 +1354,31 @@ export async function executarCarga(
   escopo: Escopo,
   autor: AutorCarga,
   p: PacoteLido,
-  opcoes: { substitui: string | null; descricao: string | null },
+  opcoes: { substitui: string | null; descricao: string | null; manterAusentes?: boolean; identidadePorEndereco?: boolean },
   agora: Date,
 ): Promise<ResultadoCarga> {
   if (escopo.demo) throw new ErroHttp(409, 'CONFLITO', 'A carga de dados reais não é feita em escopo de demonstração.');
+  if (opcoes.manterAusentes === true && opcoes.substitui === null) throw new ErroHttp(400, 'REQUISICAO_INVALIDA', 'Manter os ausentes só faz sentido ao substituir uma versão (--substitui).');
   return db.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`importacao:${escopo.id}`}, 0))`;
       const estado = await carregarEstadoCarga(tx, escopo.id, p, opcoes.substitui);
-      const plano = planejarCarga(p, estado);
+      const plano = planejarCarga(p, estado, { manterAusentes: opcoes.manterAusentes === true, identidadePorEndereco: opcoes.identidadePorEndereco === true });
       if (estado.loteExistente !== null) return reenviar(tx, escopo, autor, plano, estado.loteExistente, agora);
-      return gravar(tx, escopo, autor, plano, opcoes.descricao, agora);
+      return gravar(tx, escopo, autor, plano, opcoes.descricao, agora, opcoes.manterAusentes === true);
     },
     { maxWait: 20_000, timeout: 600_000 },
   );
 }
 
-/** Registra a localização (serviço de movimentação) de um palete existente nunca movimentado. */
+/**
+ * Registra a localização (serviço de movimentação) de um palete existente nunca movimentado. É dado de origem
+ * (endereço do inventário resolvido pela tabela confirmada), não movimento físico: não reinicia o prazo de reconferência.
+ */
 async function registrarLocalizacao(tx: Transacao, escopo: Escopo, autor: AutorCarga, paleteId: string, destino: { id: string; codigo: string }, motivo: string, agora: Date): Promise<void> {
   const atual = await tx.palete.findFirst({ where: { id: paleteId, escopoId: escopo.id }, select: { versao: true } });
   if (!atual) throw new ErroHttp(409, 'CONFLITO', 'Um palete do plano não existe mais.');
-  await moverPalete(tx, escopo, paleteId, { destinationPositionId: destino.id, confirmedPositionCode: destino.codigo, expectedVersion: atual.versao, reason: motivo }, autor, agora);
+  await moverPalete(tx, escopo, paleteId, { destinationPositionId: destino.id, confirmedPositionCode: destino.codigo, expectedVersion: atual.versao, reason: motivo }, autor, agora, { relogio: false });
 }
 
 async function reenviar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano: PlanoCarga, lote: LoteExistente, agora: Date): Promise<ResultadoCarga> {
@@ -885,14 +1418,18 @@ async function reenviar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano:
       repetidas: n((x) => x.acao === 'DUPLICADA_ARQUIVO'),
       jaImportadas: n((x) => x.acao === 'JA_IMPORTADO'),
       pendentes: n((x) => x.acao === 'REQUER_RESOLUCAO'),
+      semEndereco: await tx.linhaInventario.count({ where: { escopoId: escopo.id, inventarioId: lote.inventarioId, acao: 'REQUER_RESOLUCAO', enderecoLido: null, enderecoCanonico: null } }),
+      emRevisao: plano.linhas.filter((x) => x.motivos.some((m) => m.code === 'EM_REVISAO')).length,
     },
-    vinculos: { criados: 0, atualizados: 0, jaExistentes: ativos, emConflito: esperadas - ativos, tipoPendente: plano.vinculos.filter((v) => v.grupo === 'PENDENTE').length },
+    vinculos: { mantidosAusentes: 0, encerradosOutroPalete: 0, criados: 0, atualizados: 0, jaExistentes: ativos, emConflito: esperadas - ativos, tipoPendente: plano.vinculos.filter((v) => v.grupo === 'PENDENTE').length },
     paletes: {
       criados: 0,
       existentes: plano.enderecos.filter((e) => e.acao === 'EXISTENTE').length,
       emConflito: plano.enderecos.filter((e) => e.acao === 'CONFLITO').length,
       localizacoesRegistradas: localizacoes,
       posicaoNoMapaPendente: plano.enderecos.filter((e) => e.existente !== null && e.existente.posicaoId === null && e.registrarPosicao === null).length,
+      reconferenciaExigida: 0,
+      numerosAtribuidos: 0,
     },
     referenciasForaDaPraca: pacote.documentos_fora_da_praca.length,
     volumesPendentes: plano.vinculos.filter((v) => v.v.volumes === null).length,
@@ -902,7 +1439,8 @@ async function reenviar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano:
   };
 }
 
-async function gravar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano: PlanoCarga, descricao: string | null, agora: Date): Promise<ResultadoCarga> {
+async function gravar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano: PlanoCarga, descricaoInformada: string | null, agora: Date, manterAusentes: boolean): Promise<ResultadoCarga> {
+  const descricao = descricaoInformada ?? (plano.pacote.pacote.em_validacao ? `Inventário ${plano.pacote.pacote.fonte.aba}${plano.pacote.pacote.data_base === null ? '' : ` de ${plano.pacote.pacote.data_base}`} — em validação` : null);
   const p = plano.pacote;
   const pacote = p.pacote;
   const { colunas, rotulo } = colunasDoPacote(pacote);
@@ -918,7 +1456,7 @@ async function gravar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano: P
     countReference: pacote.fonte.aba.slice(0, 120),
     countDate: null,
     countSource: `Pacote preparado de ${pacote.fonte.arquivo}`.slice(0, 200),
-    palletNumberMeaning: 'REFERENCIA_EXTERNA',
+    palletNumberMeaning: 'IDENTIFICADOR_PALETE',
     freeAddressFontColors: [pacote.regras.cor_livre_rua],
     freeAddressValues: [],
     documentTypes: [{ code: 'NFD', meaning: 'Nota de devolução (NFD), conforme o pacote de carga', originType: 'NOTA_FISCAL' }],
@@ -969,13 +1507,17 @@ async function gravar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano: P
       nomeArquivo: pacote.fonte.arquivo,
       hashArquivo: pacote.fonte.sha256,
       aba: pacote.fonte.aba,
-      significadoNumeroPalete: 'REFERENCIA_EXTERNA',
+      significadoNumeroPalete: 'IDENTIFICADOR_PALETE',
       convencoes: {
         freeAddressFontColors: [pacote.regras.cor_livre_rua],
         freeAddressValues: [],
         documentTypes: [{ code: 'NFD', meaning: 'Nota de devolução (NFD), conforme o pacote de carga', originType: 'NOTA_FISCAL' }],
         definitive: true,
         pacote: { schema: pacote.schema, idLote: pacote.id_lote, hashPacote: p.hash, regras: pacote.regras, blocosFileiras: pacote.blocos_fileiras },
+        // Base provisória: "Inventário em validação" nas telas internas (não é disponibilidade certificada).
+        emValidacao: pacote.em_validacao,
+        dataBase: pacote.data_base,
+        manterAusentes,
       },
       situacao: 'ATIVO',
       substituiId: plano.estado.substitui?.id ?? null,
@@ -992,31 +1534,54 @@ async function gravar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano: P
     if (r.count !== 1) throw new ErroHttp(409, 'CONFLITO', `O ${plano.estado.substitui.codigo} foi substituído por outra versão durante a carga.`);
   }
 
-  // 3. Paletes pelo cadastro existente (código gerado; posição só pela tabela confirmada).
+  // 3. Paletes: identidade pelo N° Pallet único (número operacional) ou, sem ele, pelo endereço; posição só pela tabela confirmada.
   const paletePor = new Map<string, { id: string; codigo: string }>();
   let criados = 0;
   let localizacoes = 0;
+  let numerosAtribuidos = 0;
+  const comLinhaAplicada = new Set(plano.linhas.flatMap((x) => (x.aplicada && x.endereco !== null ? [x.endereco.endereco] : [])));
   for (const e of plano.enderecos) {
     if (e.acao === 'CONFLITO') continue;
     if (e.acao === 'EXISTENTE' && e.existente !== null) {
-      paletePor.set(e.endereco, { id: e.existente.id, codigo: e.existente.codigo });
+      let codigo = e.existente.codigo;
+      if (e.atribuirNumero !== null) {
+        await atribuirNumeroOperacional(tx, escopo.id, e.existente.id, e.atribuirNumero, {
+          motivo: `N° Pallet ${e.atribuirNumero} informado em ${e.endereco} no ${motivoCodigo}.`,
+          fonte: codigoInventario,
+          operacaoId: loteId,
+          autorId: autor.usuarioId,
+          requestId: autor.requestId,
+          agora,
+        });
+        codigo = e.atribuirNumero;
+        numerosAtribuidos += 1;
+      }
+      paletePor.set(e.endereco, { id: e.existente.id, codigo });
       if (e.registrarPosicao !== null) {
         await registrarLocalizacao(tx, escopo, autor, e.existente.id, e.registrarPosicao, `Localização informada no ${motivoCodigo}: ${e.endereco}.`, agora);
         localizacoes += 1;
       }
       continue;
     }
-    const referencia = e.numeroPlanilha === null ? '' : ` N° Pallet na planilha: ${e.numeroPlanilha} (referência externa, não é o ID).`;
+    // Endereço cujas linhas não entram (todas em conflito): nenhum palete vazio é cadastrado.
+    if (!comLinhaAplicada.has(e.endereco)) continue;
+    const referencia =
+      e.numero !== null
+        ? ` Número operacional = N° Pallet da planilha (${e.numero}).`
+        : e.numeroPlanilha === null
+          ? ''
+          : ` N° Pallet na planilha: ${e.numeroPlanilha} (sem número único no endereço: código gerado; número a confirmar).`;
     const detalhe = await cadastrarPalete(
       tx,
       escopo,
       {
-        code: { mode: 'GERAR' },
+        code: e.numero !== null ? { mode: 'INFORMAR', value: e.numero } : { mode: 'GERAR' },
         positionId: e.posicaoNova?.id ?? null,
         notes: `Cadastrado pela carga do ${codigoInventario}: endereço ${e.endereco}${e.posicaoNova === null ? ' (posição no mapa pendente)' : ''}.${referencia} Conteúdo por produto desconhecido até a conferência.`.slice(0, 500),
         declaredItems: [],
       },
       autor,
+      agora,
     );
     paletePor.set(e.endereco, { id: detalhe.id, codigo: detalhe.code });
     criados += 1;
@@ -1055,8 +1620,9 @@ async function gravar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano: P
       documentacao: vazioParaNulo(l.documentacao),
       palletFull: vazioParaNulo(l.marcador_full_original),
       categoria: vazioParaNulo(l.campos_originais['PF/CNPJ'] ?? ''),
-      extras: json({}),
-      paleteId: x.aplicada ? (palete?.id ?? null) : null,
+      extras: json(l.extras),
+      // Já importada ou repetida agrupada: nada é gravado, mas a linha guarda o palete do endereço (consulta e próximas versões).
+      paleteId: x.aplicada || x.acao === 'JA_IMPORTADO' || x.acao === 'DUPLICADA_ARQUIVO' ? (palete?.id ?? null) : null,
       posicaoId: l.endereco_livre ? null : (x.endereco?.posicaoResolvidaId ?? null),
       acao: x.acao,
       aplicada: x.aplicada,
@@ -1068,7 +1634,7 @@ async function gravar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano: P
   for (let i = 0; i < dadosLinhas.length; i += 500) await tx.linhaInventario.createMany({ data: dadosLinhas.slice(i, i + 500) });
 
   // 5. Vínculos documentais (encerramento do anterior quando os dados mudaram).
-  const paletesAfetados = [...new Set([...paletePor.values()].map((x) => x.id))];
+  const paletesAfetados = [...new Set([...[...paletePor.values()].map((x) => x.id), ...plano.vinculos.flatMap((v) => (v.paleteAlvo === null ? [] : [v.paleteAlvo.id]))])];
   const encerrar = plano.vinculos.filter((v) => v.acao === 'ATUALIZAR' && v.encerrarId !== null);
   for (const v of encerrar) {
     await tx.vinculoDocumentoPalete.update({
@@ -1082,7 +1648,8 @@ async function gravar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano: P
   const novos = plano.vinculos.filter((v) => v.acao === 'CRIAR' || v.acao === 'ATUALIZAR');
   const dadosVinculos = novos.map((pv) => {
     const v = pv.v;
-    const palete = paletePor.get(pv.endereco.endereco);
+    // Ocorrência movida depois de importada: a versão nova fica no palete para onde ela foi levada.
+    const palete = pv.paleteAlvo ?? paletePor.get(pv.endereco.endereco);
     const linhaId = idLinha.get(pv.linhaPrincipal);
     if (!palete || !linhaId) throw new Error(`Vínculo ${v.numero_documento}: palete ou linha ausente.`);
     const documento = chaveDocumento(v.tipo_documento, v.numero_documento);
@@ -1126,14 +1693,29 @@ async function gravar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano: P
         remetentesNaOrigem: v.remetentes_na_origem,
       }),
       situacao: 'ATIVO',
+      alocadoEm: pv.alocadoEm,
       criadoPorId: autor.usuarioId,
       criadoEm: agora,
     };
   });
   for (let i = 0; i < dadosVinculos.length; i += 500) await tx.vinculoDocumentoPalete.createMany({ data: dadosVinculos.slice(i, i + 500) });
-  if (plano.estado.substitui !== null) {
+  // Nota que esta versão põe noutro palete: o vínculo anterior é encerrado (antes dos ausentes; histórico preservado).
+  for (const x of plano.encerrarOutroPalete) {
+    const motivo = `Atualizado pelo ${codigoInventario}: a nota ${x.motivo}.`.slice(0, 300);
+    await tx.vinculoDocumentoPalete.update({ where: { id: x.id }, data: { situacao: 'ENCERRADO', encerradoEm: agora, encerradoPorId: autor.usuarioId, motivoEncerramento: motivo } });
+    const [v] = await tx.$queryRaw<{ palete_id: string; codigo: string; endereco: string | null }[]>`
+      SELECT p.id::text AS palete_id, p.codigo, coalesce(CASE WHEN ep.situacao = 'CONFIRMADO' THEN ep.endereco END, pos.codigo) AS endereco
+        FROM vinculo_documento_palete v JOIN palete p ON p.id = v.palete_id LEFT JOIN posicao pos ON pos.id = p.posicao_id LEFT JOIN endereco_posicao ep ON ep.posicao_id = p.posicao_id
+       WHERE v.id = ${x.id}::uuid`;
+    if (v) {
+      await registrarHistoricoConteudo(tx, escopo.id, loteId, { kind: 'IMPORTADO', id: x.id, situacao: 'ATIVO', palete_id: v.palete_id, tipo: null, numero: null, remetente: null, cnpj: null }, 'ENCERRAMENTO', { id: v.palete_id, codigo: v.codigo, endereco: v.endereco }, null, 'ENCERRADO', null, motivo, autor.usuarioId, agora, { carga: codigoInventario });
+    }
+  }
+  // Sem --manter-ausentes, os vínculos da versão substituída que não constam desta são encerrados (histórico preservado);
+  // os movidos depois da importação (decisão no piso) ficam ativos onde estão.
+  if (plano.estado.substitui !== null && !manterAusentes) {
     const mantidas = new Set([...plano.vinculos.filter((v) => v.acao === 'JA_IMPORTADO').flatMap((v) => (v.encerrarId === null ? [] : [v.encerrarId]))]);
-    const antigos = await tx.vinculoDocumentoPalete.findMany({ where: { escopoId: escopo.id, inventarioId: plano.estado.substitui.id, situacao: 'ATIVO' }, select: { id: true } });
+    const antigos = await tx.vinculoDocumentoPalete.findMany({ where: { escopoId: escopo.id, inventarioId: plano.estado.substitui.id, situacao: 'ATIVO', alocadoEm: null }, select: { id: true } });
     for (const a of antigos.filter((x) => !mantidas.has(x.id))) {
       await tx.vinculoDocumentoPalete.update({
         where: { id: a.id },
@@ -1146,7 +1728,7 @@ async function gravar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano: P
   let cidades = 0;
   let produtos = 0;
   for (const pv of plano.vinculos.filter((x) => x.acao !== 'CONFLITO')) {
-    const palete = paletePor.get(pv.endereco.endereco);
+    const palete = pv.paleteAlvo ?? paletePor.get(pv.endereco.endereco);
     const cidade = pv.v.cidade_destino.replace(/\s+/g, ' ').trim().slice(0, 120);
     if (cidade !== '') {
       const atual = await tx.informacaoDocumento.findUnique({ where: { escopoId_identidadeDocumento: { escopoId: escopo.id, identidadeDocumento: pv.v.chave_documento } }, select: { id: true, cidadeDestino: true } });
@@ -1172,6 +1754,15 @@ async function gravar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano: P
         produtos += 1;
       }
     }
+  }
+
+  // 6b. Reconferência exigida por decisão registrada no pacote (não mexe no relógio de 20 dias nem na última movimentação).
+  let reconferenciaExigida = 0;
+  for (const r of pacote.reconferencia_exigida) {
+    const palete = paletePor.get(r.endereco);
+    if (!palete) continue;
+    await tx.palete.update({ where: { id: palete.id }, data: { reconferenciaExigidaEm: agora, reconferenciaExigidaMotivo: r.motivo.slice(0, 500) } });
+    reconferenciaExigida += 1;
   }
 
   // 7. Linhas do lote (relatório e tela de importações), contadores, resultado e auditoria.
@@ -1214,6 +1805,17 @@ async function gravar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano: P
     palletsLocated: localizacoes,
     selectionId: null,
     selectionLines: 0,
+    documentLinksEnded: 0,
+    palletId: null,
+    documentsWritten: 0,
+    contentsCreated: 0,
+    countsRegistered: 0,
+    documentsUnchanged: 0,
+    recordsWithoutReads: 0,
+    volumesRead: 0,
+    palletCode: null,
+    palletCreated: false,
+    rowsRevalidated: 0,
   };
   await tx.loteImportacao.update({
     where: { id: loteId },
@@ -1251,8 +1853,10 @@ async function gravar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano: P
       aplicadas,
       vinculos: dadosVinculos.length,
       paletesCriados: criados,
+      numerosAtribuidos,
       localizacoes,
       substitui: plano.estado.substitui?.codigo ?? null,
+      reconferenciaExigida: pacote.reconferencia_exigida.map((r) => r.endereco).join(', ') || null,
       saldoValidadoAlterado: false,
     },
     requestId: autor.requestId,
@@ -1280,8 +1884,12 @@ async function gravar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano: P
       repetidas: plano.linhas.filter((x) => x.acao === 'DUPLICADA_ARQUIVO').length,
       jaImportadas: plano.linhas.filter((x) => x.acao === 'JA_IMPORTADO').length,
       pendentes: plano.linhas.filter((x) => x.acao === 'REQUER_RESOLUCAO').length,
+      semEndereco: plano.linhas.filter((x) => x.motivos.some((m) => m.code === 'ENDERECO_NAO_INFORMADO')).length,
+      emRevisao: plano.linhas.filter((x) => x.motivos.some((m) => m.code === 'EM_REVISAO')).length,
     },
     vinculos: {
+      mantidosAusentes: manterAusentes ? ausentesNaVersao(plano.estado, plano.vinculos).length - plano.encerrarOutroPalete.length : 0,
+      encerradosOutroPalete: plano.encerrarOutroPalete.length,
       criados: vinculosCriados,
       atualizados: vinculosAtualizados,
       jaExistentes: plano.vinculos.filter((v) => v.acao === 'JA_IMPORTADO').length,
@@ -1294,6 +1902,8 @@ async function gravar(tx: Transacao, escopo: Escopo, autor: AutorCarga, plano: P
       emConflito: plano.enderecos.filter((e) => e.acao === 'CONFLITO').length,
       localizacoesRegistradas: localizacoes,
       posicaoNoMapaPendente: plano.enderecos.filter((e) => e.acao !== 'CONFLITO' && e.posicaoNova === null && e.registrarPosicao === null && !(e.existente?.posicaoId != null)).length,
+      reconferenciaExigida,
+      numerosAtribuidos,
     },
     referenciasForaDaPraca: pacote.documentos_fora_da_praca.length,
     volumesPendentes: plano.vinculos.filter((v) => v.v.volumes === null && v.acao !== 'CONFLITO').length,

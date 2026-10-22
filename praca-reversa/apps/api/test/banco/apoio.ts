@@ -32,6 +32,15 @@ export function bancoDeTeste(): Banco {
 }
 
 const TABELAS = [
+  'item_conferencia_volumes',
+  'conferencia_volumes',
+  'historico_conteudo',
+  'historico_codigo_palete',
+  'evento_volumes_janela',
+  'meta_janela_volumes',
+  'reconferencia_palete',
+  'contagem_volumes',
+  'conteudo_palete',
   'alteracao_planilha',
   'publicacao_planilha',
   'controle_planilha',

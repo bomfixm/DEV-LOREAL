@@ -27,6 +27,11 @@ export const AlterarVinculoSchema = z.object({
    * Ausente = mantém a atual; mudar para outro perfil retira a concessão.
    */
   financialApproval: z.boolean().optional(),
+  /**
+   * Concessão explícita da "Seleção cliente — teste" (só supervisor de estoque
+   * ou administrador). Ausente = mantém a atual; mudar para perfil não elegível retira.
+   */
+  clientSelectionTest: z.boolean().optional(),
 });
 export type AlterarVinculo = z.infer<typeof AlterarVinculoSchema>;
 
@@ -41,6 +46,7 @@ export const UsuarioAdminSchema = z.object({
   role: PerfilSchema,
   membershipActive: z.boolean(),
   financialApproval: z.boolean(),
+  clientSelectionTest: z.boolean().default(false),
   createdAt: z.iso.datetime(),
 });
 export type UsuarioAdmin = z.infer<typeof UsuarioAdminSchema>;

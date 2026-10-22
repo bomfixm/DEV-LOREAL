@@ -38,7 +38,7 @@ const naoCadastrado = (codigo: string) =>
   new ErroHttp(
     422,
     'CODIGO_NAO_CADASTRADO',
-    `Código ${codigo} não cadastrado neste escopo. Nenhum SKU foi associado. Registre como pendência (modo manual, com quantidade e unidade) ou cadastre o produto/código.`,
+    `Código ${codigo} não cadastrado neste escopo. Nenhum SKU foi associado. Registre como pendência (modo manual, com quantidade e unidade).`,
   );
 
 const conversaoDesconhecida = (mensagem: string) => new ErroHttp(422, 'CONVERSAO_DESCONHECIDA', mensagem);

@@ -143,3 +143,73 @@ Formato único (`RelatorioSchema`): título, escopo, período, horário da consu
 **CSV:** UTF-8 com BOM, `;`, CRLF, todas as células de texto entre aspas (códigos com zeros à esquerda continuam texto no arquivo; ao abrir no Excel, use *Dados → De Texto/CSV* e marque as colunas de código como Texto, porque o duplo clique pode converter `000123` em `123`). Texto que começa com `=`, `+`, `-`, `@`, tabulação ou CR recebe um apóstrofo no arquivo (proteção contra fórmula, OWASP); o valor no banco não muda. Quantidades com vírgula decimal. Cada exportação é auditada (`RELATORIO_EXPORTADO`); sem permissão, `ACESSO_NEGADO` é registrado. Outras exportações existentes continuam: busca (etapa 06), lista de claims (etapa 07), janelas e lista de preparação (etapa 08).
 
 **Impressão:** pelo navegador (*Imprimir*), com o mesmo conteúdo da tela (filtros e navegação ficam fora da folha). Não há XLSX novo: sem necessidade concreta nesta etapa.
+
+## Painéis da operação DHL e do cliente (13 out. 2026)
+
+Implementação: `apps/api/src/modules/paineis/` (`base.ts` estoque por conteúdo, `janelas.ts` meta/seleção/etapas/P e E, `volumes.ts` registros, `estoque.ts`, `historico.ts`, `paineis.ts`, `rotas.ts`); contratos em `packages/contracts/src/paineis.ts`; migração `20261016090000_paineis_volumes`; testes `apps/api/test/banco/paineis.test.ts` e `packages/contracts/src/paineis.test.ts`; web `apps/web/src/features/paineis/`.
+
+### Regras comuns
+
+- **Mesma leitura.** Cada resposta (painel, lista, histórico, exportação) é uma transação `REPEATABLE READ READ ONLY`; cards, listas e CSV usam as mesmas funções (`carregarBase` → `linhasEstoque`/`totaisEstoque`), então o total do card é a soma das linhas da lista com os mesmos filtros. "Consultado em" = horário da consulta (exibido em America/Sao_Paulo).
+- **Estoque = agora.** Paletes na praça: não arquivados e `estado_fluxo` EM_ESTOQUE ou RESERVADO — cada palete conta uma vez (contagem sobre `palete`). O período **não** filtra o estoque; filtra janelas e acontecimentos.
+- **Conteúdo** = vínculo NF × palete ATIVO (`vinculo_documento_palete`, inventário) **ou** conteúdo registrado ATIVO (`conteudo_palete`). Versões encerradas e paletes expedidos/arquivados não entram.
+- **Volumes do conteúdo** = contagem vigente (`contagem_volumes`, a mais recente) quando houver; senão o informado no inventário (`vinculo.volumes`). Nunca previsto + contado. Informado fracionário/inválido não é arredondado: fica "Não informado". **Atual** = base − expedido pelos painéis (E de todas as janelas). Conteúdo expedido por inteiro sai do estoque.
+- **Documento** = identidade fiscal (`identidade_documento`: tipo + número + Delivery, ou remetente sem Delivery). Mesmo número com remetentes diferentes = documentos diferentes; a mesma NF em vários paletes = um documento.
+- **Desconhecido** aparece como "Não informado"; zero só com base para afirmar zero. Cobertura informada ao lado de cada soma ("base conhecida em X de Y").
+- **Permissões.** Painel da operação, lista e histórico internos: `painel.operacao` (todos os perfis DHL). Painel do cliente: `painel.cliente` (perfil `CLIENTE_CONSULTA`; o supervisor também, para conferir). Meta: `janela.gerenciar`; separação: `expedicao.preparar`; expedição: `expedicao.confirmar`; estorno: a permissão da operação estornada. Tudo conferido no servidor.
+
+### Apresentação em uma tela (etapa 4, 19 out. 2026; D259–D263)
+
+Mesmos números da API acima; muda só a apresentação (`apps/web/src/features/paineis/resumo.tsx`, `resumo-dados.ts`). No computador o resumo cabe sem rolagem em 1366×768, 1280×720 e 1920×1080 (menu compacto ou expandido, claro ou escuro), conferido por `e2e/painel-uma-tela.spec.ts`; listas, tabelas e definições abrem ao clicar.
+
+| Na tela | Campo da API | Abre |
+| --- | --- | --- |
+| Paletes na praça (full · mistos) | `stock.activePallets`, `fullPallets`, `mixedPallets` | `/painel/estoque` |
+| Volumes registrados (notas/minutas · sem volume) | `stock.volumes.current` (ou "Não informado" sem base), `stock.documents`, `currentCoverage` | `/painel/estoque` (total de volumes igual) |
+| Sem endereço (NFs sem palete) | `location.palletsWithoutAddress`; `location.documentsWithoutPallet` à parte | `situacao=sem-endereco` |
+| Precisa conferir (vencem em 7 dias) | `reconference.due`, `dueNext7Days` (regra persistida de 20 dias) | `situacao=reconferencia` |
+| Janela selecionada: Solicitado, Separado, Expedido, Falta separar, Falta expedir, Preparação, Expedição | `progress.requested` (T), `separatedWaiting` (P), `shipped` (E), `missingToSeparate`, `missingToShip`, `preparationPercent` = (P + E) ÷ T, `shippingPercent` = E ÷ T | "Abrir janela" (`/painel/janelas/:id`), "Comparar" |
+| Situação da praça | `positions.occupied`, `freeConfirmed`, `unknown` (desativadas e base provisória em "Detalhes") | "Ver mapa" |
+| Volumes por rua | `byStreet[].volumes` ("n/i" quando sem base), paletes na dica e na "Tabela" | lista filtrada pela rua |
+| Prioridades | `tasks.items` (uma de cada tipo por vez) e `tasks.totals` | "Ver todas" |
+| Detalhes | informado × conferido, sem volume, identificação incompleta, registros NF × palete, próximo vencimento, posições desativadas, período, histórico disponível, claims (só com `claim.consultar`) | — |
+
+Cliente: Paletes, Volumes registrados, Solicitado e Expedido da janela escolhida (abrem a seleção da janela), etapas da seleção (linhas), volumes por rua e histórico recente (`/painel/cliente/historico`, mais recentes primeiro); a consulta completa e a exportação ficam em "Estoque e histórico". Exemplo fictício (teste de unidade, não publicado): T 8.000, P 4.500, E 2.000 → falta separar 1.500, falta expedir 6.000, preparação 81,25%, expedição 25,00%.
+
+### Painel da operação (`GET /painel/operacao?inicio&fim`)
+
+| Indicador | Definição e fonte | Filtros / observações |
+| --- | --- | --- |
+| Paletes na praça | `count(palete)` na praça; full = um único documento identificado e nenhuma linha sem NF; misto = 2+ documentos; senão "Não informado" | Lista: `/painel/estoque` |
+| Volumes no estoque | Soma do **atual** dos conteúdos com base conhecida; cobertura = conteúdos com base ÷ conteúdos; expedidos descontados (`evento_volumes_janela`) | Lista com os mesmos filtros |
+| Informados × conferidos | Soma dos informados no inventário (cobertura) e soma das contagens vigentes (cobertura) — bases distintas, não somadas | — |
+| Documentos distintos | `count(distinct identidade)` dos conteúdos no estoque | — |
+| Identificação incompleta | Conteúdos sem número + paletes com linha vigente do inventário sem NF; conteúdos com número e sem tipo | — |
+| Conteúdos sem volume | Conteúdos sem base (nem contado nem informado) | `situacao=sem-volume` |
+| Posições ativas | Layout ativo, posições não retiradas, disponíveis e não desativadas: ocupadas (com palete), **livres confirmadas** (`livre_confirmada_em`: confirmação de quem está no local ou desocupação registrada) e **ocupação desconhecida** (sem palete e sem confirmação — não é espaço livre). Desativadas/indisponíveis ficam fora da capacidade | Base provisória sinalizada |
+| Paletes sem endereço | Palete na praça sem endereço operacional CONFIRMADO (`endereco_posicao`) | `situacao=sem-endereco` |
+| NFs sem palete | Linhas do inventário ATIVO `REQUER_RESOLUCAO`, sem palete, não livres e não resolvidas | Abre Inventário |
+| Reconferência vencida | Regra persistida de 20 dias (`palete.relogio_*`, `ultima_*`; `reconferenciaDe`) com o relógio do servidor — **não** usa data de cadastro/importação como chegada física; próximos 7 dias e próximo vencimento | `situacao=reconferencia` |
+| Paletes e volumes por rua | Rua = bloco da fileira da posição (`elemento_layout.nome_operacional`, ex.: "Rua 15"); paletes e volumes em séries/unidades distintas; "Sem endereço confirmado" à parte; rua com paletes sem conteúdo registrado ou só com conteúdos sem volume mostra "Não informado" (nunca 0) | Clique filtra a lista por rua |
+| Janelas do período | Janelas cadastradas (exceto canceladas) com mês de referência no período: T, P, E (abaixo) | Abre "Volumes da janela" |
+| Próxima janela | Aberta (rascunho/confirmada/preparação) com saída mais próxima e ainda não terminada | — |
+| Tarefas | Reconferência vencida (por vencimento), separação pendente (janela confirmada/em preparação com falta separar > 0), paletes sem endereço, NFs sem palete (até 25 de cada, com totais) | Link direto ao palete/janela/inventário |
+| Claims (interno) | Só com `claim.consultar`: os mesmos números do painel de indicadores (casos abertos, recuperações validadas; estimado em análise separado de resultado confirmado) | Nunca na visão do cliente |
+
+### Janela em volumes (`GET /janelas/:id/volumes`; registros em `POST /janelas/:id/volumes/meta|separacoes|expedicoes|estornos`)
+
+- **VOLUMES** = contagem operacional informada no inventário/pedido; não é m³, caixas, paletes nem unidades de SKU (a capacidade da etapa 08 — QUANTIDADE, CAIXAS, PALETES, PESO_KG, VOLUME_M3 — continua separada; nada é convertido).
+- **T (meta)** = `meta_janela_volumes` mais recente da janela (só acrescentada; histórico preservado), com referência e seleção (versão do pedido) opcionais. Sem meta: sem porcentagem ("Sem meta informada"); T = 0: "Sem base para cálculo".
+- **P (separado aguardando)** = SEPARACAO − ESTORNO_SEPARACAO − EXPEDICAO + ESTORNO_EXPEDICAO; **E (expedido)** = EXPEDICAO − ESTORNO_EXPEDICAO — só eventos da própria janela (`evento_volumes_janela`). Seleção, importação, reserva e relatório **não** contam.
+- **Preparados** = P + E; **falta separar** = max(T − P − E, 0); **falta expedir** = max(T − E, 0); **% preparação** = (P + E) ÷ T; **% expedição** = E ÷ T (duas casas, arredondamento comercial). Acima da meta: valor real preservado e excesso mostrado só na visão interna; a barra para em 100% com o total no texto.
+- **Separar**: conteúdo na praça com base de volumes conhecida; separado + expedido do conteúdo em **todas** as janelas ≤ base (a mesma parte não atende pedidos incompatíveis); bloqueio do palete serializa operações; a linha da seleção (opcional) precisa ser da versão vigente ligada à meta e corresponder ao conteúdo.
+- **Expedir**: só até o P do conteúdo na janela; P → E na mesma transação; reinicia o prazo de reconferência do palete (saída de material).
+- **Estornar**: evento próprio ligado ao corrigido, com motivo; o estorno de separação não desfaz o que já saiu.
+- **Seleção vigente** = última versão da referência ligada à meta; versão substituída não vira pedido paralelo; separações ligadas a linha de versão substituída ficam marcadas para revisão (nada é desfeito). Etapas por linha: não localizada, **localizada na base** (correspondência nos registros, não busca física), em separação, separada (P + E ≥ pedido), expedida (E ≥ pedido). Pedido da linha: quantidade em volumes (`VOL`, `VOLUMES`…); sem quantidade, a base localizada da NF/palete; outra unidade = não comparável ("Não informado"). Pedido menor que a NF: restante mostrado à parte. Palete inteiro: só o que existia quando a seleção foi registrada. **Soma das linhas ≠ meta**: diferença mostrada para revisão interna, nunca corrigida.
+
+### Painel do cliente (`GET /painel/cliente`, `/estoque`, `/janelas/:id`, `/historico`, `/estoque/exportar`, `/historico/exportar`)
+
+- **Projeção permitida**: estoque (tipo/número do documento, Delivery, remetente, volumes e base, palete, full/misto, endereço operacional ou "Localização em atualização", rua, etapa na janela), janelas confirmadas/em preparação/encerradas (meta, referência, pedido/versão, T/P/E, etapas, linhas da seleção sem IDs internos) e histórico. **Nunca**: claims, valores, custos, pendências internas, diferença meta × seleção, excesso, motivos/justificativas, comentários, autores/logins, payload de auditoria, IDs internos de palete, dados de outro escopo. Restrito no servidor (JSON e CSV), não só na tela.
+- **Histórico**: entrada registrada no sistema (cadastro — não é recebimento físico), localização registrada no sistema (primeira posição, sem origem — inclusive a registrada pela carga do inventário), mudanças e correções de localização (endereço operacional de origem/destino), saída da praça, transferência de conteúdo, conferência concluída, contagem de volumes (do documento), reconferência completa, separação, expedição e estornos (marcados como correção, sem somar duas vezes). Ordem estável (data, chave), 50 por página, filtros de período, janela, rua, palete, NF, Delivery e remetente. Filtro por documento: eventos do palete entram quando o palete tem/teve o documento; eventos de outro documento do mesmo palete misto não aparecem. "Histórico disponível a partir de" = primeiro cadastro de palete do escopo.
+- **Exportação**: os mesmos campos da tela, CSV seguro (`csv-seguro.ts`: fórmula neutralizada, códigos como texto, UTF-8 com BOM), auditada (`PAINEL_CLIENTE_EXPORTADO`).
+- **Atualização**: a tela consulta de novo a cada 60 s com a página visível, ao voltar à aba e ao focar; falha mostra o horário dos números exibidos.

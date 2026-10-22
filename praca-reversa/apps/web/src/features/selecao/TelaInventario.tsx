@@ -2,8 +2,11 @@ import {
   API_PREFIXO,
   InventarioResumoSchema,
   PaginaLinhasInventarioSchema,
+  PendenciasInventarioSchema,
   ROTULOS_ACAO_INVENTARIO,
   type FiltroLinhasInventario,
+  type LinhaInventario,
+  type PendenciasInventario,
   type Permissao,
 } from '@praca-reversa/contracts';
 import { useState } from 'react';
@@ -80,6 +83,55 @@ function ConferenciaExterna({ id, versao, aoGravado }: { id: string; versao: num
   );
 }
 
+/** Motivo mais específico de uma linha não aplicada: a causa da revisão, quando houver. */
+function motivoPrincipal(l: LinhaInventario): string | null {
+  return (l.reasons.find((r) => r.code.startsWith('REVISAO_')) ?? l.reasons[0])?.message ?? null;
+}
+
+/**
+ * Pendências agrupadas por causa → endereço/N° Pallet: uma decisão sobre um
+ * grupo ou endereço resolve muitas linhas. "Ver linhas" filtra a tabela.
+ */
+function PendenciasAgrupadas({ dados, aoVerLinhas }: { dados: PendenciasInventario; aoVerLinhas: (texto: string) => void }) {
+  if (dados.groups.length === 0) return null;
+  return (
+    <section className="cartao" aria-labelledby="pendencias-agrupadas-titulo" data-testid="pendencias-agrupadas">
+      <h3 id="pendencias-agrupadas-titulo">Pendências agrupadas</h3>
+      <p className="campo-ajuda">
+        {dados.totalLines} linha(s) sem alocação, visíveis na consulta interna. Uma linha pode ter mais de uma causa. Os volumes destas linhas não entram nos totais
+        provisórios até a validação no piso.
+      </p>
+      {dados.groups.map((g) => (
+        <details key={g.cause} className="janela-adicionais" data-testid="grupo-pendencia" data-causa={g.cause}>
+          <summary>
+            {g.description} — {g.lines} linha(s) em {g.places.length} {g.places.length === 1 ? 'local' : 'locais'}
+          </summary>
+          <ul className="lista-simples">
+            {g.places.map((x) => (
+              <li key={x.address ?? '-'}>
+                <strong>{x.address ?? 'Sem endereço'}</strong>
+                {x.palletNumbers.length > 0 && ` · N° Pallet ${x.palletNumbers.join(', ')}`}
+                {` · linha(s) ${x.rows.join(', ')} `}
+                {(x.address ?? x.palletNumbers[0]) !== undefined && (
+                  <button
+                    type="button"
+                    className="botao-link"
+                    onClick={() => {
+                      aoVerLinhas(x.address ?? x.palletNumbers[0] ?? '');
+                    }}
+                  >
+                    ver linhas
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ))}
+    </section>
+  );
+}
+
 /** Detalhe do inventário de referência: fotografia, linhas aplicadas/pendentes/históricas e conferência externa. */
 export function TelaInventario({ id, permissoes, aoNavegar, aoGravar }: { id: string; permissoes: readonly Permissao[]; aoNavegar: Navegar; aoGravar: () => void }) {
   const [versao, setVersao] = useState(0);
@@ -91,6 +143,7 @@ export function TelaInventario({ id, permissoes, aoNavegar, aoGravar }: { id: st
   const p = new URLSearchParams({ situacao, pagina: String(pagina), tamanho: String(TAMANHO) });
   if (busca.trim()) p.set('texto', busca.trim());
   const linhas = useRecurso(`${API_PREFIXO}/inventarios/${id}/linhas?${p.toString()}`, PaginaLinhasInventarioSchema, versao);
+  const pendencias = useRecurso(`${API_PREFIXO}/inventarios/${id}/pendencias`, PendenciasInventarioSchema, versao);
   const i = inventario.carga?.estado === 'pronto' ? inventario.carga.dados : null;
   const pagLinhas = linhas.carga?.estado === 'pronto' ? linhas.carga.dados : null;
   const podeReconhecer = permissoes.includes('conferencia.reconciliar');
@@ -123,6 +176,15 @@ export function TelaInventario({ id, permissoes, aoNavegar, aoGravar }: { id: st
                 <dt>Situação</dt>
                 <dd>{i.state === 'ATIVO' ? 'Vigente' : 'Substituído por versão nova'}</dd>
               </div>
+              {i.inValidation && (
+                <div>
+                  <dt>Base</dt>
+                  <dd data-testid="inventario-em-validacao">
+                    <strong>Inventário em validação</strong>
+                    {i.baseDate ? ` · base ${formatarData(`${i.baseDate}T12:00:00Z`)}` : ''} — volumes provisórios, não são disponibilidade certificada ao cliente
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt>Conferência</dt>
                 <dd>
@@ -178,6 +240,17 @@ export function TelaInventario({ id, permissoes, aoNavegar, aoGravar }: { id: st
               aoGravado={() => {
                 setVersao((v) => v + 1);
                 aoGravar();
+              }}
+            />
+          )}
+          {pendencias.carga?.estado === 'pronto' && (
+            <PendenciasAgrupadas
+              dados={pendencias.carga.dados}
+              aoVerLinhas={(t) => {
+                setSituacao('PENDENTES');
+                setTexto(t);
+                setBusca(t);
+                setPagina(1);
               }}
             />
           )}
@@ -240,14 +313,22 @@ export function TelaInventario({ id, permissoes, aoNavegar, aoGravar }: { id: st
                           )}
                         </td>
                         <td>
-                          {l.addressRead ?? '—'}
-                          {l.freeAddress ? ' (livre)' : ''} → {l.position ? l.position.code : <span className="pendente">posição visual pendente</span>}
+                          {l.addressRead === null && l.address === null && !l.freeAddress ? (
+                            <span className="pendente" data-testid="linha-sem-alocacao">
+                              Sem alocação / endereço não informado
+                            </span>
+                          ) : (
+                            <>
+                              {l.addressRead ?? '—'}
+                              {l.freeAddress ? ' (livre)' : ''} → {l.position ? l.position.code : <span className="pendente">posição visual pendente</span>}
+                            </>
+                          )}
                         </td>
                         <td>{l.volumes === null ? (l.volumesRead ?? '—') : `${formatarQuantidade(l.volumes)} volumes`}</td>
                         <td>{l.documentation ?? '—'}</td>
                         <td>
                           {ROTULOS_ACAO_INVENTARIO[l.action]}
-                          {!l.applied && l.reasons.length > 0 && <span className="tabela-nota"> · {l.reasons[0]?.message}</span>}
+                          {!l.applied && motivoPrincipal(l) !== null && <span className="tabela-nota"> · {motivoPrincipal(l)}</span>}
                         </td>
                       </tr>
                     ))}

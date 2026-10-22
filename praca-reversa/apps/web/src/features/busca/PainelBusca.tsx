@@ -12,9 +12,11 @@ import {
   type ResultadoBusca,
 } from '@praca-reversa/contracts';
 import { useEffect, useId, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { baixarArquivo, mensagemDeFalha } from '../../api/cliente';
 import { useRecurso } from '../../api/use-recurso';
-import { IconeAlvo, IconeAtualizar } from '../../components/Icones';
+import { IconeAlvo, IconeAtualizar, IconeBusca } from '../../components/Icones';
+import { useSlotPesquisa } from '../../components/slot-pesquisa';
 import { SeloConferencia, SeloLiberacao } from '../../components/Selos';
 import { useConectado } from '../../hooks/ambiente';
 import { formatarData, formatarDataHora } from '../../utils/datas';
@@ -66,6 +68,17 @@ function linhaQuantidade(r: ResultadoBusca): string {
       const conversao = d.declaredUnit !== r.unit ? ` (${q(d.declaredQuantity, d.declaredUnit)} × fator ${formatarQuantidade(d.factor)})` : '';
       return `${q(r.quantity ?? '0', r.unit)} declaradas no documento${conversao} · sem vínculo físico registrado`;
     }
+    case 'CONTEUDO': {
+      const c = r.contentLink;
+      if (!c) return '';
+      return `${c.counted === null ? 'aguardando conferência de volumes' : `${formatarQuantidade(c.counted)} volume(s) contados${c.expected === null ? ' · previsto não informado' : ` de ${formatarQuantidade(c.expected)} previstos`}`} · não são unidades de produto nem saldo validado`;
+    }
+    case 'ORIGEM_INVENTARIO': {
+      const o = r.inventoryOrigin;
+      if (!o) return '';
+      const volumes = o.volumes === null ? `volumes não informados${o.volumesRead ? ` ("${o.volumesRead}")` : ''}` : `${formatarQuantidade(o.volumes)} volumes informados`;
+      return `${volumes} no inventário ${o.inventoryCode} (linha ${String(o.row)}) · não são unidades de produto nem saldo validado`;
+    }
     case 'INVENTARIO': {
       const v = r.documentLink;
       if (!v) return '';
@@ -81,12 +94,15 @@ function CartaoResultado({
   podeVerImportacao,
   aoEscolher,
   aoAbrirImportacao,
+  aoAbrirInventario,
 }: {
   r: ResultadoBusca;
   escolhido: boolean;
   podeVerImportacao: boolean;
   aoEscolher: () => void;
   aoAbrirImportacao: (id: string) => void;
+  /** `null` = sem permissão para abrir o inventário. */
+  aoAbrirInventario: ((id: string) => void) | null;
 }) {
   const base = ROTULOS_BASE[r.base];
   const o = origem(r);
@@ -128,7 +144,29 @@ function CartaoResultado({
             <span>{r.documentLink.externalCount ? 'Conferência externa reconhecida' : 'Conferência externa não registrada'}</span>
           </p>
         )}
-        {r.base !== 'PALETE' && r.base !== 'INVENTARIO' && (
+        {r.contentLink && (
+          <p className="resultado-dados" data-testid="resultado-conteudo">
+            <span>{r.contentLink.sender}</span>
+            <span className={r.contentLink.documentNumber === null ? 'pendente' : undefined}>
+              {r.contentLink.documentNumber === null ? 'Documento não informado' : `${r.contentLink.documentType ?? 'Tipo não informado'} ${r.contentLink.documentNumber}`}
+            </span>
+            <span className={r.contentLink.delivery === null ? 'pendente' : undefined}>{r.contentLink.delivery === null ? 'Delivery não informado' : `Delivery ${r.contentLink.delivery}`}</span>
+          </p>
+        )}
+        {r.inventoryOrigin && (
+          <p className="resultado-dados" data-testid="resultado-origem">
+            <span className={r.inventoryOrigin.documentNumber === null ? 'pendente' : undefined}>
+              {r.inventoryOrigin.documentNumber === null ? 'Documento não informado' : `${r.inventoryOrigin.documentType ?? 'Tipo não informado'} ${r.inventoryOrigin.documentNumber}`}
+            </span>
+            {r.inventoryOrigin.delivery !== null && <span>Delivery {r.inventoryOrigin.delivery}</span>}
+            {r.inventoryOrigin.sender !== null && <span>{r.inventoryOrigin.sender}</span>}
+            <span className="pendente" data-testid="resultado-origem-endereco">
+              {r.inventoryOrigin.informedAddress === null ? 'Sem alocação / endereço não informado' : `Informado em ${r.inventoryOrigin.informedAddress} · não aplicado`}
+            </span>
+            {r.inventoryOrigin.palletNumber !== null && <span>N° Pallet {r.inventoryOrigin.palletNumber} (referência)</span>}
+          </p>
+        )}
+        {r.base !== 'PALETE' && r.base !== 'INVENTARIO' && r.base !== 'CONTEUDO' && r.base !== 'ORIGEM_INVENTARIO' && (
           <p className="resultado-dados">
             <span className={r.lot === null ? 'pendente' : undefined}>{r.lot === null ? 'Lote pendente' : `Lote ${r.lot}`}</span>
             <span className={o.pendente ? 'pendente' : undefined}>{o.texto}</span>
@@ -153,6 +191,8 @@ function CartaoResultado({
             <SeloLiberacao estado={r.pallet.releaseState} />
             {r.pallet.activeCountId !== null && <span className="item-alerta item-alerta--conferencia">✎ Em conferência</span>}
           </div>
+        ) : r.inventoryOrigin ? (
+          <p className="resultado-palete resultado-palete--sem">{r.inventoryOrigin.reason ?? 'Sem alocação: nenhum palete ou posição é presumido.'}</p>
         ) : (
           <p className="resultado-palete resultado-palete--sem">Documento sem palete: nenhum palete ou endereço é presumido pelo SKU.</p>
         )}
@@ -167,6 +207,18 @@ function CartaoResultado({
               ) : (
                 'Abrir palete (sem posição)'
               )}
+            </button>
+          )}
+          {r.inventoryOrigin && aoAbrirInventario !== null && (
+            <button
+              type="button"
+              className="botao-secundario botao-compacto"
+              onClick={() => {
+                aoAbrirInventario(r.inventoryOrigin?.inventoryId ?? '');
+              }}
+              data-testid="resultado-ver-inventario"
+            >
+              Ver no inventário {r.inventoryOrigin.inventoryCode}
             </button>
           )}
           {r.document?.batchId && podeVerImportacao && (
@@ -234,17 +286,29 @@ interface Props {
   oculto: boolean;
   aoEscolherPalete: (id: string) => void;
   aoAbrirImportacao: (loteId: string) => void;
+  /** Inventário de referência (origem sem alocação). */
+  aoAbrirInventario: (inventarioId: string) => void;
   /** Paletes do resultado para destacar no mapa (`null` = sem busca ativa). */
   aoMudarDestaque: (ids: ReadonlySet<string> | null) => void;
+  /** Computador: a caixa de pesquisa fica em destaque no cabeçalho (#slot-pesquisa); os resultados, no painel. */
+  campoNoTopo?: boolean;
+  /** Digitou na caixa do cabeçalho: o painel passa a mostrar os resultados. */
+  aoAtivar?: () => void;
+  /** Enter na caixa do cabeçalho: `true` = texto tratado (link/ID do QR abre o palete) e a busca não roda. */
+  aoConfirmarTexto?: (texto: string) => boolean;
 }
 
 /**
  * Busca operacional no servidor: palete, endereço, SKU, código de barras,
  * lote, devolução/NF, descrição e situação. Resultados em lista, cada um com
  * a base da informação; escolher um resultado com palete centraliza o palete
- * certo e abre o detalhe. Respostas de buscas antigas são descartadas.
+ * certo e mostra o resumo dele (nada abre sozinho). Respostas de buscas
+ * antigas são descartadas. Uma caixa só: NFD/minuta, Delivery, palete,
+ * endereço, remetente, SKU, código de barras e lote.
  */
-export function PainelBusca({ chaveMemoria, permissoes, versao, oculto, aoEscolherPalete, aoAbrirImportacao, aoMudarDestaque }: Props) {
+export function PainelBusca({ chaveMemoria, permissoes, versao, oculto, aoEscolherPalete, aoAbrirImportacao, aoAbrirInventario, aoMudarDestaque, campoNoTopo = false, aoAtivar, aoConfirmarTexto }: Props) {
+  // Destino da caixa em destaque: o espaço registrado pelo cabeçalho (computador).
+  const destinoCampo = useSlotPesquisa(campoNoTopo);
   const ids = useId();
   const conectado = useConectado();
   const inicial = lerMemoriaBusca(chaveMemoria);
@@ -302,8 +366,51 @@ export function PainelBusca({ chaveMemoria, permissoes, versao, oculto, aoEscolh
     }
   }
 
+  const caixa = (
+    <label className={destinoCampo === null ? 'campo campo-pesquisa' : 'campo-pesquisa campo-pesquisa--topo'}>
+      <span className={destinoCampo === null ? 'campo-rotulo' : 'visualmente-oculto'}>Buscar</span>
+      <IconeBusca />
+      <input
+        type="search"
+        value={criterios.texto}
+        maxLength={120}
+        placeholder="Pesquisar NFD/minuta, Delivery, palete, endereço ou remetente"
+        autoComplete="off"
+        spellCheck={false}
+        enterKeyHint="search"
+        data-testid="campo-busca"
+        aria-describedby={`${ids}-ajuda`}
+        onChange={(e) => {
+          mudar({ texto: e.target.value });
+          if (e.target.value.trim() !== '') aoAtivar?.();
+        }}
+      />
+      <span id={`${ids}-ajuda`} className={destinoCampo === null ? 'campo-ajuda' : 'visualmente-oculto'}>
+        Igual ou começo do código (3+ caracteres), sem diferenciar maiúsculas. Zeros à esquerda contam.
+      </span>
+    </label>
+  );
+
   return (
     <div className="painel-busca" hidden={oculto} data-testid="painel-busca">
+      {destinoCampo !== null &&
+        createPortal(
+          <form
+            className="pesquisa-topo"
+            role="search"
+            aria-label="Pesquisar na praça"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (aoConfirmarTexto?.(criterios.texto) === true) return;
+              setAplicado(criterios);
+              setPagina(1);
+              aoAtivar?.();
+            }}
+          >
+            {caixa}
+          </form>,
+          destinoCampo,
+        )}
       <form
         className="filtro-lista"
         role="search"
@@ -314,26 +421,7 @@ export function PainelBusca({ chaveMemoria, permissoes, versao, oculto, aoEscolh
           setPagina(1);
         }}
       >
-        <label className="campo">
-          <span className="campo-rotulo">Buscar</span>
-          <input
-            type="search"
-            value={criterios.texto}
-            maxLength={120}
-            placeholder="SKU, código de barras, lote, devolução, NF, palete…"
-            autoComplete="off"
-            spellCheck={false}
-            enterKeyHint="search"
-            data-testid="campo-busca"
-            aria-describedby={`${ids}-ajuda`}
-            onChange={(e) => {
-              mudar({ texto: e.target.value });
-            }}
-          />
-          <span id={`${ids}-ajuda`} className="campo-ajuda">
-            Identificadores: igual ou começo (3+ caracteres), sem diferenciar maiúsculas. Zeros à esquerda contam.
-          </span>
-        </label>
+        {destinoCampo === null && caixa}
         <label className="campo">
           <span className="campo-rotulo">Buscar em</span>
           <select
@@ -482,6 +570,7 @@ export function PainelBusca({ chaveMemoria, permissoes, versao, oculto, aoEscolh
                         if (r.pallet) aoEscolherPalete(r.pallet.id);
                       }}
                       aoAbrirImportacao={aoAbrirImportacao}
+                      aoAbrirInventario={pode('selecao.consultar') || pode('importacao.consultar') ? aoAbrirInventario : null}
                     />
                   ))}
                 </ol>

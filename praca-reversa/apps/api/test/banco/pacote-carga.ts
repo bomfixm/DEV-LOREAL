@@ -7,7 +7,9 @@ import { contextoDocumental, hashContexto, lerMarcadoresFull } from '../../src/m
  * Gera um pacote de carga em lote (schema v1) coerente a partir de linhas
  * simples, com as mesmas regras da preparação: vínculo = endereço × identidade
  * documental; linhas repetidas agrupadas sem somar volumes; endereço livre vira
- * referência fora da praça. Dados fictícios (nunca o pacote real).
+ * referência fora da praça; linha sem RUA (`endereco: ''`) vai para
+ * `linhas_sem_endereco`, sem vínculo nem posição. Dados fictícios (nunca o
+ * pacote real).
  */
 export interface LinhaTeste {
   linha: number;
@@ -21,6 +23,9 @@ export interface LinhaTeste {
   volumes?: string;
   marcador?: string;
   numeroPlanilha?: string;
+  /** MÊS AGENDA e JANELA (só entram nos campos quando informados). */
+  mesAgenda?: string;
+  janela?: string;
 }
 
 const COR_LIVRE = 'FF00B050';
@@ -29,17 +34,18 @@ const CABECALHOS = { A: 'DELIVERY', B: 'TIPO', C: 'NUMERO', D: 'VOLUMES', E: 'RE
 const sha = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
 
 export function montarPacote(linhas: readonly LinhaTeste[], opcoes: { variante?: string; cidades?: Readonly<Record<string, string>> } = {}): PacoteCarga {
-  const fonte = linhas.map((x) => {
+  const todas = linhas.map((x) => {
     const tipo = x.tipo ?? '';
     const numero = x.numero ?? '';
     const delivery = x.delivery ?? '';
     const remetente = x.remetente ?? '';
-    const n = normalizarEndereco(x.endereco);
-    if (!n.ok) throw new Error(`Endereço de teste inválido: ${x.endereco}`);
+    const semRua = x.endereco === '';
+    const n = semRua ? null : normalizarEndereco(x.endereco);
+    if (n !== null && !n.ok) throw new Error(`Endereço de teste inválido: ${x.endereco}`);
     const volumesTexto = x.volumes ?? '';
     const volumes = /^\d+(\.\d+)?$/.test(volumesTexto) ? volumesTexto : null;
     const contexto = contextoDocumental(tipo, numero, delivery, remetente);
-    const campos = { DELIVERY: delivery, TIPO: tipo, NUMERO: numero, VOLUMES: volumesTexto, REMETENTE: remetente, RUA: x.endereco, 'N° PALLET': x.numeroPlanilha ?? '', DOCUMENTAÇÃO: '', 'PALLET FULL': x.marcador ?? '' };
+    const campos = { DELIVERY: delivery, TIPO: tipo, NUMERO: numero, VOLUMES: volumesTexto, REMETENTE: remetente, RUA: x.endereco, 'N° PALLET': x.numeroPlanilha ?? '', DOCUMENTAÇÃO: '', 'PALLET FULL': x.marcador ?? '', ...(x.mesAgenda === undefined ? {} : { 'MÊS AGENDA': x.mesAgenda }), ...(x.janela === undefined ? {} : { JANELA: x.janela }) };
     return {
       linha: x.linha,
       chave_linha: sha(['linha', x.linha, opcoes.variante ?? '']),
@@ -49,9 +55,9 @@ export function montarPacote(linhas: readonly LinhaTeste[], opcoes: { variante?:
       delivery,
       remetente,
       endereco_original: x.endereco,
-      endereco: n.endereco,
-      fileira: n.prefixo,
-      codigo_local: n.codigoLocal,
+      endereco: n?.ok ? n.endereco : '',
+      fileira: n?.ok ? n.prefixo : null,
+      codigo_local: n?.ok ? n.codigoLocal : null,
       lado_regra: null,
       numero_na_planilha: x.numeroPlanilha ?? '',
       endereco_livre: x.livre === true,
@@ -64,10 +70,13 @@ export function montarPacote(linhas: readonly LinhaTeste[], opcoes: { variante?:
       contexto_documental: [...contexto] as [string, string, string, string],
       chave_documento: numero === '' ? null : hashContexto(contexto),
       campos_originais: campos,
+      extras: {},
     };
   });
 
-  // Vínculos: endereço × identidade documental (linhas agrupadas pela ordem de origem).
+  // Vínculos: endereço × identidade documental (linhas agrupadas pela ordem de origem); linhas sem RUA ficam de fora.
+  const semEndereco = todas.filter((l) => l.endereco === '');
+  const fonte = todas.filter((l) => l.endereco !== '');
   const grupos = new Map<string, typeof fonte>();
   for (const l of fonte) {
     if (l.chave_documento === null) continue;
@@ -170,7 +179,7 @@ export function montarPacote(linhas: readonly LinhaTeste[], opcoes: { variante?:
   const ocupadas = posicoes.filter((x) => !x.endereco_livre);
   return {
     schema: SCHEMA_PACOTE,
-    id_lote: sha(['lote', opcoes.variante ?? '', fonte.map((l) => l.chave_conteudo)]),
+    id_lote: sha(['lote', opcoes.variante ?? '', todas.map((l) => l.chave_conteudo)]),
     fonte: { arquivo: 'inventario-ficticio.xlsx', sha256: sha(['fonte', opcoes.variante ?? '']), aba: 'Inventário fictício', cabecalhos: { ...CABECALHOS } },
     regras: {
       endereco_chave: 'endereço completo',
@@ -189,7 +198,7 @@ export function montarPacote(linhas: readonly LinhaTeste[], opcoes: { variante?:
     campos_visiveis_nota: ['NFD', 'Remetente', 'Cidade destino', 'Volumes', 'Palete full', 'Mesma NFD em mais de um palete', 'Produto na caixa'],
     blocos_fileiras: { FB01: '11', FB02: '12', FB03: '13', FB04: '14', FB05: '15', FB06: '16', FB07: 'GR' },
     resumo: {
-      linhas_fonte: fonte.length,
+      linhas_fonte: todas.length,
       linhas_nfd_endereco_nao_livre: fonte.filter((l) => l.tipo === 'NFD' && !l.endereco_livre).length,
       vinculos_nfd_na_praca: N.length,
       numeros_nfd_distintos_na_praca: new Set(N.map((v) => v.numero_documento)).size,
@@ -208,9 +217,14 @@ export function montarPacote(linhas: readonly LinhaTeste[], opcoes: { variante?:
     documentos_fora_da_praca: F.map(semGrupo),
     documentos_tipo_pendente_na_praca: T.map(semGrupo),
     linhas_sem_numero_documento: fonte.filter((l) => l.chave_documento === null),
+    linhas_sem_endereco: semEndereco,
+    linhas_em_revisao: [],
+    em_validacao: false,
+    data_base: null,
+    reconferencia_exigida: [],
     repeticoes_exatas: repeticoes,
     numeros_na_planilha_em_varios_enderecos: numerosPlanilha,
-    linhas_fonte: fonte,
+    linhas_fonte: todas,
   };
 }
 

@@ -84,6 +84,8 @@ export const ROTULOS_BASE: Record<BaseResultado, { texto: string; curto: string;
   DECLARADO_PALETE: { texto: 'Declarado no cadastro do palete', curto: 'Declarado', marcador: '✎' },
   DOCUMENTO: { texto: 'Documento importado (sem vínculo físico)', curto: 'Documento', marcador: '▤' },
   INVENTARIO: { texto: 'Vínculo informado no inventário (NF × palete)', curto: 'Inventário', marcador: '⇄' },
+  CONTEUDO: { texto: 'Conteúdo registrado no palete', curto: 'Conteúdo', marcador: '▢' },
+  ORIGEM_INVENTARIO: { texto: 'Origem do inventário sem alocação', curto: 'Sem alocação', marcador: '◌' },
 };
 
 export const ROTULOS_CORRESPONDENCIA: Record<Correspondencia, string> = {

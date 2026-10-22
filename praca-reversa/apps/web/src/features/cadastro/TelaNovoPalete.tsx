@@ -61,7 +61,7 @@ function unidadesDe(produto: Produto | undefined): string[] {
  * declaradas em documento. Não existe campo de saldo: o conteúdo físico fica
  * desconhecido até a conferência (etapa 04).
  */
-export function TelaNovoPalete({ sessao, aoNavegar, aoGravar }: { sessao: Sessao; aoNavegar: Navegar; aoGravar: () => void }) {
+export function TelaNovoPalete({ sessao, posicaoInicial = null, aoNavegar, aoGravar }: { sessao: Sessao; posicaoInicial?: string | null; aoNavegar: Navegar; aoGravar: () => void }) {
   const praca = useRecurso(URL_PRACA, PracaSchema);
   const produtos = useRecurso(sessao.permissions.includes('produto.consultar') ? URL_PRODUTOS : null, ListaProdutosSchema);
   const conectado = useConectado();
@@ -91,6 +91,14 @@ export function TelaNovoPalete({ sessao, aoNavegar, aoGravar }: { sessao: Sessao
     () => new Map((produtos.carga?.estado === 'pronto' ? produtos.carga.dados.items : []).map((p) => [p.sku, p])),
     [produtos.carga],
   );
+
+  // "Receber palete aqui" (posição livre no mapa): preenche a posição uma vez, quando o layout chega.
+  const [posicaoAplicada, setPosicaoAplicada] = useState(posicaoInicial === null);
+  if (!posicaoAplicada && layout !== null) {
+    setPosicaoAplicada(true);
+    const inicial = layout.positions.find((p) => p.id === posicaoInicial);
+    if (inicial) setPosicaoTexto(inicial.code);
+  }
 
   const escolhida = posicaoTexto.trim() === '' ? undefined : posicoesPorChave.get(normalizar(posicaoTexto));
   const situacaoPosicao =
@@ -185,6 +193,11 @@ export function TelaNovoPalete({ sessao, aoNavegar, aoGravar }: { sessao: Sessao
   if (resultado !== null) {
     return (
       <Pagina titulo="Palete cadastrado" testId="tela-novo-palete" aoVoltar={voltar}>
+        <ol className="etapas-recebimento" aria-label="Etapas do recebimento">
+          <li className="etapa-recebimento etapa-recebimento--feita">Destino</li>
+          <li className="etapa-recebimento etapa-recebimento--atual">Conteúdo</li>
+          <li className="etapa-recebimento">Conferência de volumes</li>
+        </ol>
         <section className="cartao cartao-sucesso" data-testid="cadastro-sucesso" aria-live="polite">
           <p className="sucesso-codigo">{resultado.code}</p>
           <dl className="situacao">
@@ -207,10 +220,31 @@ export function TelaNovoPalete({ sessao, aoNavegar, aoGravar }: { sessao: Sessao
               </dd>
             </div>
           </dl>
+          <p className="campo-ajuda">Próximo passo do recebimento: importar a bipagem deste palete (documentos e volumes lidos) ou registrar o conteúdo à mão (remetente e, se houver, nota e Delivery).</p>
           <div className="acoes-linha">
             <button
               type="button"
               className="botao-primario"
+              onClick={() => {
+                aoNavegar({ tipo: 'novo-conteudo', palete: resultado.id });
+              }}
+              data-testid="recebimento-conteudo"
+            >
+              Registrar conteúdo
+            </button>
+            <button
+              type="button"
+              className="botao-secundario"
+              onClick={() => {
+                aoNavegar({ tipo: 'bipagem', id: resultado.id });
+              }}
+              data-testid="recebimento-bipagem"
+            >
+              Importar bipagem
+            </button>
+            <button
+              type="button"
+              className="botao-secundario"
               onClick={() => {
                 aoNavegar({ tipo: 'palete', id: resultado.id });
               }}
@@ -244,14 +278,23 @@ export function TelaNovoPalete({ sessao, aoNavegar, aoGravar }: { sessao: Sessao
 
   return (
     <Pagina ajuda="cadastrar"
-      titulo="Cadastrar palete"
+      titulo="Receber palete"
       testId="tela-novo-palete"
       aoVoltar={voltar}
       descricao={
-        <p>
-          Escopo <strong>{sessao.activeScope?.name}</strong> · responsável <strong>{sessao.user.name}</strong>. O palete novo fica com conferência
-          e liberação pendentes e conteúdo desconhecido.
-        </p>
+        <>
+          <p>
+            Informe o destino do palete. Os documentos e os volumes lidos entram em seguida pela bipagem — só complete o que faltar. Responsável{' '}
+            <strong>{sessao.user.name}</strong>.
+          </p>
+          <p>
+            Já tem o Excel da bipagem?{' '}
+            <button type="button" className="botao-link" onClick={() => { aoNavegar({ tipo: 'bipagem-escolher' }); }} data-testid="recebimento-importar-bipagem">
+              Importar a bipagem e escolher a posição no mapa
+            </button>{' '}
+            (o palete novo é criado e numerado na confirmação).
+          </p>
+        </>
       }
     >
       <form
@@ -261,15 +304,20 @@ export function TelaNovoPalete({ sessao, aoNavegar, aoGravar }: { sessao: Sessao
           void enviar(evento);
         }}
       >
+        <ol className="etapas-recebimento" aria-label="Etapas do recebimento">
+          <li className="etapa-recebimento etapa-recebimento--atual">Destino</li>
+          <li className="etapa-recebimento">Conteúdo</li>
+          <li className="etapa-recebimento">Conferência de volumes</li>
+        </ol>
         <fieldset className="cartao">
-          <legend>Código do palete</legend>
+          <legend>Número do palete</legend>
           <label className="opcao">
             <input type="radio" name="modo-codigo" checked={modoCodigo === 'GERAR'} onChange={() => { setModoCodigo('GERAR'); }} />
-            Gerar código interno (próximo da sequência do escopo)
+            Próximo número da sequência da praça
           </label>
           <label className="opcao">
             <input type="radio" name="modo-codigo" checked={modoCodigo === 'INFORMAR'} onChange={() => { setModoCodigo('INFORMAR'); }} />
-            Informar identificação existente da operação
+            Usar o número que já está no palete
           </label>
           {modoCodigo === 'INFORMAR' && (
             <label className="campo">
@@ -284,13 +332,13 @@ export function TelaNovoPalete({ sessao, aoNavegar, aoGravar }: { sessao: Sessao
                   setCodigo(e.target.value);
                 }}
               />
-              <span className="campo-ajuda">Letras, números e . _ / -. Não use o número da posição: a localização é registrada à parte.</span>
+              <span className="campo-ajuda">O número do palete é diferente do endereço (a posição é informada abaixo).</span>
             </label>
           )}
         </fieldset>
 
         <fieldset className="cartao">
-          <legend>Localização inicial</legend>
+          <legend>Destino na praça</legend>
           <label className="opcao">
             <input type="radio" name="modo-posicao" checked={modoPosicao === 'posicao'} onChange={() => { setModoPosicao('posicao'); }} />
             Posição no layout
@@ -342,11 +390,8 @@ export function TelaNovoPalete({ sessao, aoNavegar, aoGravar }: { sessao: Sessao
         </fieldset>
 
         <fieldset className="cartao">
-          <legend>Declarado em documento (opcional)</legend>
-          <p className="bloco-nota">
-            Linhas de nota, devolução ou manifesto. Não comprovam presença física nem criam saldo. Sem SKU, o produto fica pendente; sem
-            documento, a origem fica pendente.
-          </p>
+          <legend>Itens de documento (opcional)</legend>
+          <p className="bloco-nota">Só se você já tiver itens de uma nota ou manifesto em mãos; as notas da bipagem entram depois de salvar.</p>
           {linhas.map((l, indice) => {
             const produto = produtosPorSku.get(l.sku.trim());
             const unidades = unidadesDe(produto);

@@ -20,9 +20,9 @@ Instruções de servidor, banco, migrações e backup ficam no material técnico
 | --- | --- | --- | --- |
 | 1 | Toque em "Buscar conteúdo" (computador) ou na aba "Busca" (celular). | Mapa da praça: painel da esquerda no computador; barra de abas embaixo no celular. | O campo "Buscar". |
 | 2 | Digite ou leia o SKU, código de barras, lote, devolução, NF ou o código do palete (3 caracteres ou mais). | Campo "Buscar". | Resultados em cartões, cada um com a base da informação: saldo validado, observado em conferência, declarado no palete ou documento importado. |
-| 3 | Escolha o cartão certo e toque em "Ver no mapa". | Cartão do resultado. | O palete centralizado no mapa. No computador o detalhe abre ao lado; no celular toque em "Ver conteúdo". |
-| 4 | Leia o código do palete, a "Posição" e o "ID permanente", e depois a seção "Conteúdo". | Detalhe do palete. | Endereço atual (ou "Localização pendente") e o conteúdo com a base de cada quantidade. |
-| 5 | Para ver todos os paletes, use "Paletes" (computador) ou a aba "Lista" (celular). O filtro aceita o código ou o link do QR. | Mapa da praça. | Lista agrupada por fileira; tocar num palete centraliza no mapa. |
+| 3 | Escolha o cartão certo e toque em "Ver no mapa". | Cartão do resultado. | O palete centralizado no mapa e a janela do palete aberta sobre a página (tocar num palete do mapa também a abre). |
+| 4 | Leia o número do palete e o endereço no topo da janela, o resumo (volumes e notas/minutas) e a tabela de conteúdo. "Fechar" ou Esc fecha a janela. | Janela do palete. | Tipo, número, remetente, CNPJ (quando houver) e volumes de cada documento; "Informações adicionais" e "Detalhes completos e outras ações" ficam recolhidos. |
+| 5 | No celular, a aba "Lista" mostra todos os paletes; o filtro aceita o código ou o link do QR. No computador, "Ler QR" fica no canto do mapa. | Mapa da praça. | Lista agrupada por fileira (celular) ou o leitor da câmera; escolher um palete abre a janela dele. |
 
 **Atenção:**
 
@@ -40,11 +40,11 @@ Instruções de servidor, banco, migrações e backup ficam no material técnico
 
 | # | O que fazer | Onde | O que deve aparecer |
 | --- | --- | --- | --- |
-| 1 | Toque em "Novo palete" (lista de paletes) ou em "Cadastrar palete" no Menu. *(perfil autorizado)* | Mapa da praça ou Menu. | O formulário de cadastro. |
-| 2 | Em "Código do palete", use a identificação que já está no palete ou escolha "Gerar código interno". *(perfil autorizado)* | Formulário de cadastro. | O código precisa ser único; código de palete arquivado nunca é reutilizado. |
-| 3 | Em "Localização inicial", informe o código de uma posição livre ou marque "Sem posição (localização pendente)". *(perfil autorizado)* | Formulário de cadastro. | Só posições livres e disponíveis do layout ativo são aceitas. |
-| 4 | Se houver documento, preencha "Declarado em documento (opcional)". Campos vazios ficam pendentes. *(perfil autorizado)* | Formulário de cadastro. | Linhas declaradas: elas não comprovam presença física e não criam saldo. |
-| 5 | Toque em "Cadastrar palete" e depois em "Imprimir etiqueta". *(perfil autorizado)* | Formulário e detalhe do palete. | O palete no mapa como "Não conferido" (conteúdo desconhecido) e a etiqueta com QR para colar no palete. |
+| 1 | Toque em "Receber palete" (topo do mapa), em "Novo palete" (lista, no celular) ou em "Cadastrar palete" no Menu. *(perfil autorizado)* | Mapa da praça ou Menu. | O formulário de cadastro. |
+| 2 | Em "Número do palete", escolha "Próximo número da sequência da praça" ou "Usar o número que já está no palete". *(perfil autorizado)* | Formulário de cadastro. | O código precisa ser único; código de palete arquivado nunca é reutilizado. |
+| 3 | Em "Destino na praça", informe o código de uma posição livre ou marque "Sem posição (localização pendente)". *(perfil autorizado)* | Formulário de cadastro. | Só posições livres e disponíveis do layout ativo são aceitas. |
+| 4 | Se já houver itens de documento em mãos, preencha "Itens de documento (opcional)". Campos vazios ficam pendentes. *(perfil autorizado)* | Formulário de cadastro. | Linhas declaradas: elas não comprovam presença física e não criam saldo. |
+| 5 | Toque em "Cadastrar palete"; depois, em "Importar bipagem" (documentos e volumes lidos) e "Imprimir etiqueta". *(perfil autorizado)* | Formulário e detalhe do palete. | O palete no mapa como "Não conferido" (conteúdo desconhecido) e a etiqueta com QR para colar no palete. |
 
 **Atenção:**
 
@@ -52,6 +52,28 @@ Instruções de servidor, banco, migrações e backup ficam no material técnico
 - Cadastro feito por engano é arquivado pelo supervisor ("Arquivar cadastro feito por engano…"), nunca apagado.
 
 **Sem permissão:** Seu perfil não cadastra paletes: anote o código e o endereço e peça ao operador ou ao supervisor de estoque.
+
+### Importar a bipagem no palete
+
+**Para quê:** Trazer as notas e os volumes lidos na bipagem de UM palete, sem digitar nota por nota, e escolher no mapa onde o palete está.
+
+**Quem faz:** Operador e supervisor de estoque importam. Os demais perfis consultam o conteúdo do palete.
+
+| # | O que fazer | Onde | O que deve aparecer |
+| --- | --- | --- | --- |
+| 1 | Abra "Recebimento" e toque em "Importar a bipagem e escolher a posição no mapa" (ou, num palete aberto, em "Importar bipagem"). *(perfil autorizado)* | Menu "Recebimento" ou a janela do palete. | A página "Importar bipagem". |
+| 2 | Escolha o Excel exportado da bipagem (planilha "Etiquetas", um palete por arquivo) e toque em "Ler arquivo". Não é preciso ajustar abas, linhas nem colunas. *(perfil autorizado)* | Página "Importar bipagem", em "Arquivo da bipagem". | As notas a importar, os volumes e o total; linhas sem volumes e pendências à parte. CNPJ e Última Leitura ficam em "Mais informações". |
+| 3 | No mapa, toque numa posição vazia (palete novo) ou no palete onde o material está (acrescentar). *(perfil autorizado)* | "Onde está este palete?". | Posição vazia: "Palete novo", com o número "gerado ao confirmar". Palete existente: "Este palete já contém notas. Deseja acrescentar os conteúdos desta importação?", com o que ele já tem e o que vai receber. |
+| 4 | Se aparecer "Notas repetidas", escolha para cada uma: "Revalidar" (mantém a que já está; esta linha não entra) ou "Importar separadamente" (nova entrada; as duas contam). Depois, confirme. *(perfil autorizado)* | "Revisar e confirmar". | O número do palete criado (ou o palete que recebeu as notas) e o resumo do que foi importado. |
+
+**Atenção:**
+
+- Lidos é a quantidade usada (não Leituras). Linha com Lidos = 0 aparece no resumo e não entra no palete. Linha com erro impede a importação: exporte de novo no padrão.
+- O número do palete novo é gerado pelo sistema na confirmação (série do piso; nunca reutiliza número). Nada é gravado antes de confirmar.
+- Mesmo número de nota com outro remetente ou CNPJ é outra nota. Nada é somado nem substituído: Revalidar não muda a quantidade antiga e não é conferência do palete.
+- Delivery, SKU e validade são complementos opcionais, preenchidos depois. Importar não libera, não reserva e não expede.
+
+**Sem permissão:** Seu perfil não importa a bipagem: entregue o arquivo ao operador ou ao supervisor de estoque.
 
 ### Conferir material
 
@@ -243,6 +265,50 @@ Instruções de servidor, banco, migrações e backup ficam no material técnico
 
 **Sem permissão:** As verificações não exigem permissão extra; repetir uma ação exige a permissão dela.
 
+### Acompanhar o painel e registrar a separação por volumes
+
+**Para quê:** Ver estoque, localização, reconferência e janelas num só lugar e registrar quantos volumes foram separados e expedidos em cada janela.
+
+**Quem faz:** Todos os perfis da DHL consultam; o operador e o supervisor registram a separação; só o supervisor registra a meta e confirma a expedição.
+
+| # | O que fazer | Onde | O que deve aparecer |
+| --- | --- | --- | --- |
+| 1 | Abra "Painel da operação": numa tela só estão os quatro cartões ("Paletes na praça", "Volumes registrados", "Sem endereço", "Precisa conferir"), a janela selecionada, a situação da praça, os volumes por rua e as prioridades. Toque num cartão para ver a lista com os mesmos filtros. | Menu lateral, "Painel". Janela e período na linha de filtros, no topo; "Atualizar" aplica o período e busca os números de novo. | A hora da consulta ao lado de "Atualizar"; a lista mostra uma linha por NF × palete e o total igual ao do cartão. |
+| 2 | Para as definições e os números secundários (informado × conferido, sem volume, identificação incompleta, posições desativadas, claims), toque em "Detalhes". Para a lista completa, use "Ver todas" (prioridades), "Tabela" (ruas) ou "Comparar" (janelas do período). | Linha de filtros e canto de cada painel. | Uma janela sobre o painel; Esc ou "Fechar" volta ao resumo. |
+| 3 | Na janela, informe os volumes pedidos pelo cliente e a referência e toque em "Registrar meta". *(perfil autorizado)* | Janela no painel, seção "Meta do cliente". | A meta vigente e as anteriores no histórico; as porcentagens aparecem só com meta maior que zero. |
+| 4 | Procure o palete ou a NF em "Buscar conteúdo", informe os volumes efetivamente separados e toque em "Registrar separação". *(perfil autorizado)* | Janela no painel, seção "Registrar separação". | O volume entra em "Separados aguardando saída"; o restante da NF continua no estoque e não pode ser separado de novo além da base. |
+| 5 | Quando a carga sair, informe os volumes e toque em "Confirmar expedição". *(perfil autorizado)* | Janela no painel, seção "Separados nesta janela". | Os volumes saem de separados e entram em expedidos na mesma operação; o palete reinicia o prazo de reconferência. |
+| 6 | Registro errado: use "Estornar (corrigir registro)" com os volumes e o motivo. *(perfil autorizado)* | Janela no painel, seção "Registros da janela". | Um estorno ligado ao registro original; nada é apagado e os totais não contam duas vezes. |
+
+**Atenção:**
+
+- Janela em volumes: Falta separar = Solicitado − Separado − Expedido; Falta expedir = Solicitado − Expedido (nunca abaixo de zero). Preparação = (Separado + Expedido) ÷ Solicitado; Expedição = Expedido ÷ Solicitado. Sem meta, não há porcentagem.
+- Selecionar a NF ou reservar não é separar: só a separação registrada conta, e só a saída confirmada conta como expedida.
+- Volumes são a contagem operacional do inventário/pedido (não é m³, caixa nem unidade de produto). Sem volume informado, registre a contagem na conferência de volumes antes de separar.
+- Sem endereço confirmado não quer dizer posição livre: o painel separa ocupadas, livres confirmadas e ocupação desconhecida.
+
+**Sem permissão:** Sem permissão de registro, o painel é só consulta: peça ao supervisor de estoque para registrar a meta ou confirmar a saída.
+
+### Consultar o painel do cliente
+
+**Para quê:** Acompanhar o estoque da operação, o andamento das janelas e o histórico, sem alterar nada.
+
+**Quem faz:** Perfil de consulta do cliente (e o supervisor, para conferir o que o cliente vê).
+
+| # | O que fazer | Onde | O que deve aparecer |
+| --- | --- | --- | --- |
+| 1 | Confira os quatro cartões: "Paletes", "Volumes registrados", "Solicitado" e "Expedido" da janela escolhida. | "Painel do cliente" (uma tela, com a janela na linha de filtros). | Os números de agora, com a hora da consulta; volume desconhecido aparece como "Não informado", nunca como zero. |
+| 2 | Veja a janela selecionada (solicitado, separado, expedido e o que falta, com as barras de preparação e expedição) e as etapas das NFs selecionadas; "Ver seleção" abre a lista de NFs. | Painéis "Janela selecionada" e "Etapas da seleção". | Cada NF como localizada, em separação, separada ou expedida; sem meta, não há porcentagem. |
+| 3 | Em "Estoque e histórico" (ou "Ver tudo" no histórico recente), use os filtros (janela, rua, palete, NF, Delivery, remetente) e a aba "Histórico". | Botão "Estoque e histórico" na linha de filtros. | A mesma consulta fica no endereço da página; "Voltar ao painel" volta ao resumo. |
+| 4 | Para levar os dados, toque em "Exportar estoque (CSV)" ou "Exportar histórico (CSV)". | "Estoque e histórico". | Um arquivo só com os campos da tela, códigos como texto e proteção contra fórmulas. |
+
+**Atenção:**
+
+- "Entrada registrada no sistema" é a data do cadastro, não a chegada física.
+- Conferência registrada não é liberação nem saída; a seleção do cliente não marca a NF como separada.
+
+**Sem permissão:** O painel do cliente só aparece para o acesso do cliente; a equipe DHL usa o painel da operação.
+
 ## Glossário
 
 | Termo | O que é | Exemplo (fictício) |
@@ -264,6 +330,7 @@ Instruções de servidor, banco, migrações e backup ficam no material técnico
 | Janela | Período de devolução autorizado pelo cliente, com capacidade por métrica. | Janela com limite de 20 UN e 3 paletes (fictício). |
 | Reserva | Separa material e capacidade para uma janela. Não baixa o estoque. | Reserva de 8 UN; o saldo continua 12 até a saída. |
 | Expedição | Registro da saída física confirmada: baixa o saldo uma única vez. | Saíram 6 UN; 2 UN reservadas voltaram a ficar disponíveis. |
+| Volumes da janela | Meta pedida pelo cliente, separados aguardando saída e expedidos, contados em volumes (não em m³, caixas ou unidades de produto). | Meta 8.000; expedidos 2.000; separados aguardando 4.500; preparados 6.500 (81,25%) — fictício. |
 | Consolidação | Juntar o conteúdo de paletes num só. Reduz posições ocupadas, mas não é saída de estoque. | Dois paletes viram um; o total de peças continua igual. |
 | Inventário de referência | Fotografia do que foi informado ao cliente: NF, palete, endereço e volumes, com data e fonte. | INV-000001 conferido em 28/09 (fictício). |
 | Seleção do cliente | Lista do material que o cliente escolheu para devolver, com pedido e versão. | Pedido PED-DEMO-1, versão 1 (fictício). |

@@ -1,0 +1,688 @@
+/*
+ * "Seleção cliente — teste" (out. 2026): área própria, com as variáveis do tema
+ * (claro e escuro) e os componentes existentes. Só na tela; nada do restante
+ * do aplicativo muda.
+ */
+@media screen {
+  .st-pagina .st-conteudo {
+    max-width: 1320px;
+    display: grid;
+    gap: 16px;
+  }
+
+  .st-topo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .st-topo h2 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+  }
+
+  .st-topo p {
+    margin: 4px 0 0;
+  }
+
+  /* Identificação discreta e clara, sempre visível na área. */
+  .st-selo-teste {
+    margin: 0;
+    padding: 4px 12px;
+    border: 1px dashed var(--amarelo-acao-borda);
+    border-radius: 999px;
+    background: var(--tom-amarelo-fundo);
+    color: var(--tom-amarelo-texto);
+    font-size: 0.82rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .st-nota {
+    color: var(--tinta-suave);
+    font-size: 0.9rem;
+  }
+
+  .st-rotulo {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+
+  .st-erro {
+    margin: 4px 0 0;
+    color: var(--erro);
+    font-weight: 600;
+  }
+
+  .st-analise {
+    color: var(--tom-aviso-texto);
+    font-weight: 600;
+  }
+
+  .st-aviso-suave {
+    margin: 0;
+    padding: 8px 12px;
+    border-left: 4px solid var(--divergencia-borda);
+    border-radius: var(--raio);
+    background: var(--tom-aviso-fundo);
+    color: var(--tinta);
+  }
+
+  .st-acoes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* ---------- Etapas ---------- */
+  .st-passos ol {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .st-passo {
+    display: flex;
+    align-items: center;
+    color: var(--tinta-suave);
+    font-weight: 600;
+  }
+
+  .st-passo .botao-link {
+    min-height: 32px;
+    color: var(--tinta-suave);
+    text-decoration: none;
+  }
+
+  .st-passo b {
+    display: inline-grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: var(--tom-neutro-fundo);
+    font-size: 0.8rem;
+  }
+
+  .st-passo--ativo {
+    color: var(--tinta);
+  }
+
+  .st-passo--ativo b {
+    background: var(--amarelo);
+    color: #1b1b1b;
+  }
+
+  /* ---------- Agenda e grade principal ---------- */
+  .st-agenda,
+  .st-secao,
+  .st-carrinho {
+    padding: 14px 16px;
+    border: 1px solid var(--borda);
+    border-radius: var(--raio-cartao, 12px);
+    background: var(--superficie);
+  }
+
+  .st-agenda {
+    display: grid;
+    gap: 10px;
+  }
+
+  .st-agenda-atual {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0;
+  }
+
+  .st-agenda-escolha {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  .st-agenda-escolha .campo {
+    min-width: 220px;
+  }
+
+  .st-grade {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    align-items: start;
+    gap: 16px;
+  }
+
+  .st-lista {
+    position: relative;
+    display: grid;
+    gap: 10px;
+  }
+
+  .st-pesquisa input {
+    width: 100%;
+    font-size: 1rem;
+  }
+
+  .st-paletes {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .st-palete {
+    width: 100%;
+    display: grid;
+    gap: 4px;
+    padding: 12px 14px;
+    border: 1px solid var(--borda);
+    border-radius: var(--raio-cartao, 12px);
+    background: var(--superficie);
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .st-palete:hover,
+  .st-palete:focus-visible {
+    border-color: var(--amarelo-acao-borda);
+    box-shadow: 0 0 0 2px var(--amarelo-acao);
+  }
+
+  .st-palete-topo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.02rem;
+  }
+
+  .st-palete-volumes {
+    margin-left: auto;
+    color: var(--tinta-suave);
+    font-size: 0.9rem;
+  }
+
+  .st-palete-docs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+
+  .st-palete-linha {
+    color: var(--tinta-suave);
+    font-size: 0.9rem;
+  }
+
+  .st-achado {
+    padding: 0 4px;
+    border-radius: 4px;
+    background: var(--tom-amarelo-fundo);
+    font-weight: 700;
+  }
+
+  .st-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--tom-neutro-fundo);
+    color: var(--tinta);
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
+  .st-chip--selecionado,
+  .st-chip--ENVIADA {
+    background: var(--tom-ok-fundo);
+    color: var(--ok);
+  }
+
+  .st-chip--ALTERACAO_SOLICITADA {
+    background: var(--tom-aviso-fundo);
+    color: var(--tom-aviso-texto);
+  }
+
+  .st-chip--EM_REVISAO {
+    background: var(--tom-info-fundo);
+    color: var(--tinta);
+  }
+
+  .st-paginacao {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /*
+   * Coluna da seleção: acompanha a rolagem (flutua), com o botão "Ver mapa"
+   * logo abaixo do carrinho — fora da lista, sem cobrir notas, volumes ou ações.
+   */
+  .st-lateral {
+    position: sticky;
+    top: 12px;
+    display: grid;
+    gap: 10px;
+  }
+
+  .st-ver-mapa {
+    width: 100%;
+    box-shadow: var(--sombra-flutuante, 0 8px 24px rgb(0 0 0 / 0.2));
+  }
+
+  /* ---------- Carrinho ---------- */
+  .st-carrinho {
+    display: grid;
+    gap: 10px;
+  }
+
+  .st-carrinho h3 {
+    margin: 0;
+  }
+
+  .st-carrinho-itens {
+    display: grid;
+    gap: 0;
+    max-height: 46vh;
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+    list-style: none;
+  }
+
+  .st-carrinho-itens li {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--borda-suave);
+  }
+
+  .st-total {
+    margin: 0;
+    font-size: 1rem;
+  }
+
+  /* ---------- Janela do palete ---------- */
+  .st-janela {
+    display: grid;
+    gap: 14px;
+    min-width: min(760px, 86vw);
+  }
+
+  .st-resumo-palete {
+    margin: 0;
+    font-size: 1.05rem;
+  }
+
+  .st-modo {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .st-modo legend {
+    margin-bottom: 8px;
+  }
+
+  .st-opcao {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border: 2px solid var(--borda);
+    border-radius: var(--raio-cartao, 12px);
+    cursor: pointer;
+  }
+
+  .st-opcao input {
+    width: 20px;
+    height: 20px;
+    margin-top: 2px;
+    accent-color: var(--vermelho);
+  }
+
+  .st-opcao span {
+    display: grid;
+    gap: 2px;
+  }
+
+  .st-opcao small {
+    color: var(--tinta-suave);
+    font-size: 0.86rem;
+  }
+
+  .st-opcao--ativa {
+    border-color: var(--amarelo-acao-borda);
+    background: var(--tom-amarelo-fundo);
+  }
+
+  .st-tabela-rolagem {
+    overflow: auto;
+  }
+
+  /* Listas longas rolam dentro da janela, sem diminuir a letra. */
+  .st-janela .st-tabela-rolagem {
+    max-height: 40vh;
+    border: 1px solid var(--borda-suave);
+    border-radius: var(--raio);
+  }
+
+  .st-tabela {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+
+  .st-tabela th,
+  .st-tabela td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--borda-suave);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .st-tabela thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--superficie-2);
+    color: var(--tinta-suave);
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  .st-num {
+    text-align: right !important;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .st-col-marca {
+    width: 40px;
+  }
+
+  .st-col-marca input {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--vermelho);
+  }
+
+  .st-linha-marcada td,
+  .st-linha-escolha td {
+    background: var(--tom-amarelo-fundo);
+  }
+
+  .st-linha-bloqueio td {
+    background: var(--tom-erro-fundo);
+  }
+
+  .st-escolha {
+    display: grid;
+    grid-template-columns: minmax(130px, 160px) minmax(160px, 220px) minmax(0, 1fr);
+    align-items: end;
+    gap: 10px;
+  }
+
+  .st-escolha textarea,
+  .st-observacao-palete textarea,
+  .st-item-observacao textarea,
+  .st-secao textarea {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--borda-forte);
+    border-radius: var(--raio);
+    background: var(--superficie);
+    color: var(--tinta);
+    font: inherit;
+  }
+
+  .st-mais summary {
+    cursor: pointer;
+    font-weight: 700;
+  }
+
+  .st-mais dl,
+  .st-resumo dl {
+    display: grid;
+    grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
+    gap: 6px 12px;
+    margin: 8px 0 0;
+  }
+
+  .st-mais dt,
+  .st-resumo dt {
+    color: var(--tinta-suave);
+    font-weight: 600;
+  }
+
+  .st-mais dd,
+  .st-resumo dd {
+    margin: 0;
+  }
+
+  .st-previa {
+    display: grid;
+    gap: 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--amarelo-acao-borda);
+    border-radius: var(--raio-cartao, 12px);
+    background: var(--superficie-2);
+  }
+
+  .st-previa ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+
+  /* ---------- Revisão e acompanhamento ---------- */
+  .st-secao {
+    display: grid;
+    gap: 10px;
+  }
+
+  .st-secao h3 {
+    margin: 0;
+  }
+
+  .st-secao-topo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .st-itens {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .st-item {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--borda);
+    border-radius: var(--raio-cartao, 12px);
+  }
+
+  .st-item-cabeca p {
+    margin: 0;
+  }
+
+  .st-item-campos {
+    display: grid;
+    grid-template-columns: minmax(130px, 160px) minmax(160px, 220px) minmax(0, 1fr);
+    align-items: end;
+    gap: 10px;
+  }
+
+  .st-item-pedido {
+    grid-column: span 2;
+    margin: 0;
+  }
+
+  .st-filtros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  .st-alteracoes {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .st-alteracoes li {
+    padding: 10px 12px;
+    border: 1px solid var(--borda-suave);
+    border-radius: var(--raio);
+  }
+
+  .st-alteracoes p {
+    margin: 2px 0;
+  }
+
+  .st-form {
+    display: grid;
+    gap: 8px;
+  }
+
+  .st-historico summary,
+  .st-versao summary {
+    cursor: pointer;
+    font-weight: 700;
+  }
+
+  .st-historico ol {
+    display: grid;
+    gap: 4px;
+    margin: 8px 0 0;
+    padding-left: 18px;
+  }
+
+  /* ---------- Mapa em modo consulta ---------- */
+  .st-mapa-camada {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    padding: 12px;
+    background: var(--fundo);
+  }
+
+  .st-mapa {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .st-mapa-topo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .st-mapa-topo h3,
+  .st-mapa-topo p {
+    margin: 0;
+  }
+
+  .st-mapa-acoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .st-mapa-area {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--borda);
+    border-radius: var(--raio-cartao, 12px);
+  }
+
+  .st-mapa-zoom {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 2;
+    display: grid;
+    gap: 6px;
+  }
+
+  /* ---------- Telas estreitas ---------- */
+  @media (max-width: 960px) {
+    .st-grade {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .st-lateral {
+      position: static;
+    }
+
+    /* Coluna única: o botão flutua no canto e a lista ganha folga para não ser coberta. */
+    .st-lista {
+      padding-bottom: 72px;
+    }
+
+    .st-ver-mapa {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 20;
+      width: auto;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .st-modo,
+    .st-escolha,
+    .st-item-campos {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .st-item-pedido {
+      grid-column: auto;
+    }
+
+    .st-janela {
+      min-width: 0;
+    }
+
+    .st-selo-teste {
+      white-space: normal;
+    }
+  }
+}

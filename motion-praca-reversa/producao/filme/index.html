@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Praça Reversa — filme de apresentação</title>
+<style>
+@font-face { font-family: 'Inter'; src: url('../ativos/inter-latin-wght-normal.woff2') format('woff2'); font-weight: 100 900; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215; }
+@font-face { font-family: 'Inter'; src: url('../ativos/inter-latin-ext-wght-normal.woff2') format('woff2'); font-weight: 100 900; unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+:root { --amarelo: #ffcc00; --vermelho: #d40511; --grafite: #101114; --tinta: #f4f1ea; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--grafite); }
+body { font-family: 'Inter', sans-serif; color: var(--tinta); -webkit-font-smoothing: antialiased; }
+#palco { position: absolute; inset: 0; overflow: hidden; background: var(--grafite); }
+.camada { position: absolute; inset: 0; }
+/* Sem will-change: o Chromium rasteriza cada quadro na escala atual (nítido ao aproximar). */
+.plano { position: absolute; transform-style: preserve-3d; overflow: hidden; }
+/* Câmera de cada plano: contêiner 2D com a perspectiva; filtros (movimento, foco) em espaço de tela. */
+.camera { position: absolute; inset: 0; perspective: 1900px; perspective-origin: 50% 46%; }
+.sombra-plano { box-shadow: 0 60px 120px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.10); }
+/* Luz de fundo: elipses suaves (gradientes, sem filtro), em outra velocidade que o conteúdo. */
+.luz { position: absolute; border-radius: 50%; mix-blend-mode: screen; }
+#luz-a { width: 1700px; height: 520px; background: radial-gradient(closest-side, rgb(255 204 0 / 0.42), rgb(255 150 0 / 0.16) 45%, transparent 75%); }
+#luz-b { width: 1300px; height: 420px; background: radial-gradient(closest-side, rgb(212 5 17 / 0.40), rgb(212 5 17 / 0.10) 50%, transparent 78%); }
+#luz-c { width: 900px; height: 900px; background: radial-gradient(closest-side, rgb(255 230 160 / 0.10), transparent 70%); }
+#vinheta { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgb(0 0 0 / 0.55) 100%); pointer-events: none; }
+/* Corredores da praça em perspectiva (abertura e fecho). */
+#cena-piso { perspective: 1300px; perspective-origin: 50% 30%; }
+#piso { position: absolute; left: 50%; top: 50%; width: 2600px; height: 2600px; margin: -1300px 0 0 -1300px; transform-style: preserve-3d; }
+#piso svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+/* Tipografia. */
+.titulo { position: absolute; font-weight: 750; letter-spacing: -0.035em; line-height: 1; white-space: nowrap; }
+.palavra { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: 0.12em; }
+.palavra > span { display: inline-block; }
+.frase { position: absolute; letter-spacing: -0.025em; line-height: 1.08; white-space: nowrap; text-shadow: 0 4px 30px rgb(0 0 0 / 0.65); }
+.frase .destaque { color: var(--amarelo); }
+.frase.faixa { padding: 8px 26px 4px; border-radius: 16px; background: rgb(16 17 20 / calc(0.84 * var(--t, 1))); box-shadow: 0 20px 50px rgb(0 0 0 / calc(0.35 * var(--t, 1))); text-shadow: none; }
+#metas { position: absolute; left: 0; top: 0; width: 1920px; }
+#metas-rotulo { position: absolute; width: 1920px; text-align: center; top: 486px; font-size: 24px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: rgb(244 241 234 / 0.7); }
+.chip.meta { top: 540px; font-size: 30px; padding: 14px 24px; border-color: rgb(255 204 0 / 0.45); }
+.marca-dhl { position: absolute; }
+#selo-demo { position: absolute; right: 44px; bottom: 36px; padding: 7px 14px; border-radius: 999px; background: rgb(255 204 0 / 0.92); color: #141414; font-size: 17px; font-weight: 750; letter-spacing: 0.04em; text-transform: uppercase; }
+/* Sobreposições. */
+.realce { position: absolute; border: 3px solid var(--amarelo); border-radius: 8px; box-shadow: 0 0 0 6px rgb(255 204 0 / 0.18), 0 0 40px rgb(255 204 0 / 0.45); pointer-events: none; }
+.realce.vermelho { border-color: var(--vermelho); box-shadow: 0 0 0 6px rgb(212 5 17 / 0.16), 0 0 40px rgb(212 5 17 / 0.4); }
+.etiqueta { position: absolute; padding: 8px 16px; border-radius: 999px; background: rgb(16 17 20 / 0.88); border: 1px solid rgb(255 204 0 / 0.55); color: var(--tinta); font-size: 25px; font-weight: 650; white-space: nowrap; box-shadow: 0 10px 30px rgb(0 0 0 / 0.35); }
+.etiqueta b { color: var(--amarelo); font-weight: 750; }
+.etiqueta small { font-size: 19px; font-weight: 600; opacity: 0.75; }
+.etiqueta.limite { border-color: rgb(244 241 234 / 0.35); font-size: 21px; font-weight: 600; }
+.etiqueta.limite::before { content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--tinta); opacity: 0.6; margin-right: 10px; vertical-align: 2px; }
+.ficha { position: absolute; padding: 12px 20px; border-radius: 14px; background: var(--amarelo); color: #141414; font-size: 26px; font-weight: 750; white-space: nowrap; box-shadow: 0 18px 50px rgb(0 0 0 / 0.45); }
+.ficha small { display: block; font-size: 17px; font-weight: 600; opacity: 0.78; }
+.chip { position: absolute; padding: 10px 18px; border-radius: 12px; background: rgb(16 17 20 / 0.9); border: 1px solid rgb(255 255 255 / 0.16); font-size: 24px; font-weight: 650; white-space: nowrap; box-shadow: 0 14px 40px rgb(0 0 0 / 0.4); }
+.chip b { color: var(--amarelo); }
+.chip .seta { color: var(--amarelo); margin: 0 8px; }
+#trilhas { position: absolute; inset: 0; width: 1920px; height: 1080px; pointer-events: none; overflow: visible; }
+.trilha { fill: none; stroke: var(--amarelo); stroke-width: 3.5; stroke-linecap: round; filter: url(#brilho); }
+#cursor { position: absolute; left: 0; top: 0; width: 34px; height: 40px; margin: -3px 0 0 -5px; transform-origin: 5px 3px; opacity: 0; filter: drop-shadow(0 6px 10px rgb(0 0 0 / 0.5)); }
+#clique { position: absolute; left: -36px; top: -36px; width: 72px; height: 72px; border-radius: 50%; border: 3px solid var(--amarelo); opacity: 0; }
+/* Tabela do CSV exportado (conteúdo real do arquivo). */
+.csv { width: 100%; height: 100%; background: #fff; color: #1d1d1f; font-size: 15px; padding: 18px 20px; }
+.csv header { display: flex; align-items: center; gap: 12px; font-size: 17px; font-weight: 700; margin-bottom: 10px; }
+.csv header i { display: inline-block; width: 26px; height: 30px; border-radius: 4px; background: #1f7a4d; color: #fff; font-style: normal; font-size: 11px; font-weight: 800; line-height: 30px; text-align: center; }
+.csv header span { font-weight: 500; color: #6b6b70; font-size: 14px; }
+.csv table { border-collapse: collapse; width: 100%; }
+.csv th, .csv td { border: 1px solid #d9d9de; padding: 5px 8px; text-align: left; white-space: nowrap; }
+.csv th { background: #f1f1f4; font-weight: 700; font-size: 13px; }
+.csv tr.alvo td { background: #fff4c2; }
+.csv td:first-child { color: #6b6b70; width: 26px; text-align: right; }
+</style>
+</head>
+<body>
+<div id="palco">
+  <div class="camada" id="fundo">
+    <div class="luz" id="luz-a"></div>
+    <div class="luz" id="luz-b"></div>
+    <div class="luz" id="luz-c"></div>
+  </div>
+  <div class="camada" id="cena-piso"><div id="piso"><svg id="svg-piso" viewBox="0 0 2600 2600"></svg></div></div>
+  <div class="camada" id="planos"></div>
+  <img class="marca-dhl" id="dhl" src="../ativos/dhl-simbolo.png" alt="">
+  <div class="titulo" id="titulo" style="font-size:150px"><span class="palavra"><span>Praça</span></span> <span class="palavra"><span>Reversa</span></span></div>
+  <div id="metas"><div id="metas-rotulo">Medidas propostas para o piloto</div><div class="chip meta">Tempo de localização</div><div class="chip meta">Acuracidade do inventário</div><div class="chip meta">Atendimento das janelas</div></div>
+  <svg id="trilhas" viewBox="0 0 1920 1080"><defs><filter id="brilho" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs></svg>
+  <div class="camada" id="sobreposicoes"></div>
+  <svg id="cursor" viewBox="0 0 34 40"><path d="M5 3 L5 33 L12.5 26 L17.5 37.5 L22.5 35.3 L17.6 24 L28 24 Z" fill="#fff" stroke="#141414" stroke-width="2.2" stroke-linejoin="round"/></svg>
+  <div id="clique"></div>
+  <div id="vinheta"></div>
+  <div id="selo-demo">Demonstração · dados fictícios</div>
+</div>
+<script src="../motor.js"></script>
+<script src="cena.js"></script>
+</body>
+</html>

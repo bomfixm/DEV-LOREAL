@@ -387,7 +387,9 @@ export function TelaImportacao({ id, permissoes, aoNavegar, aoGravar }: { id: st
   };
   // Permissões do tipo deste lote (lista de claims: analista; produtos e devoluções: supervisor).
   const podeExecutar = lote !== null && tiposImportacaoPermitidos(permissoes, 'executar').includes(lote.type);
-  const editavel = lote !== null && (lote.state === 'AGUARDANDO_MAPEAMENTO' || lote.state === 'PREVIA') && podeExecutar;
+  // Bipagem: prévia, decisões e confirmação ficam na página do palete (destino sempre visível).
+  const bipagem = lote?.type === 'BIPAGEM';
+  const editavel = lote !== null && (lote.state === 'AGUARDANDO_MAPEAMENTO' || lote.state === 'PREVIA') && podeExecutar && !bipagem;
 
   async function confirmar() {
     if (!lote) return;
@@ -534,6 +536,31 @@ export function TelaImportacao({ id, permissoes, aoNavegar, aoGravar }: { id: st
             )}
           </section>
 
+          {bipagem && lote.palletId !== null && (
+            <div className="acoes-linha">
+              {(lote.state === 'AGUARDANDO_MAPEAMENTO' || lote.state === 'PREVIA') && podeExecutar && (
+                <button
+                  type="button"
+                  className="botao-primario"
+                  onClick={() => {
+                    if (lote.palletId !== null) aoNavegar({ tipo: 'bipagem', id: lote.palletId });
+                  }}
+                  data-testid="continuar-bipagem"
+                >
+                  Continuar a importação no palete
+                </button>
+              )}
+              <button
+                type="button"
+                className="botao-secundario"
+                onClick={() => {
+                  if (lote.palletId !== null) aoNavegar({ tipo: 'palete', id: lote.palletId });
+                }}
+              >
+                Abrir o palete de destino
+              </button>
+            </div>
+          )}
           {editavel && (lote.state === 'AGUARDANDO_MAPEAMENTO' || editarColunas) && (
             <Mapeamento
               key={`${lote.id}:${String(lote.version)}`}
@@ -584,7 +611,11 @@ export function TelaImportacao({ id, permissoes, aoNavegar, aoGravar }: { id: st
               )}
               {lote.result && (
                 <p data-testid="resultado-gravacao">
-                  {lote.type === 'PRODUTOS'
+                  {lote.type === 'BIPAGEM'
+                    ? lote.result.documentLinksCreated > 0
+                      ? `${String(lote.result.documentsWritten)} nota(s) adicionada(s) ao palete (${String(lote.result.documentLinksCreated)} vínculo(s) NF × palete${lote.result.documentLinksEnded > 0 ? `; ${String(lote.result.documentLinksEnded)} registro(s) anterior(es) substituído(s), com histórico` : ''}). Nada mudou no saldo por produto nem na conferência física.`
+                      : `${String(lote.result.contentsCreated)} conteúdo(s) novo(s) e ${String(lote.result.countsRegistered)} contagem(ns) registrada(s) no palete (${String(lote.result.volumesRead)} volume(s) lido(s); ${String(lote.result.recordsWithoutReads)} registro(s) sem leitura só no lote). Nada mudou no saldo por produto.`
+                    : lote.type === 'PRODUTOS'
                     ? `${String(lote.result.productsCreated)} produto(s) criado(s) e ${String(lote.result.barcodesAdded)} código(s) de barras acrescentado(s).`
                     : lote.type === 'INVENTARIO'
                       ? `Inventário registrado: ${String(lote.result.inventoryLines)} linha(s) na fotografia, ${String(lote.result.inventoryLinesApplied)} aplicada(s) (${String(lote.result.documentLinksCreated)} vínculo(s) NF × palete, ${String(lote.result.palletsCreated)} palete(s) cadastrado(s), ${String(lote.result.palletsLocated)} localização(ões) registrada(s)) e ${String(lote.result.inventoryLinesPending)} não aplicada(s). Saldo validado por produto não mudou.`
@@ -661,7 +692,7 @@ export function TelaImportacao({ id, permissoes, aoNavegar, aoGravar }: { id: st
             </section>
           )}
 
-          {lote.state === 'PREVIA' && podeExecutar && (
+          {lote.state === 'PREVIA' && podeExecutar && !bipagem && (
             <section className="cartao" aria-labelledby={`${ids}-confirmar`} data-testid="secao-confirmar">
               <h3 id={`${ids}-confirmar`}>5. Confirmação</h3>
               <p>{ALCANCE_TIPO[lote.type]}</p>

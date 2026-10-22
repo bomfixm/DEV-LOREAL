@@ -6,7 +6,19 @@
  * Uso:
  *   npm run inventario:carregar -- --arquivo <pacote.zip|dados-importacao.json> \
  *     --unidade <código> --cliente <código> --usuario <login> [--executar]
- *     [--substitui INV-000001] [--descricao "..."] [--relatorio <arquivo.md>]
+ *     [--substitui INV-000001] [--manter-ausentes] [--descricao "..."] [--relatorio <arquivo.md>]
+ *
+ * Também aceita o inventário L'Oréal preparado (formato "1.0", 20/10/2026):
+ * o ZIP com `dados/inventario-preparado.json` + `pendencias.json` (+
+ * `inventario-origem.json`) ou o próprio `inventario-preparado.json` com os
+ * arquivos irmãos na mesma pasta; ele é convertido para o pacote de carga e
+ * segue o mesmo caminho. `--manter-ausentes` (com --substitui): os vínculos
+ * ativos que não constam da versão nova continuam ativos, a validar no piso.
+ * `--alocar-revisao <causa,causa…> --decisao "<texto>"` (só no formato
+ * preparado): linhas em revisão cujas causas de bloqueio estão todas na lista
+ * vão para o palete do endereço, que fica com "Reconferência necessária".
+ * `--corrigir-endereco "15 - A22=15 - A122"` (repetível, com --alocar-revisao):
+ * lê aquele endereço da planilha como o outro (o texto original fica guardado).
  *
  * Sem --executar: lê, valida e mostra o resumo do lote e as pendências (nada
  * é gravado). Com --executar: grava tudo numa transação (integral ou nada).
@@ -18,8 +30,8 @@
  */
 import { perfilPossui, type Escopo } from '@praca-reversa/contracts';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { RAIZ_REPOSITORIO, carregarEnvLocal } from '../config.js';
 import { criarBanco, type Banco } from '../db/cliente.js';
@@ -27,18 +39,50 @@ import { ErroHttp } from '../http/erros.js';
 import { registrarEvento } from '../modules/auditoria/registrar.js';
 import { extrairEntrada, lerDiretorioZip, pareceZip } from '../modules/importacao/arquivo/zip.js';
 import { carregarEstadoCarga, executarCarga, lerPacote, planejarCarga, type PacoteLido, type ResultadoCarga } from '../modules/importacao/carga-lote.js';
+import { converterInventarioLoreal } from '../modules/importacao/inventario-loreal.js';
 
 const NOME_JSON = 'dados-importacao.json';
 const LIMITE_BYTES = 64 * 1_048_576;
 
-function lerArquivo(caminho: string): { conteudo: Buffer; nome: string } {
+const PREPARADO = 'inventario-preparado.json';
+const PENDENCIAS = 'pendencias.json';
+const ORIGEM = 'inventario-origem.json';
+
+const json = (b: Buffer): unknown => JSON.parse(b.toString('utf8').replace(/^\uFEFF/, ''));
+
+type AlocarRevisao = { causas: readonly string[]; decisao: string; corrigir: readonly { de: string; para: string }[] } | null;
+
+/** Inventário L'Oréal preparado (formato 1.0) → pacote de carga (bytes do JSON convertido). */
+function converter(preparado: Buffer, pendencias: Buffer | null, origem: Buffer | null, nome: string, alocar: AlocarRevisao): { conteudo: Buffer; nome: string } {
+  if (pendencias === null) throw new Error(`Faltou ${PENDENCIAS} junto do ${PREPARADO}: sem ele os motivos das linhas em revisão se perderiam.`);
+  const pacote = converterInventarioLoreal({ preparado: json(preparado), pendencias: json(pendencias), ...(origem === null ? {} : { origem: json(origem) }), ...(alocar === null ? {} : { alocarRevisao: { causas: alocar.causas, decisao: alocar.decisao }, corrigirEnderecos: alocar.corrigir }) });
+  return { conteudo: Buffer.from(JSON.stringify(pacote), 'utf8'), nome: `${nome} (convertido para o pacote de carga)` };
+}
+
+function lerArquivo(caminho: string, alocar: AlocarRevisao): { conteudo: Buffer; nome: string } {
   const bruto = readFileSync(caminho);
   if (bruto.length > LIMITE_BYTES) throw new Error(`Arquivo acima de ${String(LIMITE_BYTES / 1_048_576)} MB.`);
-  if (!pareceZip(bruto)) return { conteudo: bruto, nome: basename(caminho) };
-  const entradas = lerDiretorioZip(bruto, { maxEntradas: 50, maxTotalDescompactado: LIMITE_BYTES });
-  const entrada = [...entradas.values()].find((e) => basename(e.nome) === NOME_JSON);
-  if (!entrada) throw new Error(`O pacote ${basename(caminho)} não contém ${NOME_JSON}.`);
-  return { conteudo: extrairEntrada(bruto, entrada, LIMITE_BYTES), nome: `${basename(caminho)}:${NOME_JSON}` };
+  if (!pareceZip(bruto)) {
+    if (basename(caminho) === PREPARADO) {
+      const irmao = (n: string) => (existsSync(join(dirname(caminho), n)) ? readFileSync(join(dirname(caminho), n)) : null);
+      return converter(bruto, irmao(PENDENCIAS), irmao(ORIGEM), basename(caminho), alocar);
+    }
+    if (alocar !== null) throw new Error('--alocar-revisao só vale para o inventário preparado (inventario-preparado.json).');
+    return { conteudo: bruto, nome: basename(caminho) };
+  }
+  const entradas = [...lerDiretorioZip(bruto, { maxEntradas: 50, maxTotalDescompactado: LIMITE_BYTES }).values()];
+  const ler = (n: string) => {
+    const e = entradas.find((x) => basename(x.nome) === n);
+    return e === undefined ? null : extrairEntrada(bruto, e, LIMITE_BYTES);
+  };
+  const pacote = ler(NOME_JSON);
+  if (pacote !== null) {
+    if (alocar !== null) throw new Error('--alocar-revisao só vale para o inventário preparado (inventario-preparado.json).');
+    return { conteudo: pacote, nome: `${basename(caminho)}:${NOME_JSON}` };
+  }
+  const preparado = ler(PREPARADO);
+  if (preparado !== null) return converter(preparado, ler(PENDENCIAS), ler(ORIGEM), `${basename(caminho)}:${PREPARADO}`, alocar);
+  throw new Error(`O pacote ${basename(caminho)} não contém ${NOME_JSON} nem ${PREPARADO}.`);
 }
 
 async function resolverEscopo(db: Banco, unidade: string | undefined, cliente: string | undefined): Promise<Escopo> {
@@ -92,9 +136,9 @@ function relatorio(escopo: Escopo, login: string, p: PacoteLido, r: ResultadoCar
     '',
     '## Resultado',
     '',
-    `- Linhas de origem: ${String(r.linhas.total)} (aplicadas ${String(r.linhas.aplicadas)}, endereço livre/referência ${String(r.linhas.historicas)}, repetidas agrupadas ${String(r.linhas.repetidas)}, já importadas ${String(r.linhas.jaImportadas)}, não aplicadas por conflito ${String(r.linhas.pendentes)})`,
-    `- Vínculos: ${String(r.vinculos.criados)} criados, ${String(r.vinculos.atualizados)} atualizados, ${String(r.vinculos.jaExistentes)} já existentes, ${String(r.vinculos.emConflito)} em conflito (${String(r.vinculos.tipoPendente)} de tipo pendente/MI)`,
-    `- Paletes: ${String(r.paletes.criados)} cadastrados, ${String(r.paletes.existentes)} já existentes, ${String(r.paletes.emConflito)} endereço(s) em conflito; ${String(r.paletes.localizacoesRegistradas)} localização(ões) registrada(s); ${String(r.paletes.posicaoNoMapaPendente)} com posição no mapa pendente`,
+    `- Linhas de origem: ${String(r.linhas.total)} (aplicadas ${String(r.linhas.aplicadas)}, endereço livre/referência ${String(r.linhas.historicas)}, repetidas agrupadas ${String(r.linhas.repetidas)}, já importadas ${String(r.linhas.jaImportadas)}, requerem resolução ${String(r.linhas.pendentes)}: ${String(r.linhas.semEndereco)} sem endereço, ${String(r.linhas.emRevisao)} em revisão — sem alocação — e ${String(r.linhas.pendentes - r.linhas.semEndereco - r.linhas.emRevisao)} por conflito)`,
+    `- Vínculos: ${String(r.vinculos.criados)} criados, ${String(r.vinculos.atualizados)} atualizados, ${String(r.vinculos.jaExistentes)} já existentes, ${String(r.vinculos.emConflito)} em conflito (${String(r.vinculos.tipoPendente)} de tipo pendente/MI); ${String(r.vinculos.mantidosAusentes)} ativos sem constar desta versão, mantidos para validar`,
+    `- Paletes: ${String(r.paletes.criados)} cadastrados, ${String(r.paletes.existentes)} já existentes, ${String(r.paletes.emConflito)} endereço(s) em conflito; ${String(r.paletes.localizacoesRegistradas)} localização(ões) registrada(s); ${String(r.paletes.posicaoNoMapaPendente)} com posição no mapa pendente; ${String(r.paletes.reconferenciaExigida)} com reconferência necessária por decisão`,
     `- Referências fora da praça: ${String(r.referenciasForaDaPraca)} · volumes pendentes: ${String(r.volumesPendentes)}`,
     '',
     '## Resumo do lote',
@@ -118,6 +162,10 @@ async function principal(): Promise<number> {
       usuario: { type: 'string' },
       executar: { type: 'boolean', default: false },
       substitui: { type: 'string' },
+      'manter-ausentes': { type: 'boolean', default: false },
+      'alocar-revisao': { type: 'string' },
+      'corrigir-endereco': { type: 'string', multiple: true },
+      decisao: { type: 'string' },
       descricao: { type: 'string' },
       relatorio: { type: 'string' },
     },
@@ -129,7 +177,16 @@ async function principal(): Promise<number> {
   carregarEnvLocal();
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL não definido.');
-  const { conteudo, nome } = lerArquivo(resolve(values.arquivo));
+  const causas = (values['alocar-revisao'] ?? '').split(',').map((c) => c.trim()).filter((c) => c !== '');
+  const decisao = (values.decisao ?? '').trim();
+  if (causas.length > 0 && decisao.length < 5) throw new Error('--alocar-revisao exige --decisao "<quem decidiu, quando e o quê>".');
+  const corrigir = (values['corrigir-endereco'] ?? []).map((c) => {
+    const [de, para] = c.split('=').map((x) => x.trim());
+    if (!de || !para) throw new Error(`--corrigir-endereco "${c}": use "<endereço da planilha>=<endereço correto>".`);
+    return { de, para };
+  });
+  if (corrigir.length > 0 && causas.length === 0) throw new Error('--corrigir-endereco só vale junto de --alocar-revisao e --decisao.');
+  const { conteudo, nome } = lerArquivo(resolve(values.arquivo), causas.length === 0 ? null : { causas, decisao, corrigir });
   const lido = lerPacote(conteudo, nome);
   if (!lido.ok) {
     console.error('Pacote recusado (nada foi gravado):');
@@ -146,7 +203,9 @@ async function principal(): Promise<number> {
     const autor = await resolverAutor(db, escopo, values.usuario);
     console.log(`Escopo: ${escopo.name} (${escopo.unitCode}/${escopo.clientCode}) · usuário ${autor.login} · ambiente ${process.env.APP_AMBIENTE ?? 'producao'}`);
     const estado = await carregarEstadoCarga(db, escopo.id, p, values.substitui ?? null);
-    const plano = planejarCarga(p, estado);
+    const manterAusentes = values['manter-ausentes'];
+    if (manterAusentes && !values.substitui) throw new Error('--manter-ausentes só vale junto de --substitui <INV-…>.');
+    const plano = planejarCarga(p, estado, { manterAusentes });
     console.log(estado.loteExistente ? `\nEste pacote já foi importado como ${estado.loteExistente.inventarioCodigo}: o reenvio não grava de novo.` : '\nResumo do lote:');
     for (const linha of plano.resumo) console.log(`  - ${linha}`);
     console.log('\nPendências (lista para tratar depois):');
@@ -158,7 +217,7 @@ async function principal(): Promise<number> {
     const requestId = `cli-carga-${randomUUID()}`;
     let r: ResultadoCarga;
     try {
-      r = await executarCarga(db, escopo, { usuarioId: autor.usuarioId, requestId }, p, { substitui: values.substitui ?? null, descricao: values.descricao ?? null }, new Date());
+      r = await executarCarga(db, escopo, { usuarioId: autor.usuarioId, requestId }, p, { substitui: values.substitui ?? null, descricao: values.descricao ?? null, manterAusentes }, new Date());
     } catch (erro) {
       const mensagem = erro instanceof Error ? erro.message : String(erro);
       await registrarEvento(db, {
@@ -175,9 +234,9 @@ async function principal(): Promise<number> {
       return 1;
     }
     console.log(`\n${r.reenvio ? 'Reenvio' : 'Carga gravada'}: ${r.inventarioCodigo} (lote ${r.loteId}).`);
-    console.log(`  Linhas: ${String(r.linhas.total)} · aplicadas ${String(r.linhas.aplicadas)} · referência/endereço livre ${String(r.linhas.historicas)} · repetidas ${String(r.linhas.repetidas)} · já importadas ${String(r.linhas.jaImportadas)} · conflito ${String(r.linhas.pendentes)}`);
-    console.log(`  Vínculos: criados ${String(r.vinculos.criados)} · atualizados ${String(r.vinculos.atualizados)} · já existentes ${String(r.vinculos.jaExistentes)} · em conflito ${String(r.vinculos.emConflito)} (tipo pendente/MI ${String(r.vinculos.tipoPendente)})`);
-    console.log(`  Paletes: cadastrados ${String(r.paletes.criados)} · já existentes ${String(r.paletes.existentes)} · conflito ${String(r.paletes.emConflito)} · localizações registradas ${String(r.paletes.localizacoesRegistradas)} · posição no mapa pendente ${String(r.paletes.posicaoNoMapaPendente)}`);
+    console.log(`  Linhas: ${String(r.linhas.total)} · aplicadas ${String(r.linhas.aplicadas)} · referência/endereço livre ${String(r.linhas.historicas)} · repetidas ${String(r.linhas.repetidas)} · já importadas ${String(r.linhas.jaImportadas)} · sem endereço (sem alocação) ${String(r.linhas.semEndereco)} · em revisão (sem alocação) ${String(r.linhas.emRevisao)} · conflito ${String(r.linhas.pendentes - r.linhas.semEndereco - r.linhas.emRevisao)}`);
+    console.log(`  Vínculos: criados ${String(r.vinculos.criados)} · atualizados ${String(r.vinculos.atualizados)} · já existentes ${String(r.vinculos.jaExistentes)} · em conflito ${String(r.vinculos.emConflito)} (tipo pendente/MI ${String(r.vinculos.tipoPendente)}) · ativos sem constar desta versão (mantidos) ${String(r.vinculos.mantidosAusentes)}`);
+    console.log(`  Paletes: cadastrados ${String(r.paletes.criados)} · já existentes ${String(r.paletes.existentes)} · conflito ${String(r.paletes.emConflito)} · localizações registradas ${String(r.paletes.localizacoesRegistradas)} · posição no mapa pendente ${String(r.paletes.posicaoNoMapaPendente)} · reconferência necessária ${String(r.paletes.reconferenciaExigida)}`);
     console.log(`  Referências fora da praça ${String(r.referenciasForaDaPraca)} · volumes pendentes ${String(r.volumesPendentes)} · cidades/produtos preenchidos ${String(r.camposPreenchidos.cidades)}/${String(r.camposPreenchidos.produtos)}`);
     const destino = values.relatorio ? resolve(values.relatorio) : resolve(RAIZ_REPOSITORIO, '.dados', 'cargas', `${r.inventarioCodigo}-${r.reenvio ? 'reenvio-' : ''}${new Date().toISOString().replace(/[:.]/g, '-')}.md`);
     mkdirSync(dirname(destino), { recursive: true });

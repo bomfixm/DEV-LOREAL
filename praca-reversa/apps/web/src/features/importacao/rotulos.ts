@@ -6,6 +6,7 @@ export const ROTULOS_TIPO: Record<TipoImportacao, string> = {
   CLAIMS: 'Lista de claims',
   INVENTARIO: 'Inventário conferido',
   SELECAO_CLIENTE: 'Seleção do cliente',
+  BIPAGEM: 'Bipagem (palete)',
 };
 
 export const ROTULOS_SITUACAO: Record<SituacaoImportacao, string> = {
@@ -58,6 +59,8 @@ export const ALCANCE_TIPO: Record<TipoImportacao, string> = {
     'Importar o inventário conferido registra a fotografia (NF × palete × endereço × volumes) e, nas linhas revisadas, cria/vincula paletes e registra a localização pela tabela de endereços confirmada. Não cria saldo validado por produto, não libera material e não altera reservas, claims nem saídas; volumes não viram unidades de produto.',
   SELECAO_CLIENTE:
     'Importar a seleção registra as solicitações do cliente (com pendências, quando houver). Não reserva, não libera, não altera estoque nem confirma saída: a conciliação e a proposta para a janela vêm depois.',
+  BIPAGEM:
+    'Importar a bipagem cadastra no palete escolhido cada documento com volumes lidos (Tipo, Número, CNPJ Remetente e Remetente) com a contagem informada (Lidos). Registros sem leitura ficam só no lote. Não exige SKU, não cria saldo por produto, não libera, não reserva e não expede.',
 };
 
 /** Valores extras da prévia do inventário conferido (além dos campos mapeados). */
@@ -71,4 +74,7 @@ export const ROTULOS_VALOR_EXTRA: Record<string, string> = {
   freeAddress: 'Endereço livre',
   scopeRule: 'Regra da abrangência',
   duplicateOf: 'Repetida da linha',
+  noteVolumes: 'Volumes da nota neste palete',
+  noteAction: 'Nota',
+  destination: 'Destino',
 };

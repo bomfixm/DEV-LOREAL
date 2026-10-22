@@ -5,6 +5,7 @@ import {
   CriarUsuarioSchema,
   FiltroAuditoriaSchema,
   PERFIS_APROVACAO_FINANCEIRA,
+  PERFIS_SELECAO_TESTE,
   type ListaAuditoria,
   type UsuarioAdmin,
 } from '@praca-reversa/contracts';
@@ -28,7 +29,7 @@ function usuarioAdmin(u: {
   nome: string;
   ativo: boolean;
   criadoEm: Date;
-  vinculo: { perfil: UsuarioAdmin['role']; ativo: boolean; aprovaFinanceiro: boolean };
+  vinculo: { perfil: UsuarioAdmin['role']; ativo: boolean; aprovaFinanceiro: boolean; selecaoClienteTeste: boolean };
 }): UsuarioAdmin {
   return {
     id: u.id,
@@ -38,6 +39,7 @@ function usuarioAdmin(u: {
     role: u.vinculo.perfil,
     membershipActive: u.vinculo.ativo,
     financialApproval: u.vinculo.aprovaFinanceiro,
+    clientSelectionTest: u.vinculo.selecaoClienteTeste,
     createdAt: u.criadoEm.toISOString(),
   };
 }
@@ -68,7 +70,9 @@ export function registrarRotasAdmin(app: FastifyInstance, deps: Dependencias, au
       orderBy: { usuario: { login: 'asc' } },
     });
     return {
-      items: vinculos.map((v) => usuarioAdmin({ ...v.usuario, vinculo: { perfil: v.perfil, ativo: v.ativo, aprovaFinanceiro: v.aprovaFinanceiro } })),
+      items: vinculos.map((v) =>
+        usuarioAdmin({ ...v.usuario, vinculo: { perfil: v.perfil, ativo: v.ativo, aprovaFinanceiro: v.aprovaFinanceiro, selecaoClienteTeste: v.selecaoClienteTeste } }),
+      ),
     };
   });
 
@@ -104,7 +108,7 @@ export function registrarRotasAdmin(app: FastifyInstance, deps: Dependencias, au
             detalhes: { login: usuario.login, perfil: dados.data.role },
             requestId: request.id,
           });
-          const corpo = usuarioAdmin({ ...usuario, vinculo: { perfil: dados.data.role, ativo: true, aprovaFinanceiro: false } });
+          const corpo = usuarioAdmin({ ...usuario, vinculo: { perfil: dados.data.role, ativo: true, aprovaFinanceiro: false, selecaoClienteTeste: false } });
           return { status: 201, corpo };
         } catch (erro) {
           if (erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === 'P2002') {
@@ -152,9 +156,15 @@ export function registrarRotasAdmin(app: FastifyInstance, deps: Dependencias, au
           throw requisicaoInvalida('A aprovação financeira de claims só pode ser concedida a analista de claims.');
         }
         const aprovaFinanceiro = elegivel && (dados.data.financialApproval ?? vinculo.aprovaFinanceiro);
+        // "Seleção cliente — teste": concessão explícita ao responsável interno (supervisor ou administrador).
+        const elegivelTeste = PERFIS_SELECAO_TESTE.includes(dados.data.role);
+        if (dados.data.clientSelectionTest === true && !elegivelTeste) {
+          throw requisicaoInvalida('A "Seleção cliente — teste" só pode ser concedida a supervisor de estoque ou administrador.');
+        }
+        const selecaoClienteTeste = elegivelTeste && (dados.data.clientSelectionTest ?? vinculo.selecaoClienteTeste);
         const atualizado = await tx.vinculo.update({
           where: { id: vinculo.id },
-          data: { perfil: dados.data.role, ativo: dados.data.active, aprovaFinanceiro, versao: { increment: 1 } },
+          data: { perfil: dados.data.role, ativo: dados.data.active, aprovaFinanceiro, selecaoClienteTeste, versao: { increment: 1 } },
         });
         await registrarEvento(tx, {
           acao: 'VINCULO_ALTERADO',
@@ -170,12 +180,17 @@ export function registrarRotasAdmin(app: FastifyInstance, deps: Dependencias, au
             ativoNovo: atualizado.ativo,
             aprovacaoFinanceiraAnterior: vinculo.aprovaFinanceiro,
             aprovacaoFinanceiraNova: atualizado.aprovaFinanceiro,
+            selecaoClienteTesteAnterior: vinculo.selecaoClienteTeste,
+            selecaoClienteTesteNova: atualizado.selecaoClienteTeste,
           },
           requestId: request.id,
         });
         return {
           status: 200,
-          corpo: usuarioAdmin({ ...vinculo.usuario, vinculo: { perfil: atualizado.perfil, ativo: atualizado.ativo, aprovaFinanceiro: atualizado.aprovaFinanceiro } }),
+          corpo: usuarioAdmin({
+            ...vinculo.usuario,
+            vinculo: { perfil: atualizado.perfil, ativo: atualizado.ativo, aprovaFinanceiro: atualizado.aprovaFinanceiro, selecaoClienteTeste: atualizado.selecaoClienteTeste },
+          }),
         };
       },
     );
@@ -230,7 +245,13 @@ export function registrarRotasAdmin(app: FastifyInstance, deps: Dependencias, au
           detalhes: { sessoesRevogadas },
           requestId: request.id,
         });
-        return { status: 200, corpo: usuarioAdmin({ ...usuario, vinculo: { perfil: vinculo.perfil, ativo: vinculo.ativo, aprovaFinanceiro: vinculo.aprovaFinanceiro } }) };
+        return {
+          status: 200,
+          corpo: usuarioAdmin({
+            ...usuario,
+            vinculo: { perfil: vinculo.perfil, ativo: vinculo.ativo, aprovaFinanceiro: vinculo.aprovaFinanceiro, selecaoClienteTeste: vinculo.selecaoClienteTeste },
+          }),
+        };
       },
     );
     return responder(reply, resultado);

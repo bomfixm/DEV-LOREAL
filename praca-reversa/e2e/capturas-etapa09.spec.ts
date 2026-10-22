@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { aguardarMapaParado, entrar, obterPraca } from './apoio';
+import { abrirPalete, aguardarMapaParado, entrar, obterPraca, verMais } from './apoio';
 import { imagemDoCodigo, instalarCameraFalsa, mostrarNaCamera } from './camera-falsa';
 
 /**
@@ -49,9 +49,11 @@ test.describe('capturas etapa 09 @captura', () => {
     await expect(page.getByTestId('leitura-palete')).toBeVisible({ timeout: 30_000 });
     await capturar(page, '03-camera-qr-do-palete');
     await page.getByTestId('abrir-palete-lido').click();
-    await expect(page.getByTestId('detalhe')).toContainText(comQr.code);
+    await expect(page.getByTestId('janela-palete')).toContainText(comQr.code);
+    await verMais(page);
     await aguardarMapaParado(page);
     await capturar(page, '04-palete-aberto-pelo-qr');
+    await page.keyboard.press('Escape');
 
     // Caixa com fator conhecido (Code 128 com o texto exato do cadastro de demonstração).
     await mostrarNaCamera(page, await imagemDoCodigo('12000000001011', 'Code128'));
@@ -61,7 +63,7 @@ test.describe('capturas etapa 09 @captura', () => {
     await page.getByTestId('fechar-camera').click();
 
     // Conferência pela câmera, com unidade explícita antes de somar.
-    await page.goto(`/paletes/${livre.id}`);
+    await abrirPalete(page, livre.id);
     await page.getByTestId('iniciar-conferencia').click();
     await page.getByRole('radio', { name: /^Completa/ }).check();
     await page.getByTestId('confirmar-inicio').click();

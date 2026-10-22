@@ -52,6 +52,7 @@ import { registrarEvento } from '../auditoria/registrar.js';
 import { exigirSemConferenciaAtiva, motivoPendencia } from '../conferencia/servico.js';
 import { depositarVinculos, registrarMovimentoVinculos, retirarVinculos, vinculadaAMover } from '../claims/vinculos.js';
 import { aplicarEvento, bloquearSaldos, lerEventos, type LinhaAplicar } from '../estoque/saldo.js';
+import { registrarMovimentacaoRelevante } from '../paletes/relogio.js';
 import { consultarPalete } from '../praca/consultas.js';
 import { lerEventoLocalizacao, quantidadeCompensada } from './historico.js';
 
@@ -117,8 +118,8 @@ function exigirVersao(palete: PaleteTravado, esperada: number): void {
   }
 }
 
-async function detalhe(tx: Transacao, escopo: Escopo, id: string): Promise<PaleteDetalhe> {
-  const d = await consultarPalete(tx, escopo, id);
+async function detalhe(tx: Transacao, escopo: Escopo, id: string, agora?: Date): Promise<PaleteDetalhe> {
+  const d = await consultarPalete(tx, escopo, id, agora);
   if (!d) throw naoEncontrado('Palete não encontrado neste escopo.');
   return d;
 }
@@ -189,8 +190,11 @@ async function registrarLocalizacao(
   autor: Autor,
   agora: Date,
   corrigido: string | null,
+  relogio = true,
 ): Promise<string> {
   const id = randomUUID();
+  // Mudança efetiva de localização reinicia a contagem de 20 dias (a posição registrada pela carga do inventário não).
+  if (relogio) await registrarMovimentacaoRelevante(tx, escopoId, [palete.id], tipo === 'MOVIMENTO' ? 'MOVIMENTO' : tipo === 'CORRECAO' ? 'CORRECAO_LOCALIZACAO' : 'RETIRADA_VAZIO', agora);
   await tx.eventoLocalizacao.create({
     data: {
       id,
@@ -224,6 +228,8 @@ export async function moverPalete(
   dados: DadosMover,
   autor: Autor,
   agora: Date,
+  /** `relogio: false`: posição informada pela carga do inventário (dado de origem, não movimento físico). */
+  opcoes: { relogio?: boolean } = {},
 ): Promise<ResultadoMovimento> {
   const palete = exigirPalete(await bloquearPaletes(tx, escopo.id, [paleteId]), paleteId);
   exigirAtivo(palete, 'não é movido');
@@ -234,7 +240,7 @@ export async function moverPalete(
   }
   const destino = await conferirDestino(tx, escopo.id, dados.destinationPositionId, dados.confirmedPositionCode, palete.id);
   await gravarPosicao(tx, palete, destino);
-  const eventoId = await registrarLocalizacao(tx, escopo.id, palete, 'MOVIMENTO', destino, dados.reason, autor, agora, null);
+  const eventoId = await registrarLocalizacao(tx, escopo.id, palete, 'MOVIMENTO', destino, dados.reason, autor, agora, null, opcoes.relogio ?? true);
   await registrarEvento(tx, {
     acao: 'PALETE_MOVIDO',
     resultado: 'SUCESSO',
@@ -245,7 +251,7 @@ export async function moverPalete(
     detalhes: { codigo: palete.codigo, de: palete.posicao_codigo, para: destino.codigo, motivo: dados.reason, evento: eventoId },
     requestId: autor.requestId,
   });
-  return { event: await lerEventoLocalizacao(tx, escopo.id, eventoId), pallet: await detalhe(tx, escopo, palete.id) };
+  return { event: await lerEventoLocalizacao(tx, escopo.id, eventoId), pallet: await detalhe(tx, escopo, palete.id, agora) };
 }
 
 /**
@@ -261,6 +267,8 @@ export async function corrigirMovimento(
   dados: DadosCorrigirLocalizacao,
   autor: Autor,
   agora: Date,
+  /** `relogio: false`: corrige a posição registrada pela carga do inventário por erro na tabela de endereços (dado de origem, não movimento físico). */
+  opcoes: { relogio?: boolean } = {},
 ): Promise<ResultadoMovimento> {
   const original = await tx.eventoLocalizacao.findFirst({
     where: { id: eventoId, escopoId: escopo.id },
@@ -294,7 +302,7 @@ export async function corrigirMovimento(
     destino = await conferirDestino(tx, escopo.id, dados.destinationPositionId, dados.confirmedPositionCode ?? '', palete.id);
   }
   await gravarPosicao(tx, palete, destino);
-  const id = await registrarLocalizacao(tx, escopo.id, palete, 'CORRECAO', destino, dados.reason, autor, agora, original.id);
+  const id = await registrarLocalizacao(tx, escopo.id, palete, 'CORRECAO', destino, dados.reason, autor, agora, original.id, opcoes.relogio ?? true);
   await registrarEvento(tx, {
     acao: 'MOVIMENTO_CORRIGIDO',
     resultado: 'SUCESSO',
@@ -305,7 +313,7 @@ export async function corrigirMovimento(
     detalhes: { codigo: palete.codigo, de: palete.posicao_codigo, para: destino?.codigo ?? null, motivo: dados.reason, evento: id, corrigido: original.id },
     requestId: autor.requestId,
   });
-  return { event: await lerEventoLocalizacao(tx, escopo.id, id), pallet: await detalhe(tx, escopo, palete.id) };
+  return { event: await lerEventoLocalizacao(tx, escopo.id, id), pallet: await detalhe(tx, escopo, palete.id, agora) };
 }
 
 /**
@@ -365,7 +373,7 @@ export async function retirarPaleteVazio(
     detalhes: { codigo: palete.codigo, de: palete.posicao_codigo, motivo: dados.reason, evento: id },
     requestId: autor.requestId,
   });
-  return { event: await lerEventoLocalizacao(tx, escopo.id, id), pallet: await detalhe(tx, escopo, palete.id) };
+  return { event: await lerEventoLocalizacao(tx, escopo.id, id), pallet: await detalhe(tx, escopo, palete.id, agora) };
 }
 
 // ---------- Transferência ----------
@@ -510,6 +518,9 @@ async function gravarTransferencia(
     agora,
     linhas: plano.linhas,
   });
+  // Material saiu de um palete e entrou no outro: os dois reiniciam a contagem de 20 dias.
+  await registrarMovimentacaoRelevante(tx, escopo.id, [de.id], tipo === 'TRANSFERENCIA' ? 'TRANSFERENCIA_ENVIADA' : 'CORRECAO_TRANSFERENCIA', agora);
+  await registrarMovimentacaoRelevante(tx, escopo.id, [para.id], tipo === 'TRANSFERENCIA' ? 'TRANSFERENCIA_RECEBIDA' : 'CORRECAO_TRANSFERENCIA', agora);
   const notasVinculo =
     partes.length === 0
       ? []
@@ -542,7 +553,7 @@ async function gravarTransferencia(
   const notas = [...(await avisos(tx, escopo.id, de, para, plano)), ...notasVinculo];
   const [evento] = await lerEventos(tx, escopo.id, { eventoId });
   if (!evento) throw new Error('Evento recém-gravado não encontrado.');
-  return { event: evento, source: await detalhe(tx, escopo, de.id), destination: await detalhe(tx, escopo, para.id), notes: notas };
+  return { event: evento, source: await detalhe(tx, escopo, de.id, agora), destination: await detalhe(tx, escopo, para.id, agora), notes: notas };
 }
 
 /**

@@ -1,18 +1,21 @@
-import type { Permissao, Sessao } from '@praca-reversa/contracts';
+import type { Sessao } from '@praca-reversa/contracts';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { TEXTO_REDE, useConexao, type EstadoRede } from '../api/conexao';
 import { pendente, useIncertas } from '../api/incertas';
 import type { Carga } from '../api/use-recurso';
 import { instalar, useInstalacao } from '../pwa/instalacao';
 import type { Navegar, Rota } from '../rotas';
+import { ITENS_MENU } from './paginas';
+import { registrarSlotPesquisa } from './slot-pesquisa';
 import { formatarHora } from '../utils/datas';
 import { ROTULOS_PERFIL } from '../sessao/perfis';
 import { IconeAtualizar } from './Icones';
+import { SeletorTema } from './SeletorTema';
 import { AjudaTarefa } from '../features/ajuda/AjudaTarefa';
 import { useContextoAjuda } from '../features/ajuda/estado';
 import type { IdTarefa } from '../features/ajuda/tarefas';
 
-function Marca() {
+export function Marca() {
   return (
     <svg className="marca-icone" viewBox="0 0 512 512" width="32" height="32" aria-hidden="true" focusable="false">
       <rect width="512" height="512" rx="96" fill="#D40511" />
@@ -30,70 +33,26 @@ function Marca() {
 interface PropsCabecalho {
   sessao: Sessao | null;
   rota: Rota;
+  /** Computador com menu lateral: a marca fica no menu e o cabeçalho mostra a seção. */
+  barraLateral?: boolean;
+  /** Título e descrição curta da seção atual. */
+  secao?: { titulo: string; descricao: string } | null;
+  /** Espaço da pesquisa em destaque (mapa da praça, computador). */
+  pesquisa?: boolean;
+  /** Ação principal da seção (ex.: "Receber palete" no mapa). */
+  acaoPrincipal?: ReactNode;
   aoNavegar: Navegar;
   aoTrocarEscopo: (escopoId: string) => Promise<string | null>;
   aoSair: () => void;
 }
 
-interface ItemMenu {
-  rotulo: string;
-  rota: Rota;
-  /** Basta uma das permissões. */
-  permissoes: readonly Permissao[];
-  ativo: (rota: Rota) => boolean;
-}
 
-/** Páginas do menu da conta, exibidas conforme as permissões do escopo ativo. */
-const ITENS_MENU: readonly ItemMenu[] = [
-  { rotulo: 'Mapa da praça', rota: { tipo: 'praca' }, permissoes: ['praca.consultar'], ativo: (r) => r.tipo === 'praca' || r.tipo === 'palete' },
-  { rotulo: 'Cadastrar palete', rota: { tipo: 'novo-palete' }, permissoes: ['palete.cadastrar'], ativo: (r) => r.tipo === 'novo-palete' },
-  { rotulo: 'Produtos', rota: { tipo: 'produtos' }, permissoes: ['produto.consultar'], ativo: (r) => r.tipo === 'produtos' },
-  {
-    rotulo: 'Importações',
-    rota: { tipo: 'importacoes' },
-    permissoes: ['importacao.consultar', 'claim.consultar'],
-    ativo: (r) => r.tipo === 'importacoes' || r.tipo === 'nova-importacao' || r.tipo === 'importacao',
-  },
-  {
-    rotulo: 'Seleção do cliente',
-    rota: { tipo: 'selecoes' },
-    permissoes: ['selecao.consultar'],
-    ativo: (r) => r.tipo === 'selecoes' || r.tipo === 'selecao' || r.tipo === 'inventarios' || r.tipo === 'inventario',
-  },
-  {
-    rotulo: 'Claims',
-    rota: { tipo: 'claims' },
-    permissoes: ['claim.consultar'],
-    ativo: (r) => r.tipo === 'claims' || r.tipo === 'novo-claim' || r.tipo === 'claim' || r.tipo === 'editar-claim',
-  },
-  {
-    rotulo: 'Janelas de devolução',
-    rota: { tipo: 'janelas', mes: null },
-    permissoes: ['janela.consultar'],
-    ativo: (r) => ['janelas', 'nova-janela', 'janela', 'editar-janela', 'reserva', 'expedicao'].includes(r.tipo),
-  },
-  { rotulo: 'Indicadores', rota: { tipo: 'indicadores', inicio: null, fim: null }, permissoes: ['praca.consultar'], ativo: (r) => r.tipo === 'indicadores' },
-  {
-    rotulo: 'Relatórios',
-    rota: { tipo: 'relatorios', parametros: '' },
-    permissoes: ['palete.consultar', 'claim.consultar', 'janela.consultar'],
-    ativo: (r) => r.tipo === 'relatorios',
-  },
-  // Planilha única e proteção dos dados: situação para quem consulta a praça.
-  { rotulo: 'Planilha e proteção', rota: { tipo: 'planilha' }, permissoes: ['praca.consultar'], ativo: (r) => r.tipo === 'planilha' },
-  { rotulo: 'Layout da praça', rota: { tipo: 'layout' }, permissoes: ['praca.consultar'], ativo: (r) => r.tipo === 'layout' },
-  { rotulo: 'Administração de acesso', rota: { tipo: 'acesso' }, permissoes: ['acesso.administrar'], ativo: (r) => r.tipo === 'acesso' },
-  // Sem dados da operação: disponível para todos (etapa 09).
-  { rotulo: 'Aplicativo e aparelho', rota: { tipo: 'aplicativo' }, permissoes: [], ativo: (r) => r.tipo === 'aplicativo' },
-  // Etapa 10: tutorial e guias por tarefa.
-  { rotulo: 'Ajuda e tutorial', rota: { tipo: 'ajuda', guia: null }, permissoes: [], ativo: (r) => r.tipo === 'ajuda' },
-];
 
 function classeRede(rede: EstadoRede): 'ok' | 'verificando' | 'erro' {
   return rede === 'conectado' ? 'ok' : rede === 'verificando' ? 'verificando' : 'erro';
 }
 
-export function Cabecalho({ sessao, rota, aoNavegar, aoTrocarEscopo, aoSair }: PropsCabecalho) {
+export function Cabecalho({ sessao, rota, barraLateral = false, secao = null, pesquisa = false, acaoPrincipal = null, aoNavegar, aoTrocarEscopo, aoSair }: PropsCabecalho) {
   const { rede } = useConexao();
   const emConfirmacao = useIncertas().filter(pendente).length;
   const instalacao = useInstalacao();
@@ -121,20 +80,25 @@ export function Cabecalho({ sessao, rota, aoNavegar, aoTrocarEscopo, aoSair }: P
     : [];
 
   return (
-    <header className="topo">
+    <header className={barraLateral ? 'topo topo--com-barra' : 'topo'}>
       <div className="marca">
-        <Marca />
-        <h1 className="marca-nome">Praça Reversa</h1>
+        {!barraLateral && <Marca />}
+        {secao !== null ? (
+          <div className="topo-secao">
+            <h1 className="topo-titulo">{secao.titulo}</h1>
+            {secao.descricao !== '' && <p className="topo-descricao">{secao.descricao}</p>}
+          </div>
+        ) : (
+          <h1 className="marca-nome">Praça Reversa</h1>
+        )}
       </div>
-      {demo && (
-        <span className="selo-demo" data-testid="selo-demo" data-tutorial="ambiente">
-          Demonstração
-        </span>
-      )}
-      <p className={`status-api status-api--${classeRede(rede)}`} role="status" data-testid="status-api" data-rede={rede}>
+      {pesquisa && <div className="topo-pesquisa" ref={registrarSlotPesquisa} />}
+      {demo && <IndicadorDemo />}
+      <p className={`status-api status-api--${classeRede(rede)}`} role="status" data-testid="status-api" data-rede={rede} title={TEXTO_REDE[rede]}>
         <span className="status-ponto" aria-hidden="true" />
-        {TEXTO_REDE[rede]}
+        <span className="status-texto">{TEXTO_REDE[rede]}</span>
       </p>
+      {acaoPrincipal}
       {emConfirmacao > 0 && (
         <span className="selo-confirmacao" role="status" data-testid="selo-em-confirmacao">
           Em confirmação ({emConfirmacao})
@@ -170,6 +134,9 @@ export function Cabecalho({ sessao, rota, aoNavegar, aoTrocarEscopo, aoSair }: P
           }}
         >
           <summary>
+            <span className="menu-conta-avatar" aria-hidden="true">
+              {sessao.user.name.trim().charAt(0).toUpperCase()}
+            </span>
             <span className="menu-conta-rotulo">Menu</span>
             <span className="menu-conta-nome">{sessao.user.name}</span>
             <span className="menu-conta-escopo">{sessao.activeScope?.name ?? 'Sem escopo ativo'}</span>
@@ -212,8 +179,13 @@ export function Cabecalho({ sessao, rota, aoNavegar, aoTrocarEscopo, aoSair }: P
                 {erroEscopo}
               </p>
             )}
+            <div className="menu-conta-tema">
+              <p className="menu-conta-grupo">Tema da tela</p>
+              <SeletorTema />
+            </div>
             {itens.length > 0 && (
               <nav className="menu-conta-paginas" aria-label="Páginas">
+                <p className="menu-conta-grupo">Todas as páginas</p>
                 {itens.map((item) => (
                   <button
                     key={item.rotulo}
@@ -259,14 +231,43 @@ export function Cabecalho({ sessao, rota, aoNavegar, aoTrocarEscopo, aoSair }: P
   );
 }
 
-/** Faixa permanente enquanto o escopo ativo for de demonstração. */
-export function AvisoDemo() {
+/**
+ * Escopo de demonstração (etapa 2): indicador compacto no cabeçalho, sempre
+ * visível enquanto o escopo for fictício; a explicação abre ao tocar (no lugar
+ * da faixa larga que se repetia em todas as páginas).
+ */
+function IndicadorDemo() {
+  const ref = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const aoTocar = (evento: PointerEvent) => {
+      const el = ref.current;
+      if (el?.open && evento.target instanceof Node && !el.contains(evento.target)) el.open = false;
+    };
+    document.addEventListener('pointerdown', aoTocar);
+    return () => {
+      document.removeEventListener('pointerdown', aoTocar);
+    };
+  }, []);
   return (
-    <div className="aviso-demo" role="note" data-testid="aviso-demo">
-      <strong>Modo demonstração.</strong>{' '}
-      <span>Escopo com layout e paletes fictícios; não representam o estoque DHL / L’Oréal.</span>{' '}
-      <span className="aviso-demo-extra">Cadastros feitos aqui também são fictícios. Navegar no mapa não altera posições nem estoque.</span>
-    </div>
+    <details
+      ref={ref}
+      className="indicador-demo"
+      data-tutorial="ambiente"
+      onKeyDown={(evento) => {
+        if (evento.key === 'Escape' && ref.current?.open) {
+          ref.current.open = false;
+          ref.current.querySelector('summary')?.focus();
+        }
+      }}
+    >
+      <summary className="selo-demo" data-testid="selo-demo" title="Dados fictícios: toque para ver o que isso significa">
+        Demonstração
+      </summary>
+      <div className="indicador-demo-explicacao" role="note" data-testid="aviso-demo">
+        <strong>Modo demonstração.</strong> Escopo com layout e paletes fictícios; não representam o estoque DHL / L’Oréal. Cadastros feitos aqui
+        também são fictícios. Navegar no mapa não altera posições nem estoque.
+      </div>
+    </details>
   );
 }
 

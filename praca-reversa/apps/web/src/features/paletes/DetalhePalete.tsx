@@ -1,17 +1,20 @@
-import { API_PREFIXO, PaleteDetalheSchema, compararQuantidades, type PaleteDetalhe, type PaleteResumo, type Permissao } from '@praca-reversa/contracts';
+import { API_PREFIXO, PaleteDetalheSchema, compararQuantidades, subtrairQuantidades, type PaleteDetalhe, type PaleteResumo, type Permissao } from '@praca-reversa/contracts';
 import { useState, type Ref } from 'react';
 import { ehConflitoDeVersao, useChaves } from '../../api/chaves';
 import { enviarJson, mensagemDeFalha } from '../../api/cliente';
 import type { Carga } from '../../api/use-recurso';
-import { IconeAlvo, IconeAtualizar, IconeImprimir, IconeVoltar } from '../../components/Icones';
+import { IconeAlvo, IconeArquivo, IconeAtualizar, IconeImprimir, IconeVoltar } from '../../components/Icones';
 import type { AcaoPalete } from '../../rotas';
 import { MensagemAcao } from '../../components/Moldura';
-import { SeloConferencia, SeloLiberacao } from '../../components/Selos';
+import { SeloConferenciaExibida, SeloLiberacao } from '../../components/Selos';
 import { formatarDataHora } from '../../utils/datas';
+import { formatarQuantidade } from '../../utils/numeros';
 import { apresentarConteudo, type ApresentacaoConteudo, type ContagemApresentada, type LinhaConteudo } from './conteudo';
 import { ROTULOS_CONFERENCIA, ROTULOS_FLUXO } from './estados';
+import { PrazoReconferencia } from './PrazoReconferencia';
 import { DocumentosInformados } from './DocumentosInformados';
 import { SecaoConferencia } from './SecaoConferencia';
+import { ConteudoDoPalete } from '../conteudos/ConteudoDoPalete';
 import { SecaoLiberacao } from '../janelas/SecaoLiberacao';
 
 interface Props {
@@ -24,15 +27,19 @@ interface Props {
   permissoes: readonly Permissao[];
   tituloRef: Ref<HTMLHeadingElement>;
   aoCentralizar: () => void;
+  /** Volta ao resumo do palete (a seleção continua). Só no computador; no celular é "Voltar ao mapa". */
+  aoRecolher?: () => void;
   aoFechar: () => void;
   aoRecarregar: () => void;
   aoImprimir: () => void;
   /** Abre a tela da conferência (rota /conferencias/<id>). */
   aoAbrirConferencia: (id: string) => void;
-  /** Abre mover, transferir ou histórico do palete (rotas /paletes/<id>/…). */
+  /** Abre mover, transferir, histórico ou a importação da bipagem do palete (rotas /paletes/<id>/…). */
   aoMovimentar: (acao: AcaoPalete) => void;
   /** Depois de uma gravação confirmada: recarregar detalhe, mapa e lista. */
   aoAlterado: () => void;
+  /** Dentro da janela do palete (etapa 3): sem o cabeçalho próprio (título, endereço e ações ficam na janela). */
+  embutido?: boolean;
 }
 
 const ROTULOS_ORIGEM_CODIGO = {
@@ -202,6 +209,57 @@ function Conteudo({ apresentacao }: { apresentacao: ApresentacaoConteudo }) {
 }
 
 type Mensagem = { tipo: 'ok' | 'erro' | 'conflito'; texto: string } | null;
+
+/**
+ * Separação para agenda (front aprovado): o que foi solicitado (reservado para
+ * uma janela) e o que permanece no palete, por item do saldo validado. Consultar
+ * não altera nada; reserva não é saída e não libera a posição.
+ */
+function SecaoAgenda({ detalhe }: { detalhe: PaleteDetalhe }) {
+  const itens = detalhe.currentItems ?? [];
+  const solicitados = itens.filter((i) => compararQuantidades(i.reserved, '0') > 0);
+  return (
+    <section className="detalhe-secao" aria-labelledby="secao-agenda" data-testid="secao-agenda">
+      <h3 id="secao-agenda">Separação para agenda</h3>
+      {detalhe.currentItems === null ? (
+        <p className="bloco-nota">Sem saldo validado: o pedido da agenda por produto ainda não pode ser separado neste palete.</p>
+      ) : solicitados.length === 0 ? (
+        <p className="bloco-nota">Nenhum conteúdo deste palete foi solicitado para agenda.</p>
+      ) : (
+        <div className="tabela-documentos-rolagem">
+          <table className="tabela-documentos">
+            <thead>
+              <tr>
+                <th scope="col">Produto</th>
+                <th scope="col">Solicitado para separação</th>
+                <th scope="col">Permanece no palete</th>
+              </tr>
+            </thead>
+            <tbody>
+              {solicitados.map((i) => (
+                <tr key={i.segmentId} data-testid="linha-agenda">
+                  <th scope="row">
+                    {i.sku} · {i.description}
+                  </th>
+                  <td>
+                    {formatarQuantidade(i.reserved)} {i.unit}
+                  </td>
+                  <td>
+                    {formatarQuantidade(subtrairQuantidades(i.quantity, i.reserved))} {i.unit}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="campo-ajuda">
+        Reserva para agenda não é saída: o material e a posição continuam no palete até a saída física confirmada. Pedido por nota ou Delivery depende do arquivo da
+        agenda do cliente (formato ainda não recebido).
+      </p>
+    </section>
+  );
+}
 
 /**
  * Ações de movimentação, conforme permissão. Ficam bloqueadas (com o motivo)
@@ -412,20 +470,26 @@ export function DetalhePalete({
   permissoes,
   tituloRef,
   aoCentralizar,
+  aoRecolher,
   aoFechar,
   aoRecarregar,
   aoImprimir,
   aoAbrirConferencia,
   aoMovimentar,
   aoAlterado,
+  embutido = false,
 }: Props) {
   const detalhe = carga?.estado === 'pronto' && carga.dados.id === resumo.id ? carga.dados : null;
   const carregando = detalhe === null && carga?.estado !== 'erro';
   const arquivado = detalhe?.archived ?? null;
   const pode = (p: Permissao) => permissoes.includes(p);
+  // Prazo de reconferência (20 dias): o detalhe traz quem fez a última conferência completa.
+  // A situação vem da praça (atualizada periodicamente); o detalhe acrescenta quem fez a última conferência completa.
+  const prazo = resumo.reconference === null ? null : { ...resumo.reconference, lastFullCountBy: detalhe?.reconference?.lastFullCountBy ?? resumo.reconference.lastFullCountBy };
 
   return (
     <article className="detalhe" aria-labelledby="detalhe-titulo" data-testid="detalhe" data-palete-id={resumo.id}>
+      {!embutido && (
       <header className="detalhe-topo" data-tutorial="identificacao-palete">
         {compacto && (
           <button type="button" className="botao-voltar" onClick={aoFechar}>
@@ -475,13 +539,72 @@ export function DetalhePalete({
               Imprimir etiqueta
             </button>
           )}
+          {pode('conferencia.registrar') && arquivado === null && resumo.flowState !== 'EXPEDIDO' && (
+            <button
+              type="button"
+              className="botao-primario"
+              onClick={() => {
+                aoMovimentar('volumes');
+              }}
+              data-testid="acao-volumes"
+            >
+              Conferir volumes
+            </button>
+          )}
+          {pode('palete.cadastrar') && arquivado === null && resumo.flowState !== 'EXPEDIDO' && (
+            <button
+              type="button"
+              className="botao-secundario"
+              onClick={() => {
+                aoMovimentar('bipagem');
+              }}
+              data-testid="acao-bipagem"
+            >
+              <IconeArquivo />
+              Importar bipagem
+            </button>
+          )}
+          {!compacto && aoRecolher !== undefined && (
+            <button type="button" className="botao-secundario" onClick={aoRecolher} data-testid="recolher-detalhe">
+              Recolher detalhes
+            </button>
+          )}
           {!compacto && (
-            <button type="button" className="botao-link" onClick={aoFechar}>
+            <button type="button" className="botao-link" onClick={aoFechar} data-testid="fechar-selecao">
               Fechar
             </button>
           )}
         </div>
       </header>
+      )}
+
+      {embutido && (
+        // Na janela: o título e as ações ficam no topo dela; aqui ficam a localização detalhada e o ID permanente.
+        <section className="detalhe-secao" aria-labelledby="secao-identificacao" data-testid="secao-identificacao">
+          <h3 id="secao-identificacao">Identificação</h3>
+          <p className="detalhe-local">
+            {resumo.positionCode !== null ? (
+              <>
+                Posição <strong>{resumo.positionCode}</strong>
+                {local !== null && <> · {local}</>}
+                <span className="detalhe-provisorio"> (código provisório)</span>
+              </>
+            ) : arquivado ? (
+              <strong>Sem posição: cadastro arquivado</strong>
+            ) : resumo.informedAddress ? (
+              <span data-testid="endereco-informado">
+                Endereço <strong>{resumo.informedAddress}</strong> (informado no inventário) ·{' '}
+                <strong className="detalhe-mapa-pendente">Posição no mapa pendente</strong>
+              </span>
+            ) : (
+              <strong>Localização pendente: sem posição registrada</strong>
+            )}
+          </p>
+          <p className="detalhe-id">
+            ID permanente <code>{resumo.id}</code>
+          </p>
+        </section>
+      )}
 
       {arquivado !== null && (
         <div className="aviso-arquivado" role="note" data-testid="palete-arquivado">
@@ -490,13 +613,20 @@ export function DetalhePalete({
         </div>
       )}
 
+      {prazo && (
+        <PrazoReconferencia
+          r={prazo}
+          aoConferir={pode('conferencia.registrar') && arquivado === null && resumo.flowState !== 'EXPEDIDO' ? () => { aoMovimentar('volumes'); } : null}
+        />
+      )}
+
       <section className="detalhe-secao" aria-labelledby="secao-situacao">
         <h3 id="secao-situacao">Situação</h3>
         <dl className="situacao">
           <div>
             <dt>Conferência</dt>
             <dd>
-              <SeloConferencia estado={resumo.countState} />
+              <SeloConferenciaExibida palete={resumo} />
             </dd>
           </div>
           <div>
@@ -532,6 +662,18 @@ export function DetalhePalete({
           <Conteudo apresentacao={apresentarConteudo(detalhe)} />
         )}
       </section>
+
+      {detalhe !== null && <SecaoAgenda detalhe={detalhe} />}
+
+      {detalhe !== null && (
+        <ConteudoDoPalete
+          key={`conteudo-${detalhe.id}:${detalhe.updatedAt}`}
+          paleteId={detalhe.id}
+          versao={0}
+          aoConferir={arquivado === null ? () => { aoMovimentar('volumes'); } : null}
+          aoRegistrar={null}
+        />
+      )}
 
       {detalhe !== null && <DocumentosInformados key={`docs-${detalhe.id}:${detalhe.updatedAt}`} paleteId={detalhe.id} versao={0} podeEditar={pode('palete.cadastrar') && arquivado === null} />}
 

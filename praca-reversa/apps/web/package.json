@@ -11,6 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "5.3.0",
     "@praca-reversa/contracts": "0.1.0",
     "barcode-detector": "3.2.2",
     "leaflet": "1.9.4",

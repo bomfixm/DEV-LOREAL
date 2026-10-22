@@ -6,6 +6,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 /** API usada pelo proxy de desenvolvimento e do preview (mesma origem para a interface). */
 const API_DESTINO = process.env.API_DESTINO ?? 'http://127.0.0.1:3000';
+/** Host preservado (sem changeOrigin): a API confere Origin × Host no login e nas demais alterações. */
+const PROXY_API = { target: API_DESTINO, changeOrigin: false };
 
 /**
  * Caminho-base da instalação (etapa 09): o mesmo CAMINHO_BASE do servidor,
@@ -81,13 +83,13 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 5173,
     strictPort: true,
-    proxy: { [`${BASE}api`]: API_DESTINO },
+    proxy: { [`${BASE}api`]: PROXY_API },
   },
   preview: {
     host: '127.0.0.1',
     port: 4173,
     strictPort: true,
-    proxy: { [`${BASE}api`]: API_DESTINO },
+    proxy: { [`${BASE}api`]: PROXY_API },
   },
   build: {
     sourcemap: true,

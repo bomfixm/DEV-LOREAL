@@ -208,6 +208,16 @@ O pacote preparado `Importacao-Praca-Reversa.zip` (schema `praca-reversa.importa
 | Cidade destino e produto na caixa | Vazios na carga; preenchidos no aplicativo. Não inferir cidade do remetente. |
 | Posição no mapa | Sentido confirmado (menor número no topo, ímpares à esquerda nas fileiras duplas). **Faltam o código inicial/final de cada faixa** para confirmar as sequências; até lá os 123 paletes ficam com o endereço informado e "posição no mapa pendente". Depois de confirmar, rodar a carga de novo registra as posições. |
 
+### Bipagem do recebimento — respondido pela exportação real (19 out. 2026)
+
+As perguntas de 8 out. foram respondidas pelo arquivo real e pelo pedido `01-IMPORTACAO-BIPAGEM.txt` (contrato em `IMPORTACAO-BIPAGEM.md`, D249–D252): aba `Etiquetas_1`, cabeçalho na linha 1, uma linha por documento (Tipo + Número + CNPJ Remetente), **Lidos** = volumes daquele documento no palete (Leituras não é usada), sem etiqueta individual, sem palete/endereço no arquivo (o destino é o palete escolhido), sem SKU nem produto, sem chave da NF-e. "Última Leitura" existe, mas não é usada como data física.
+
+| Ainda a confirmar com a operação | Hoje |
+| --- | --- |
+| Uma exportação pode misturar volumes de mais de um palete? | Não tratado: o arquivo inteiro vai para o palete escolhido. |
+| Tipos além de NF-e e Minuta (NFD, CT-e…) aparecem na bipagem? | NF-e, Minuta e NFD aceitos; outro tipo = erro na linha (nada é adivinhado). |
+| O operador deve poder importar ou só o supervisor? | Operador e supervisor (`palete.cadastrar`). |
+
 ### Endereços reais por faixa (a confirmar no levantamento)
 
 Nomenclatura confirmada: FB01–FB06 = Fileiras 11–16, FB07 = GR. Pendente por faixa: **endereço inicial, final e sentido** (P01 no topo do desenho recebe o primeiro ou o último código?) e lacunas/numerações próprias. Sequências **observadas no modelo** (pista para o levantamento, não confirmadas):
@@ -222,6 +232,24 @@ Nomenclatura confirmada: FB01–FB06 = Fileiras 11–16, FB07 = GR. Pendente por
 | Referência visual dos lados | — | de que ponto da praça se olha para "esquerda/direita" na vista de referência |
 
 Variações de escrita observadas e tratadas pela normalização: "15- A120", "15 - A 120". Não corrigidas (ficam para resolução): "14 - 130" (sem letra), "A120" (sem fileira).
+
+**Respondido em 14 out. 2026 (D241–D243):** Rua 11 = A42–A58 (A42 no topo); Grade = GR1 embaixo até GR15 em cima; Rua 12 segue a planilha a partir de A79 (esquerda A79–A89 e A103–A123 ímpares; direita A92–A124 pares). As três perguntas abaixo estão resolvidas; 182 de 184 paletes com posição (os 2 restantes são dos endereços que saíram da planilha de 13/10: 13 - A102 e 15 - A125). A Grade pode mudar fisicamente depois (o usuário fará a movimentação pelo aplicativo).
+
+**Atualização de 13 out. 2026 (mapa anotado pelo usuário, D226–D227):** nomes Rua 11…Rua 14, **Rua 16 = FB05**, **Rua 15 = FB06** (a Rua 16 vem antes da Rua 15), Grade (GR) = FB07. Confirmadas no escopo real: Ruas 12, 13 e 14 (esquerda A101–A133 ímpares, direita A102–A134 pares, do topo para baixo) e Ruas 16 e 15 (A101–A129 / A102–A130). **Perguntas em aberto (só o dado que falta):**
+
+| Faixa | Divergência | Pergunta |
+| --- | --- | --- |
+| Rua 11 (FB01, 17 posições) | Anotação: A42 no topo e A68 embaixo, sem o passo (de 1 em 1 = 27 endereços; de 2 em 2 = 14). A planilha tem A42–A58 (17, ímpares e pares). | A Rua 11 vai de A42 a A58 de 1 em 1 (17 posições, A42 no topo)? Se vai até A68, quais posições do desenho faltam? |
+| Grade (FB07, 15 posições) | Anotação lida como GR1–GR13, GR1 embaixo. O desenho tem 15 posições e a planilha tem GR14 e GR15. | A Grade vai de GR1 (embaixo) a GR15 (em cima)? Se só até GR13, onde ficam GR14 e GR15? |
+| Rua 12 (FB02) | A planilha também tem A79, A81, A83, A85, A87, A89, A92, A94, A98 e A100, fora da faixa A101–A134 anotada (10 paletes ficam com posição no mapa pendente). | Esses endereços existem em outro lugar da praça (outra faixa/área) ou são escrita a corrigir na planilha? |
+
+### Painéis DHL e do cliente (13 out. 2026) — a confirmar
+
+- **Conta real do cliente**: quem da L’Oréal acessa e com qual login. Hoje existe só a conta de **teste** isolada `cliente.teste.loreal` (perfil `CLIENTE_CONSULTA`, escopo real local; senha em `.dados/teste-local/credenciais.md`) — desativar quando a conta real for criada. Cadastro: **Administração de acesso** → novo usuário → perfil "Cliente (consulta)" no escopo da operação (nunca supervisor/administrador). Nenhum convite foi enviado.
+- **Meta da janela**: a L’Oréal informa a meta por janela em volumes (ex.: 8.000) por e-mail/arquivo? Com qual referência e versão? Hoje o supervisor registra a meta na tela "Volumes da janela"; nenhuma janela nem meta foi criada no banco real.
+- **Unidade da seleção**: a planilha de seleção do cliente traz quantidade em "volumes" (VOL/VOLUMES)? Outras unidades (caixas, peças) não são convertidas e ficam "Não informado".
+- **Retorno físico por volumes**: quando volume expedido voltar, como registrar (hoje só o retorno da etapa 08, por SKU; o estorno de expedição é correção de registro, não retorno).
+- **Palete esvaziado pela expedição por volumes**: arquivar/retirar segue o fluxo existente; confirmar se a operação quer aviso automático.
 
 ## Suposições usadas somente na demonstração (etapas 01 a 09)
 

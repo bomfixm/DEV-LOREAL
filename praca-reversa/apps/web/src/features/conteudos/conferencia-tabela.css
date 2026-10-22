@@ -1,0 +1,172 @@
+/* Conferência de volumes em tabela (21 out. 2026): uma tabela com rolagem
+   própria e cabeçalho fixo; no celular, cada linha vira uma ficha. */
+
+.conf-tabela {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.conf-resumo p {
+  margin: 0;
+}
+
+.conf-modo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+
+.conf-modo label,
+.conf-check,
+.conf-declaracao {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+
+.conf-ferramentas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 16px;
+}
+
+.conf-filtro {
+  flex: 1 1 220px;
+  margin: 0;
+}
+
+.conf-rolagem {
+  max-height: min(52vh, 560px);
+  overflow: auto;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--superficie);
+}
+
+.conf-grade {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.conf-grade th,
+.conf-grade td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--borda);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.conf-grade thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--superficie);
+  box-shadow: 0 1px 0 var(--borda);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.conf-grade .numero {
+  text-align: right;
+}
+
+.conf-grade .conf-col-marca {
+  width: 36px;
+}
+
+.conf-remetente {
+  max-width: 260px;
+}
+
+.conf-contado {
+  width: 84px;
+  min-height: 36px;
+  text-align: right;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.conf-linha--diferenca {
+  background: var(--tom-aviso-fundo, #fff4dc);
+}
+
+.conf-totais {
+  margin: 0;
+  font-weight: 600;
+}
+
+.conf-acoes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--borda);
+}
+
+.conf-declaracao {
+  font-weight: 600;
+}
+
+.estado-erro-texto {
+  color: var(--vermelho);
+  font-weight: 700;
+}
+
+.conf-janela .janela {
+  width: min(1100px, calc(100vw - 32px));
+}
+
+@media (max-width: 720px) {
+  .conf-rolagem {
+    max-height: none;
+    border: none;
+    background: transparent;
+  }
+
+  .conf-grade thead {
+    display: none;
+  }
+
+  .conf-grade,
+  .conf-grade tbody,
+  .conf-grade tr,
+  .conf-grade td {
+    display: block;
+    width: 100%;
+  }
+
+  .conf-grade tr {
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--borda);
+    border-radius: 8px;
+    background: var(--superficie);
+  }
+
+  .conf-grade td {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
+    border: none;
+    text-align: right;
+  }
+
+  .conf-grade td::before {
+    content: attr(data-rotulo);
+    color: var(--texto-suave, #5b6470);
+    text-align: left;
+  }
+
+  .conf-remetente {
+    max-width: none;
+  }
+}

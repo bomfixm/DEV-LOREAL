@@ -1,0 +1,134 @@
+/* Importar bipagem "Etiquetas" (21 out. 2026): mapa para escolher o destino,
+   notas repetidas lado a lado e o resumo do destino. Cores de situação sempre
+   acompanhadas do texto. */
+
+.bipagem-mapa-area {
+  position: relative;
+  height: min(60vh, 520px);
+  min-height: 320px;
+  overflow: hidden;
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  background: var(--fundo);
+}
+
+.bipagem-mapa-area > .mapa,
+.bipagem-mapa-area > div:first-child {
+  height: 100%;
+}
+
+.bipagem-mapa-zoom {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bipagem-situacao {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.bipagem-situacao--NOVO {
+  background: color-mix(in srgb, var(--verde, #2e7d32) 14%, transparent);
+}
+
+.bipagem-situacao--IMPORTAR_SEPARADO {
+  background: color-mix(in srgb, var(--azul, #1565c0) 14%, transparent);
+}
+
+.bipagem-situacao--COINCIDENTE {
+  background: color-mix(in srgb, var(--amarelo, #ffcc00) 35%, transparent);
+}
+
+.bipagem-situacao--REVALIDADO {
+  background: color-mix(in srgb, var(--tinta-suave, #666) 16%, transparent);
+}
+
+.bipagem-tabela tfoot th,
+.bipagem-tabela tfoot td {
+  border-top: 2px solid var(--borda);
+  font-weight: 700;
+}
+
+.bipagem-mais {
+  margin-top: 12px;
+}
+
+.bipagem-mais > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.bipagem-coincidencias {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.bipagem-coincidencias h4 {
+  margin: 0;
+}
+
+.bipagem-coincidencia {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+}
+
+.bipagem-coincidencia legend {
+  padding: 0 6px;
+  font-weight: 700;
+}
+
+.bipagem-lado-a-lado {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.bipagem-lado-a-lado p {
+  margin: 0 0 4px;
+}
+
+.bipagem-lado-rotulo {
+  color: var(--tinta-suave);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bipagem-coincidencia .opcao {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.bipagem-destino-dados {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px 20px;
+  margin: 8px 0;
+}
+
+.bipagem-destino-dados dt {
+  color: var(--tinta-suave);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.bipagem-destino-dados dd {
+  margin: 0;
+  font-weight: 700;
+}

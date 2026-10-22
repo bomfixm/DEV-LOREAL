@@ -47,6 +47,12 @@ export const CodigoErroSchema = z.enum([
   'PREVIA_DESATUALIZADA',
   /** Há linhas inválidas ou conflitantes: a confirmação fica bloqueada. */
   'IMPORTACAO_BLOQUEADA',
+  /** O conjunto de conteúdos do palete mudou depois de aberto (conferência ou correção): revisar antes de repetir. */
+  'CONJUNTO_ALTERADO',
+  /** Destino com conteúdo: confirmar antes de acrescentar (conteúdo e número do destino preservados). */
+  'CONFIRMAR_DESTINO',
+  /** Conteúdo com volumes separados ou expedidos numa janela: tratar na janela antes de corrigir. */
+  'JANELA_VINCULADA',
   /** O mesmo arquivo já foi confirmado em outro lote. */
   'ARQUIVO_JA_IMPORTADO',
   /** Validação de recuperação recusada por regra (produto, unidade, lote, origem, condição, base). */
@@ -73,6 +79,12 @@ export const CodigoErroSchema = z.enum([
   'SEQUENCIA_INCOMPATIVEL',
   /** A conciliação/proposta revisada mudou (movimento, saldo, reserva ou nova versão): revisar de novo. */
   'CONCILIACAO_DESATUALIZADA',
+  /** Seleção cliente — teste: o palete inteiro e notas dele ao mesmo tempo (os volumes contariam duas vezes). */
+  'SELECAO_DUPLICADA',
+  /** Seleção cliente — teste: o estoque consultado mudou desde a escolha; revisar antes de enviar. */
+  'DADOS_ALTERADOS',
+  /** Seleção cliente — teste: solicitação enviada não é editada (só com pedido de alteração aprovado). */
+  'SOLICITACAO_BLOQUEADA',
   'BANCO_INDISPONIVEL',
   'ERRO_INTERNO',
 ]);

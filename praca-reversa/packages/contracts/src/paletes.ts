@@ -3,6 +3,8 @@ import { UsuarioResumoSchema } from './acesso.js';
 import { CodigoPaleteSchema, UNIDADE_PECA, UnidadeMedidaSchema, textoIdentificador, textoOpcional } from './codigos.js';
 import { ConferenciaResumoSchema, ContagemObservadaSchema } from './conferencia.js';
 import { FORMATO_QUANTIDADE, QuantidadeSchema } from './decimal.js';
+import { ReconferenciaPaleteSchema } from './reconferencia.js';
+import { ConferenciaVolumesPaleteSchema } from './conferencia-volumes.js';
 import { TipoEventoEstoqueSchema } from './estoque.js';
 import {
   CondicaoMaterialSchema,
@@ -75,6 +77,12 @@ const PaleteResumoBaseSchema = z.object({
    * desenho está pendente. Nunca é uma posição presumida.
    */
   informedAddress: z.string().min(1).nullable().optional(),
+  /** Reconferência após 20 dias sem movimentação; `null` = não se aplica (expedido ou arquivado). */
+  reconference: ReconferenciaPaleteSchema.nullable().default(null),
+  /** Conferência de volumes (não conferido, parcial, conferido, com diferença): separada da ocupação. */
+  volumeCheck: ConferenciaVolumesPaleteSchema.nullable().default(null),
+  /** Identificador legado (ex.: PR-000001) quando o código passou a ser o número operacional. */
+  legacyCode: z.string().min(1).nullable().default(null),
 });
 export type PaleteResumo = z.infer<typeof PaleteResumoBaseSchema>;
 
@@ -210,6 +218,9 @@ export function resumirPalete(palete: PaleteDetalhe): PaleteResumo {
     flowState: palete.flowState,
     pendingReason: palete.pendingReason,
     activeCountId: palete.activeCountId,
+    reconference: palete.reconference,
+    volumeCheck: palete.volumeCheck,
+    legacyCode: palete.legacyCode,
   };
 }
 
@@ -218,6 +229,8 @@ export const LIMITE_MAXIMO_PALETES = 500;
 export const FiltroPaletesSchema = z.object({
   texto: z.string().trim().max(64).optional(),
   conferencia: EstadoConferenciaSchema.optional(),
+  /** "sim": só paletes com reconferência necessária (20 dias), pelo horário do servidor. */
+  reconferencia: z.enum(['sim']).optional(),
   limite: z.coerce.number().int().min(1).max(LIMITE_MAXIMO_PALETES).default(200),
 });
 export type FiltroPaletes = z.infer<typeof FiltroPaletesSchema>;

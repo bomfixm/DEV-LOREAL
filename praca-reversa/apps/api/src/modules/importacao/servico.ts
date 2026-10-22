@@ -16,14 +16,18 @@
  */
 import {
   ACOES_INVENTARIO_APLICAVEIS,
+  ParametrosBipagemSchema,
   ParametrosInventarioSchema,
+  ResumoBipagemSchema,
   ParametrosSelecaoSchema,
   TIPOS_IMPORTACAO,
   camposDoTipo,
   verificarMapeamento,
   type ConfirmarImportacaoSchema,
+  type ParametrosBipagem,
   type ParametrosInventario,
   type ParametrosSelecao,
+  type ResumoBipagem,
   type ConsultaEstrutura,
   type EstruturaArquivo,
   type FormatoArquivo,
@@ -54,6 +58,7 @@ import { registrarEvento } from '../auditoria/registrar.js';
 import { jsonCanonico } from '../idempotencia/executar.js';
 import { ErroArquivo } from './arquivo/erros.js';
 import { detectarFormato, lerTabela, type FormatoTabela, type Tabela } from './arquivo/ler.js';
+import { carregarDestino, classificarBipagem, gravarBipagem, importacoesAnteriores, interpretarBipagem, reconhecerBipagem } from './bipagem.js';
 import { sugerirColunas } from './campos.js';
 import { carregarEstadoClaims, classificarClaims, gravarClaims, interpretarClaims } from './claims.js';
 import { carregarEstadoDevolucoes, classificarDevolucoes, gravarDevolucoes, interpretarDevolucoes } from './devolucoes.js';
@@ -72,12 +77,12 @@ type Limites = LimitesImportacao | LimitesPorTipo;
 const limitesDe = (limites: Limites, tipo: TipoImportacao): LimitesImportacao => (typeof limites === 'function' ? limites(tipo) : limites);
 
 /** Tipos de planilha operacional (inventário e seleção): parâmetros próprios e limites maiores. */
-export const TIPOS_PLANILHA: readonly TipoImportacao[] = ['INVENTARIO', 'SELECAO_CLIENTE'];
+export const TIPOS_PLANILHA: readonly TipoImportacao[] = ['INVENTARIO', 'SELECAO_CLIENTE', 'BIPAGEM'];
 
 /** Parâmetros validados do tipo (`null` nos tipos sem parâmetros). */
-export function parametrosDoTipo(tipo: TipoImportacao, bruto: unknown): ParametrosInventario | ParametrosSelecao | null {
-  if (tipo === 'INVENTARIO' || tipo === 'SELECAO_CLIENTE') {
-    const schema = tipo === 'INVENTARIO' ? ParametrosInventarioSchema : ParametrosSelecaoSchema;
+export function parametrosDoTipo(tipo: TipoImportacao, bruto: unknown): ParametrosInventario | ParametrosSelecao | ParametrosBipagem | null {
+  if (tipo === 'INVENTARIO' || tipo === 'SELECAO_CLIENTE' || tipo === 'BIPAGEM') {
+    const schema = tipo === 'INVENTARIO' ? ParametrosInventarioSchema : tipo === 'SELECAO_CLIENTE' ? ParametrosSelecaoSchema : ParametrosBipagemSchema;
     const r = schema.safeParse(bruto ?? {});
     if (!r.success) {
       const problema = r.error.issues[0];
@@ -89,18 +94,24 @@ export function parametrosDoTipo(tipo: TipoImportacao, bruto: unknown): Parametr
   return null;
 }
 
-/** Resumo da prévia gravado no lote: linhas de texto e bloqueio geral (quando houver). */
+/** Resumo da prévia gravado no lote: linhas de texto, bloqueio geral (quando houver) e, na bipagem, o resumo estruturado. */
 interface ResumoPrevia {
   linhas: string[];
   bloqueio: string | null;
+  bipagem?: ResumoBipagem | null;
 }
 
 function resumoPreviaDe(v: unknown): ResumoPrevia {
   if (typeof v === 'object' && v !== null && 'linhas' in v && Array.isArray((v as ResumoPrevia).linhas)) {
     const r = v as ResumoPrevia;
-    return { linhas: r.linhas.filter((x): x is string => typeof x === 'string'), bloqueio: typeof r.bloqueio === 'string' ? r.bloqueio : null };
+    const bipagem = ResumoBipagemSchema.safeParse((v as { bipagem?: unknown }).bipagem);
+    return {
+      linhas: r.linhas.filter((x): x is string => typeof x === 'string'),
+      bloqueio: typeof r.bloqueio === 'string' ? r.bloqueio : null,
+      bipagem: bipagem.success ? bipagem.data : null,
+    };
   }
-  return { linhas: [], bloqueio: null };
+  return { linhas: [], bloqueio: null, bipagem: null };
 }
 
 export interface Autor {
@@ -119,6 +130,7 @@ const selecaoLote = {
   nomeArquivo: true,
   hashArquivo: true,
   tamanhoBytes: true,
+  paleteId: true,
   opcoes: true,
   separadorDecimal: true,
   colunas: true,
@@ -166,6 +178,7 @@ function resumo(l: LoteSelecionado): LoteResumo {
     confirmedBy: pessoa(l.confirmadoPor),
     discardedAt: l.descartadoEm?.toISOString() ?? null,
     previewVersion: l.versaoPrevia,
+    palletId: l.paleteId,
     counters: {
       total: l.totalLinhas,
       empty: l.linhasVazias,
@@ -190,6 +203,9 @@ function bloqueio(l: LoteSelecionado): string | null {
   if (geral !== null) return geral;
   // Inventário conferido: linhas com pendência ficam registradas como não aplicadas (não bloqueiam o conjunto válido).
   if (l.tipo === 'INVENTARIO') return null;
+  if (l.tipo === 'BIPAGEM' && (l.invalidas > 0 || l.conflitantes > 0 || l.validasNovas === 0)) {
+    return 'Há linhas com erro, notas repetidas aguardando escolha ou nada a acrescentar: veja a prévia.';
+  }
   if (l.invalidas > 0 || l.conflitantes > 0) {
     return `${String(l.invalidas)} linha(s) inválida(s) e ${String(l.conflitantes)} conflitante(s) precisam de correção: corrija o arquivo de origem (ou o mapeamento) e envie de novo.`;
   }
@@ -212,6 +228,7 @@ function detalhe(l: LoteSelecionado, limites: Limites): LoteImportacao {
     blockReason: motivo,
     result: (l.resultado as ResultadoGravacao | null) ?? null,
     limits: limitesDe(limites, l.tipo),
+    palletImport: l.tipo === 'BIPAGEM' ? (resumoPreviaDe(l.resumoPrevia).bipagem ?? null) : null,
   };
 }
 
@@ -301,18 +318,27 @@ export async function registrarEnvio(
   tx: Transacao,
   escopo: Escopo,
   autor: Autor,
-  dados: { tipo: TipoImportacao; nomeArquivo: string; conteudo: Buffer; formato: 'CSV' | 'XLSX'; tabela: Tabela; hash: string },
+  dados: { tipo: TipoImportacao; nomeArquivo: string; conteudo: Buffer; formato: 'CSV' | 'XLSX'; tabela: Tabela; hash: string; paleteId?: string | null },
   limites: Limites,
+  agora: Date = new Date(),
 ): Promise<{ status: number; corpo: ResultadoEnvio }> {
-  const confirmado = await tx.loteImportacao.findFirst({
-    where: { escopoId: escopo.id, tipo: dados.tipo, hashArquivo: dados.hash, situacao: 'CONFIRMADO' },
-    select: selecaoLote,
-  });
+  // Bipagem (21 out.): o lote nasce sem palete — o destino é escolhido no mapa e gravado na confirmação.
+  // O palete aberto (atalho da janela do palete) vira o destino inicial. O mesmo arquivo já importado
+  // não é recusado aqui: a prévia avisa e pede a confirmação de nova operação.
+  const paleteInicial = dados.tipo === 'BIPAGEM' ? (dados.paleteId ?? null) : null;
+  if (paleteInicial !== null) {
+    const palete = await tx.palete.findFirst({ where: { id: paleteInicial, escopoId: escopo.id }, select: { id: true } });
+    if (!palete) throw naoEncontrado('Palete de destino não encontrado neste escopo.');
+  }
+  const confirmado =
+    dados.tipo === 'BIPAGEM'
+      ? null
+      : await tx.loteImportacao.findFirst({ where: { escopoId: escopo.id, tipo: dados.tipo, hashArquivo: dados.hash, situacao: 'CONFIRMADO' }, select: selecaoLote });
   if (confirmado) {
     return { status: 200, corpo: { batch: null, structure: null, alreadyImported: resumo(confirmado), openDuplicates: [] } };
   }
   const abertos = await tx.loteImportacao.findMany({
-    where: { escopoId: escopo.id, tipo: dados.tipo, hashArquivo: dados.hash, situacao: { in: ['AGUARDANDO_MAPEAMENTO', 'PREVIA'] } },
+    where: { escopoId: escopo.id, tipo: dados.tipo, hashArquivo: dados.hash, situacao: { in: ['AGUARDANDO_MAPEAMENTO', 'PREVIA'] }, criadoPorId: dados.tipo === 'BIPAGEM' ? autor.usuarioId : undefined },
     select: { id: true },
     orderBy: { criadoEm: 'asc' },
   });
@@ -327,6 +353,7 @@ export async function registrarEnvio(
       nomeArquivo: dados.nomeArquivo,
       hashArquivo: dados.hash,
       tamanhoBytes: dados.conteudo.length,
+      paleteId: null,
       criadoPorId: autor.usuarioId,
     },
   });
@@ -338,13 +365,26 @@ export async function registrarEnvio(
     escopoId: escopo.id,
     alvoTipo: 'LOTE_IMPORTACAO',
     alvoId: id,
-    detalhes: { tipo: dados.tipo, formato: dados.formato, bytes: dados.conteudo.length, hash: dados.hash, linhas: dados.tabela.linhas.length },
+    detalhes: { tipo: dados.tipo, formato: dados.formato, bytes: dados.conteudo.length, hash: dados.hash, linhas: dados.tabela.linhas.length, ...(paleteInicial === null ? {} : { palete: paleteInicial }) },
     requestId: autor.requestId,
   });
+  // Bipagem: os campos são reconhecidos pelo nome e a prévia sai junto com o envio (sem mapeamento manual).
+  const batch =
+    dados.tipo === 'BIPAGEM'
+      ? await gerarPrevia(
+          tx,
+          escopo,
+          autor,
+          id,
+          { expectedVersion: 1, options: OPCOES_PADRAO, decimalSeparator: 'VIRGULA', columns: {}, parameters: paleteInicial === null ? null : { destination: { kind: 'PALETE', id: paleteInicial } } },
+          limites,
+          agora,
+        )
+      : detalhe(await lerLote(tx, escopo.id, id), limites);
   return {
     status: 201,
     corpo: {
-      batch: detalhe(await lerLote(tx, escopo.id, id), limites),
+      batch,
       structure: estrutura(dados.tipo, dados.tabela),
       alreadyImported: null,
       openDuplicates: abertos.map((a) => a.id),
@@ -403,10 +443,23 @@ const RESULTADO_VAZIO: ResultadoGravacao = {
   palletsLocated: 0,
   selectionId: null,
   selectionLines: 0,
+  documentLinksEnded: 0,
+  palletId: null,
+  documentsWritten: 0,
+  contentsCreated: 0,
+  countsRegistered: 0,
+  documentsUnchanged: 0,
+  recordsWithoutReads: 0,
+  volumesRead: 0,
+  palletCode: null,
+  palletCreated: false,
+  rowsRevalidated: 0,
 };
 
 interface Classificacao {
   tabela: Tabela;
+  /** Colunas efetivamente usadas (na bipagem, as reconhecidas pelo servidor). */
+  colunas: Record<string, number | null>;
   linhas: LinhaClassificada[];
   assinatura: string;
   resumo: ResumoPrevia;
@@ -424,11 +477,18 @@ async function classificarArquivo(
   separador: SeparadorDecimal,
   limites: LimitesImportacao,
   bloquear: boolean,
-  parametros: ParametrosInventario | ParametrosSelecao | null,
+  parametros: ParametrosInventario | ParametrosSelecao | ParametrosBipagem | null,
+  lote: { id: string; hashArquivo: string },
 ): Promise<Classificacao> {
   let tabela: Tabela;
   try {
-    tabela = lerTabela(conteudo, formato, opcoes, limites);
+    if (tipo === 'BIPAGEM') {
+      const r = reconhecerBipagem(conteudo, formato, limites);
+      tabela = r.tabela;
+      colunas = r.colunas;
+    } else {
+      tabela = lerTabela(conteudo, formato, opcoes, limites);
+    }
   } catch (erro) {
     return paraHttp(erro);
   }
@@ -445,6 +505,7 @@ async function classificarArquivo(
     const { linhas, plano } = classificarProdutos(interpretadas, estado);
     return {
       tabela,
+      colunas,
       linhas,
       assinatura: assinar(linhas),
       resumo: semResumo,
@@ -460,6 +521,7 @@ async function classificarArquivo(
     const { linhas, plano } = classificarClaims(interpretadas, estado);
     return {
       tabela,
+      colunas,
       linhas,
       assinatura: assinar(linhas),
       resumo: semResumo,
@@ -480,6 +542,7 @@ async function classificarArquivo(
     ];
     return {
       tabela,
+      colunas,
       linhas,
       assinatura: assinar(linhas, p),
       resumo: { linhas: plano.resumo, bloqueio: faltas.length > 0 ? `Antes de confirmar: ${faltas.join('; ')}.` : null },
@@ -501,6 +564,26 @@ async function classificarArquivo(
       },
     };
   }
+  if (tipo === 'BIPAGEM') {
+    const p = parametros as ParametrosBipagem;
+    const interpretadas = interpretarBipagem(entrada);
+    const destino = await carregarDestino(db, escopoId, p.destination, bloquear);
+    const anteriores = await importacoesAnteriores(db, escopoId, lote.id, lote.hashArquivo);
+    const { linhas, plano } = classificarBipagem(interpretadas, destino, anteriores, p, { aba: tabela.opcoes.sheet, linhaCabecalho: tabela.opcoes.headerRow, cabecalho: tabela.cabecalho, colunas });
+    return {
+      tabela,
+      colunas,
+      linhas,
+      // O resumo (destino e o que ele já tem, notas, decisões, importações anteriores) entra na assinatura:
+      // mudou desde a revisão (posição ocupada por outra pessoa, nota nova no palete…) → nova prévia.
+      assinatura: assinar(linhas, { parametros: p, resumo: plano.resumo }),
+      resumo: { linhas: plano.textos, bloqueio: plano.resumo.blockers.length > 0 ? plano.resumo.blockers.join(' ') : null, bipagem: plano.resumo },
+      gravar: async (tx, e, autor, contexto, agora) => {
+        const r = await gravarBipagem(tx, e, autor, { id: contexto.loteId, nomeArquivo: contexto.nomeArquivo }, plano, agora);
+        return { resultado: { ...RESULTADO_VAZIO, ...r.resultado }, registros: r.registros };
+      },
+    };
+  }
   if (tipo === 'SELECAO_CLIENTE') {
     const p = parametros as ParametrosSelecao;
     if (p.mode === 'MARCACAO' && (colunas.mark ?? null) === null) throw requisicaoInvalida('Inventário com marcação: escolha a coluna de decisão (Marcação).');
@@ -510,6 +593,7 @@ async function classificarArquivo(
     const { linhas, plano } = classificarSelecao(interpretadas, estado, p);
     return {
       tabela,
+      colunas,
       linhas,
       assinatura: assinar(linhas, p),
       resumo: {
@@ -527,6 +611,7 @@ async function classificarArquivo(
   const { linhas, plano } = classificarDevolucoes(interpretadas, estado);
   return {
     tabela,
+    colunas,
     linhas,
     assinatura: assinar(linhas),
     resumo: semResumo,
@@ -619,11 +704,26 @@ export async function gerarPrevia(
   }
   const colunas: Record<string, number | null> = {};
   for (const d of camposDoTipo(lote.tipo)) colunas[d.campo] = dados.columns[d.campo] ?? null;
-  const problemas = verificarMapeamento(lote.tipo, { ...dados.columns, ...colunas });
-  if (problemas.length > 0) throw requisicaoInvalida(problemas[0]);
+  if (lote.tipo !== 'BIPAGEM') {
+    const problemas = verificarMapeamento(lote.tipo, { ...dados.columns, ...colunas });
+    if (problemas.length > 0) throw requisicaoInvalida(problemas[0]);
+  }
   const parametros = parametrosDoTipo(lote.tipo, dados.parameters ?? null);
   const conteudo = await lerArquivo(tx, escopo.id, loteId);
-  const c = await classificarArquivo(tx, escopo.id, lote.tipo, formatoTabular(lote.formato), conteudo, dados.options, colunas, dados.decimalSeparator, limitesDe(limites, lote.tipo), false, parametros);
+  const c = await classificarArquivo(
+    tx,
+    escopo.id,
+    lote.tipo,
+    formatoTabular(lote.formato),
+    conteudo,
+    dados.options,
+    colunas,
+    dados.decimalSeparator,
+    limitesDe(limites, lote.tipo),
+    false,
+    parametros,
+    { id: loteId, hashArquivo: lote.hashArquivo },
+  );
   await substituirLinhas(tx, escopo.id, loteId, c.linhas);
   const contagem = contar(c.linhas);
   await tx.loteImportacao.update({
@@ -632,9 +732,12 @@ export async function gerarPrevia(
       situacao: 'PREVIA',
       opcoes: c.tabela.opcoes,
       separadorDecimal: dados.decimalSeparator,
-      colunas,
+      colunas: c.colunas,
       parametros: parametros === null ? Prisma.DbNull : (parametros as unknown as Prisma.InputJsonObject),
-      resumoPrevia: c.resumo.linhas.length === 0 && c.resumo.bloqueio === null ? Prisma.DbNull : { linhas: c.resumo.linhas, bloqueio: c.resumo.bloqueio },
+      resumoPrevia:
+        c.resumo.linhas.length === 0 && c.resumo.bloqueio === null && !c.resumo.bipagem
+          ? Prisma.DbNull
+          : { linhas: c.resumo.linhas, bloqueio: c.resumo.bloqueio, ...(c.resumo.bipagem ? { bipagem: c.resumo.bipagem as unknown as Prisma.InputJsonObject } : {}) },
       versao: { increment: 1 },
       versaoPrevia: { increment: 1 },
       assinaturaPrevia: c.assinatura,
@@ -708,11 +811,23 @@ export async function confirmar(
   }
   const motivoBloqueio = bloqueio(lote);
   if (motivoBloqueio !== null) throw new ErroHttp(409, 'IMPORTACAO_BLOQUEADA', motivoBloqueio);
-  const outro = await tx.loteImportacao.findFirst({
-    where: { escopoId: escopo.id, tipo: lote.tipo, hashArquivo: lote.hashArquivo, situacao: 'CONFIRMADO', id: { not: loteId } },
-    select: { id: true, confirmadoEm: true },
-  });
-  if (outro) throw new ErroHttp(409, 'ARQUIVO_JA_IMPORTADO', `Este mesmo arquivo já foi confirmado no lote ${outro.id.slice(0, 8)}: nada foi importado de novo.`);
+  // Bipagem: arquivo já importado é aviso da prévia (nova operação confirmada pela pessoa), não recusa.
+  const outro =
+    lote.tipo === 'BIPAGEM'
+      ? null
+      : await tx.loteImportacao.findFirst({
+          where: { escopoId: escopo.id, tipo: lote.tipo, hashArquivo: lote.hashArquivo, situacao: 'CONFIRMADO', id: { not: loteId } },
+          select: { id: true, confirmadoEm: true },
+        });
+  if (outro) {
+    throw new ErroHttp(
+      409,
+      'ARQUIVO_JA_IMPORTADO',
+      lote.tipo === 'BIPAGEM'
+        ? `Este mesmo arquivo já foi importado neste palete (lote ${outro.id.slice(0, 8)}): nada foi importado de novo.`
+        : `Este mesmo arquivo já foi confirmado no lote ${outro.id.slice(0, 8)}: nada foi importado de novo.`,
+    );
+  }
 
   const conteudo = await lerArquivo(tx, escopo.id, loteId);
   const parametros = parametrosDoTipo(lote.tipo, lote.parametros);
@@ -728,6 +843,7 @@ export async function confirmar(
     limitesDe(limites, lote.tipo),
     true,
     parametros,
+    { id: loteId, hashArquivo: lote.hashArquivo },
   );
   if (c.assinatura !== lote.assinaturaPrevia) {
     throw new ErroHttp(409, 'PREVIA_DESATUALIZADA', 'Os dados mudaram desde a revisão (outro cadastro ou importação). Nada foi gravado: a prévia foi atualizada para nova revisão.');
@@ -774,6 +890,8 @@ export async function confirmar(
       where: { id: loteId },
       data: {
         situacao: 'CONFIRMADO',
+        // Bipagem: o palete de destino (existente ou criado agora) é gravado no lote na confirmação.
+        ...(lote.tipo === 'BIPAGEM' && lote.paleteId === null && resultado.palletId !== null ? { paleteId: resultado.palletId } : {}),
         confirmadoPorId: autor.usuarioId,
         confirmadoEm: agora,
         versao: { increment: 1 },
@@ -811,6 +929,9 @@ export async function confirmar(
         ? { inventario: resultado.inventoryId, aplicadas: resultado.inventoryLinesApplied, pendentes: resultado.inventoryLinesPending, deixadasDeFora: excluidas.size }
         : {}),
       ...(lote.tipo === 'SELECAO_CLIENTE' ? { selecao: resultado.selectionId, linhasSelecao: resultado.selectionLines } : {}),
+      ...(lote.tipo === 'BIPAGEM'
+        ? { palete: resultado.palletId, numeroPalete: resultado.palletCode, paleteCriado: resultado.palletCreated, entradas: resultado.documentsWritten, revalidadas: resultado.rowsRevalidated, excluidas: contagem.excluidas }
+        : {}),
     },
     requestId: autor.requestId,
   });
@@ -869,6 +990,7 @@ export async function listarLotes(db: Db, escopoId: string, filtro: FiltroLotes,
     // Só os tipos que o perfil pode consultar.
     ...(filtro.tipo ? { tipo: filtro.tipo } : { tipo: { in: [...tipos] } }),
     ...(filtro.situacao ? { situacao: filtro.situacao } : {}),
+    ...(filtro.palete ? { paleteId: filtro.palete } : {}),
   };
   const [total, lotes] = await Promise.all([
     db.loteImportacao.count({ where }),

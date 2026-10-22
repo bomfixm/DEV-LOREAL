@@ -152,7 +152,7 @@ export async function candidatosDaLinha(db: Db, escopo: Escopo, claimId: string,
   const notas: string[] = ['Coincidência de SKU é pista, não prova. Só saldo validado (reconciliado) sustenta a validação de recuperação física.'];
   const vazio: RespostaCandidatos = { lineId: linhaId, items: [], total: 0, page: pagina, pageSize: tamanho, history: [], notes: notas, consultedAt: agora.toISOString() };
   if (linha.produtoId === null) {
-    notas.push(`SKU ${linha.sku} fora do cadastro: nenhuma pista por produto. Cadastre o produto e revise a linha.`);
+    notas.push(`SKU ${linha.sku} fora do cadastro de produtos: nenhuma pista por produto. Procure pela nota, Delivery ou remetente na pesquisa do mapa, ou inclua o produto pela importação "Cadastro de produtos" e revise a linha.`);
     return vazio;
   }
   const investigacoes = new Map(
@@ -313,7 +313,7 @@ export async function registrarCandidato(tx: Transacao, escopo: Escopo, claimId:
   exigirAberto(caso, 'candidatos não são registrados');
   const linha = await tx.linhaClaim.findFirst({ where: { id: dados.lineId, claimId, escopoId: escopo.id }, include: { produto: { select: { unidadeCanonica: true } } } });
   if (!linha) throw naoEncontrado('Linha não encontrada neste claim.');
-  if (linha.produtoId === null) throw new ErroHttp(409, 'CONFLITO', `SKU ${linha.sku} fora do cadastro: cadastre o produto e revise a linha antes de investigar candidatos.`);
+  if (linha.produtoId === null) throw new ErroHttp(409, 'CONFLITO', `SKU ${linha.sku} fora do cadastro de produtos: inclua-o pela importação "Cadastro de produtos" e revise a linha antes de investigar candidatos.`);
   const paleteId = dados.palletId ?? null;
   const segmentoId = dados.segmentId ?? null;
   const sessaoId = dados.sessionId ?? null;

@@ -37,7 +37,6 @@ test.describe('capturas etapa 10 @captura', () => {
     await page.getByTestId('tutorial-proximo').click();
     await passo(page, 2);
     await capturar(page, '03-passo2-onde-pesquisar');
-    await page.getByTestId('painel-busca-botao').click();
     await page.getByTestId('campo-busca').fill('DEMO-101');
     await expect(page.getByTestId('tutorial-estado')).toHaveAttribute('data-feito', 'sim');
     await capturar(page, '04-passo2-codigo-pesquisado');
@@ -109,7 +108,6 @@ test.describe('capturas etapa 10 @captura', () => {
     await passo(page, 4);
     await aguardarMapaParado(page);
     await capturar(page, '19-celular-passo4-ver-conteudo');
-    await page.getByRole('button', { name: 'Ver conteúdo' }).click();
     await capturar(page, '20-celular-passo4-id-e-endereco');
     await page.getByTestId('tutorial-proximo').click();
     await passo(page, 5);

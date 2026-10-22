@@ -287,7 +287,7 @@ export function classificarDevolucoes(linhas: readonly Interpretada[], estado: E
         erros.push({
           code: 'SKU_NAO_CADASTRADO',
           field: 'sku',
-          message: `SKU ${l.sku} não cadastrado neste escopo${semelhante ? ` (existe ${semelhante}, que difere em maiúsculas/minúsculas)` : ''}. Cadastre ou importe o produto e gere a prévia de novo; nenhum outro SKU é associado.`,
+          message: `SKU ${l.sku} não cadastrado neste escopo${semelhante ? ` (existe ${semelhante}, que difere em maiúsculas/minúsculas)` : ''}. Importe o produto ("Cadastro de produtos") e gere a prévia de novo; nenhum outro SKU é associado.`,
         });
       } else if (!produto.ativo) {
         erros.push({ code: 'SKU_INATIVO', field: 'sku', message: `SKU ${l.sku} está inativo no cadastro. Reative o produto antes de importar a devolução.` });

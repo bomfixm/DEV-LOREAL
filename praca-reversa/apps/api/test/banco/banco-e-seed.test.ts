@@ -32,6 +32,17 @@ describe('migração em PostgreSQL vazio', () => {
       '20261008090000_selecao_cliente_conciliacao',
       '20261009090000_carga_inventario_lote',
       '20261010090000_planilha_unica_protecao',
+      '20261011090000_importacao_bipagem',
+      '20261012090000_posicao_livre',
+      '20261013090000_conteudo_palete',
+      '20261014090000_numero_documento_composto',
+      '20261015090000_reconferencia_palete',
+      '20261016090000_paineis_volumes',
+      '20261019090000_bipagem_real',
+      '20261021090000_selecao_cliente_teste',
+      '20261021120000_reconferencia_exigida',
+      '20261021150000_bipagem_etiquetas',
+      '20261021180000_paletes_alocacao_conferencia',
     ]);
     expect(linhas.every((l) => l.finished_at !== null)).toBe(true);
     const versao = await db.$queryRaw<{ server_version: string }[]>`SHOW server_version`;

@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
+import { mostrarListaPaletesNoMapa } from '../apps/web/src/features/mapa/configuracao';
 import {
   abrirMenuConta,
   aguardarMapa,
@@ -9,6 +10,7 @@ import {
   forma,
   obterPraca,
   type PracaApi,
+  verMais,
 } from './apoio';
 import { credenciais, type Credenciais } from './credenciais';
 
@@ -51,16 +53,12 @@ test.describe('cadastro, mapa, etiqueta e QR', () => {
     test.skip(isMobile, 'Fluxo de computador.');
     await entrar(page, 'supervisor');
 
-    // Produto com SKU e código de barras textuais (zeros à esquerda).
-    await irPeloMenu(page, 'Produtos');
-    await page.getByRole('button', { name: 'Novo produto' }).click();
-    await page.getByLabel('SKU', { exact: true }).fill('000321');
-    await page.getByLabel('Descrição', { exact: true }).fill('Condicionador fictício 200 ml');
-    await page.getByRole('button', { name: 'Acrescentar código de barras' }).click();
-    await page.getByLabel('Código de barras 1').fill('0007890000017');
-    await page.getByRole('button', { name: 'Gravar produto' }).click();
-    await expect(page.getByTestId('mensagem-produto')).toContainText('Produto 000321 cadastrado');
-    await expect(page.locator('.produto-linha[data-sku="000321"]')).toContainText('0007890000017');
+    // Produto com SKU e código de barras textuais (zeros à esquerda), pela API: o catálogo de SKU saiu da interface (out. 2026).
+    const produto = await page.request.post('/api/v1/produtos', {
+      headers: { 'x-csrf-token': await csrf(page), 'idempotency-key': `produto-e2e-${String(Date.now())}` },
+      data: { sku: '000321', description: 'Condicionador fictício 200 ml', canonicalUnit: 'UN', active: true, barcodes: [{ code: '0007890000017', packaging: 'UN', factor: '1' }] },
+    });
+    expect(produto.status(), await produto.text()).toBe(201);
 
     // Palete com código gerado, posição inicial e linha declarada.
     const livre = posicaoLivre(await obterPraca(page), 'F03');
@@ -87,12 +85,14 @@ test.describe('cadastro, mapa, etiqueta e QR', () => {
     await sucesso.getByRole('button', { name: 'Ver no mapa' }).click();
     await expect(page).toHaveURL(new RegExp(`/paletes/${id}$`));
     await aguardarMapa(page);
+    await expect(page.getByTestId('janela-palete')).toHaveAttribute('data-palete-id', id);
+    await verMais(page);
     await expect(page.getByTestId('detalhe')).toHaveAttribute('data-palete-id', id);
     await expect(page.getByTestId('conteudo-desconhecido')).toBeVisible();
     await expect(page.getByTestId('itens-declarados')).toContainText('000321');
     await expect(page.getByTestId('itens-declarados')).toContainText('Nota fiscal 000456');
     await expect(page.getByTestId('observacoes')).toHaveText('Palete de teste E2E');
-    await expect(page.locator(`.item-palete[data-id="${id}"]`)).toContainText(livre.code);
+    if (mostrarListaPaletesNoMapa) await expect(page.locator(`.item-palete[data-id="${id}"]`)).toContainText(livre.code);
     await aguardarMapaParado(page);
     const caixaPalete = await forma(page, codigo).boundingBox();
     const caixaPosicao = await page.locator(`path[data-posicao="${livre.code}"]`).boundingBox();
@@ -100,13 +100,21 @@ test.describe('cadastro, mapa, etiqueta e QR', () => {
     expect(caixaPalete.x).toBeGreaterThanOrEqual(caixaPosicao.x - 1);
     expect(caixaPalete.x + caixaPalete.width).toBeLessThanOrEqual(caixaPosicao.x + caixaPosicao.width + 1);
 
-    // Busca pelo código escrito (alternativa ao QR).
-    await page.getByRole('button', { name: 'Fechar' }).click();
-    await expect(page).toHaveURL(/\/$/);
-    await page.getByLabel('Código, posição ou link do QR').fill(codigo.toLowerCase());
-    await page.getByLabel('Código, posição ou link do QR').press('Enter');
-    await expect(page.getByTestId('detalhe')).toHaveAttribute('data-palete-id', id);
+    // Fechar a janela mantém a seleção (e a rota do palete).
+    await page.getByTestId('janela-fechar').click();
+    await expect(page.getByTestId('janela-palete')).toHaveCount(0);
     await expect(page).toHaveURL(new RegExp(`/paletes/${id}$`));
+    // Busca pelo código escrito (alternativa ao QR): lista (se ativa) ou pesquisa do cabeçalho.
+    if (mostrarListaPaletesNoMapa) {
+      await page.getByLabel('Código, posição ou link do QR').fill(codigo.toLowerCase());
+      await page.getByLabel('Código, posição ou link do QR').press('Enter');
+    } else {
+      await page.getByTestId('campo-busca').fill(codigo.toLowerCase());
+      await page.locator(`[data-testid="resultado-busca"][data-palete="${codigo}"]`).first().getByTestId('resultado-abrir').click();
+    }
+    await expect(page.getByTestId('janela-palete')).toHaveAttribute('data-palete-id', id);
+    await expect(page).toHaveURL(new RegExp(`/paletes/${id}$`));
+    await verMais(page);
 
     // Etiqueta: prévia, impressão A4 e QR real com o link do palete.
     await page.getByTestId('acao-etiqueta').click();
@@ -163,6 +171,7 @@ test.describe('cadastro, mapa, etiqueta e QR', () => {
     await expect(outra.getByTestId('aviso-retorno')).toContainText('palete');
     await preencherLogin(outra, 'consultaCadastro');
     await expect(outra).toHaveURL(new RegExp(`/paletes/${id}$`));
+    await verMais(outra);
     await expect(outra.getByTestId('detalhe')).toHaveAttribute('data-palete-id', id);
     await expect(outra.getByRole('heading', { name: codigo })).toBeVisible();
     await expect(outra.getByTestId('acao-etiqueta')).toHaveCount(0);
@@ -182,6 +191,7 @@ test.describe('cadastro, mapa, etiqueta e QR', () => {
       expect(resposta.status()).toBe(201);
     }
     await page.reload();
+    if (!mostrarListaPaletesNoMapa) await page.getByTestId('filtro-mapa').locator('summary').click();
     await page.getByLabel('Código, posição ou link do QR').fill('lote-e2e');
     await expect(page.getByTestId('contagem-lista')).toContainText('2 de');
     await page.getByTestId('etiquetas-resultado').click();
@@ -298,16 +308,20 @@ test.describe('cadastro, mapa, etiqueta e QR', () => {
     const semRolagem = () => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
     expect(await semRolagem()).toBe(true);
 
-    // Rota do palete no celular abre direto o detalhe; voltar mostra o mapa com a seleção.
+    // Rota do palete no celular abre a janela dele; fechar mostra o mapa com a seleção.
     await sucesso.getByRole('button', { name: 'Ver no mapa' }).tap();
+    const janela = page.getByTestId('janela-palete');
+    await expect(janela).toHaveAttribute('data-palete-id', id);
+    await verMais(page);
     await expect(page.getByTestId('detalhe')).toHaveAttribute('data-palete-id', id);
     await expect(page.getByTestId('conteudo-desconhecido')).toBeVisible();
-    await page.getByTestId('detalhe').getByRole('button', { name: 'Voltar ao mapa' }).tap();
-    await expect(page.getByTestId('resumo-selecao')).toContainText(codigo);
+    await janela.getByTestId('janela-fechar').tap();
+    await expect(janela).toHaveCount(0);
     await expect(forma(page, codigo)).toBeVisible();
+    await expect(forma(page, codigo)).toHaveClass(/pr-palete--selecionado/);
 
-    await page.getByRole('button', { name: 'Ver conteúdo' }).tap();
-    await page.getByTestId('acao-etiqueta').tap();
+    await forma(page, codigo).dispatchEvent('click');
+    await janela.getByTestId('acao-etiqueta').tap();
     await expect(page.getByTestId('etiqueta-codigo')).toHaveText(codigo);
     expect(await semRolagem()).toBe(true);
     const link = decodificarQr(await page.getByTestId('etiqueta-qr').screenshot());
@@ -315,6 +329,8 @@ test.describe('cadastro, mapa, etiqueta e QR', () => {
 
     // O link lido pela câmera abre o mesmo palete (sessão já aberta).
     await page.goto(link ?? '');
+    await expect(page.getByTestId('janela-palete')).toHaveAttribute('data-palete-id', id);
+    await verMais(page);
     await expect(page.getByTestId('detalhe')).toHaveAttribute('data-palete-id', id);
     await expect(page.getByRole('heading', { name: codigo })).toBeVisible();
   });

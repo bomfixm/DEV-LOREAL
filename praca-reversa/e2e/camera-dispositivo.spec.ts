@@ -43,6 +43,6 @@ test('câmera do navegador (dispositivo falso do Chrome) lê o QR do palete e ab
   await expect(page.getByTestId('valor-lido')).toContainText(`/paletes/${paleteId}`);
   await page.getByTestId('abrir-palete-lido').click();
   await expect(page).toHaveURL(new RegExp(`/paletes/${paleteId}$`));
-  await expect(page.getByTestId('detalhe')).toContainText(codigo);
+  await expect(page.getByTestId('janela-palete')).toContainText(codigo);
   await expect(page.getByTestId('leitor-camera')).toHaveCount(0);
 });

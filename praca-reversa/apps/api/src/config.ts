@@ -49,6 +49,8 @@ const AmbienteSchema = z.object({
   PERSISTENCIA_LOCAL: z.enum(['ativada', 'desativada']).optional(),
   // Planilha única (docs/IMPLANTACAO.md): agendador, destino independente e retenção.
   PLANILHA_AUTOMATICA: z.enum(['ativada', 'desativada']).default('ativada'),
+  /** "Seleção cliente — teste": desativada = rotas e permissões da funcionalidade somem (o restante segue igual). */
+  SELECAO_CLIENTE_TESTE: z.enum(['ativada', 'desativada']).default('ativada'),
   /** "pasta:<caminho absoluto>" de uma pasta sincronizada (OneDrive/SharePoint) ou compartilhamento fora do servidor. */
   PLANILHA_DESTINO: z.string().trim().min(1).optional(),
   PLANILHA_DESTINO_DESCRICAO: z.string().trim().min(3).max(200).optional(),
@@ -148,6 +150,8 @@ export interface Configuracao {
   exportacaoMaxLinhas: number;
   claims: ConfigClaims;
   planilha: ConfigPlanilha;
+  /** "Seleção cliente — teste" ligada na instalação (acesso continua só por concessão explícita). */
+  selecaoClienteTeste: boolean;
 }
 
 export interface ConfigClaims {
@@ -231,6 +235,7 @@ export function lerConfiguracao(env: NodeJS.ProcessEnv, argv: readonly string[])
     exportacaoMaxLinhas: ambiente.BUSCA_EXPORTACAO_MAX_LINHAS,
     claims: { ordemPadrao: ambiente.CLAIMS_ORDEM_PADRAO, anexoMaxBytes: ambiente.CLAIMS_ANEXO_MAX_MB * 1_048_576 },
     planilha: lerConfigPlanilha(ambiente),
+    selecaoClienteTeste: ambiente.SELECAO_CLIENTE_TESTE === 'ativada',
   };
 }
 

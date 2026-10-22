@@ -1,37 +1,39 @@
 import type { ElementoLayout, Layout, PaleteResumo, Posicao, Retangulo } from '@praca-reversa/contracts';
 import * as L from 'leaflet';
-import { ROTULOS_CONFERENCIA } from '../paletes/estados';
+import { estadoExibido } from '../paletes/estados';
 import { criarConversor, recuar, type Conversor, type PontoLayout } from './coordenadas';
+import { areaPrincipal, enderecoCurto, margensLivres, nivelDetalhe, type Caixa, type Margens, type NivelDetalhe } from './enquadramento';
 
 export const ZOOM_MAXIMO = 2;
 /** Zoom mínimo ao centralizar um palete: código e situação legíveis. */
 export const ZOOM_LEGIVEL = 0.75;
 const RECUO_PALETE = 5;
-const MARGEM_LIMITES = 0.3;
+/** Folga de arraste em volta da praça: com a coluna de ferramentas, a área precisa poder ficar fora do centro da tela. */
+const MARGEM_LIMITES = 0.5;
+/** Folga em volta da área enquadrada (px), além do espaço dos controles sobrepostos. */
+const FOLGA_ENQUADRAMENTO: Margens = { topo: 12, direita: 12, base: 12, esquerda: 12 };
 
-/** 0: visão geral sem rótulos de palete; 1: códigos; 2: códigos, posição e situação. */
-export type NivelDetalhe = 0 | 1 | 2;
-
-export function nivelDetalhe(larguraPaletePx: number): NivelDetalhe {
-  if (larguraPaletePx >= 112) return 2;
-  if (larguraPaletePx >= 60) return 1;
-  return 0;
-}
+export { nivelDetalhe, type NivelDetalhe } from './enquadramento';
 
 /**
  * Situação de ocupação de uma posição sem palete vinculado. Área desativada
  * (desenho aprovado) fica fora da capacidade ativa: pronta para ativar, não
  * "indisponível" por um motivo operacional.
  */
-export function ocupacaoSemPalete(posicao: Pick<Posicao, 'available' | 'occupancySurveyed'> & Partial<Pick<Posicao, 'deactivated'>>): 'desativada' | 'indisponivel' | 'sem-registro' | 'desconhecida' {
+export function ocupacaoSemPalete(
+  posicao: Pick<Posicao, 'available' | 'occupancySurveyed'> & Partial<Pick<Posicao, 'deactivated' | 'freeConfirmed'>>,
+): 'desativada' | 'indisponivel' | 'livre' | 'sem-registro' | 'desconhecida' {
   if (posicao.deactivated === true) return 'desativada';
   if (!posicao.available) return 'indisponivel';
+  // "Palete livre" só com desocupação confirmada; sem palete registrado não basta.
+  if (posicao.freeConfirmed != null) return 'livre';
   return posicao.occupancySurveyed ? 'sem-registro' : 'desconhecida';
 }
 
-const TEXTO_OCUPACAO = {
+export const TEXTO_OCUPACAO = {
   desativada: 'desativada · pronta para ativar',
   indisponivel: 'indisponível',
+  livre: 'PALETE LIVRE',
   'sem-registro': 'sem palete registrado',
   desconhecida: 'ocupação desconhecida',
 } as const;
@@ -46,6 +48,8 @@ export interface VisaoMapa {
 
 export interface EventosMapa {
   aoSelecionar(id: string): void;
+  /** Posição desenhada escolhida (sem palete por cima): abre o detalhe da posição. */
+  aoEscolherPosicao?(posicaoId: string): void;
   aoMudarVisao(visao: VisaoMapa): void;
 }
 
@@ -69,9 +73,12 @@ interface Rotulavel {
   chave: string;
   paleteId: string | null;
   centro: L.LatLng;
-  nivelMinimo: 1 | 2;
+  nivelMinimo: 1 | 3;
   criar: () => HTMLElement;
 }
+
+/** Enquadramento atual (atributo de inspeção do mapa). */
+export type Enquadramento = 'principal' | 'completo' | 'elemento' | 'palete';
 
 function elemento(tag: string, classe: string, texto?: string): HTMLElement {
   const el = document.createElement(tag);
@@ -96,6 +103,23 @@ export function textoEndereco(posicao: Pick<Posicao, 'code' | 'address'> | undef
   return endereco.state === 'CONFIRMADO' ? `${endereco.text} · ${base}` : `${base} (proposto ${endereco.text})`;
 }
 
+/** Endereço operacional como rótulo: "15 - A120"; na Grade, "GR9" (aceita "GR 9" e "GR - 9" sem mudar o número). */
+export function enderecoOperacional(texto: string): string {
+  const grade = /^GR\s*-?\s*(\d+)$/i.exec(texto.trim());
+  return grade ? `GR${grade[1] ?? ''}` : texto;
+}
+
+/**
+ * Rótulo principal da posição no mapa: o endereço operacional confirmado; o
+ * código técnico (F/P) fica no detalhe. Proposta e posição sem correspondência
+ * continuam mostrando o código (nunca um endereço presumido).
+ */
+export function rotuloEnderecoMapa(posicao: Pick<Posicao, 'code' | 'address'> | undefined, codigo: string | null): string {
+  const endereco = posicao?.address ?? null;
+  if (endereco?.state === 'CONFIRMADO') return enderecoOperacional(endereco.text);
+  return textoEndereco(posicao, codigo);
+}
+
 function reduzirMovimento(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
@@ -111,11 +135,12 @@ export class ControladorMapa {
   private readonly conv: Conversor;
   private readonly limites: L.LatLngBounds;
   private readonly layout: Layout;
-  private readonly posicoes: ReadonlyMap<string, Posicao>;
+  private readonly posicoes: Map<string, Posicao>;
   private readonly larguraPalete: number;
   private readonly camadaPaletes = L.layerGroup();
   private readonly camadaRotulos = L.layerGroup();
   private readonly formas = new Map<string, L.Rectangle>();
+  private readonly formasPosicao = new Map<string, L.Rectangle>();
   private readonly rotulosAtivos = new Map<string, { marcador: L.Marker; el: HTMLElement; paleteId: string | null }>();
   private readonly observador: ResizeObserver;
   /** Títulos limitados ao espaço reservado; ocultos quando não cabem. */
@@ -125,17 +150,25 @@ export class ControladorMapa {
   private visiveis: ReadonlySet<string> | null = null;
   private nivel: NivelDetalhe = 0;
   private margens: MargensMapa;
+  /** Área principal (L'Oréal): enquadrada ao abrir e em "Focar L'Oréal". */
+  private readonly principal: L.LatLngBounds;
+  /** Caixas dos controles sobrepostos no momento do enquadramento (computador); `null` = margens fixas. */
+  private readonly medirSobrepostos: (() => Caixa[] | null) | null;
+  /** Enquadramento inicial aguardando o contêiner ter tamanho; qualquer comando de câmera o cancela. */
+  private vistaInicialPendente = false;
 
-  constructor(container: HTMLElement, layout: Layout, eventos: EventosMapa, margens: MargensMapa = MARGENS_PADRAO) {
+  constructor(container: HTMLElement, layout: Layout, eventos: EventosMapa, margens: MargensMapa = MARGENS_PADRAO, medirSobrepostos: (() => Caixa[] | null) | null = null) {
     this.container = container;
     this.eventos = eventos;
     this.layout = layout;
     this.margens = margens;
+    this.medirSobrepostos = medirSobrepostos;
     this.conv = criarConversor(layout.height);
     this.posicoes = new Map(layout.positions.map((p) => [p.id, p]));
     const referencia = layout.positions[0];
     this.larguraPalete = referencia ? recuar(referencia, RECUO_PALETE).width : 70;
     this.limites = this.limitesDe({ x: 0, y: 0, width: layout.width, height: layout.height });
+    this.principal = this.limitesDe(areaPrincipal(layout));
 
     const animar = !reduzirMovimento();
     this.mapa = L.map(container, {
@@ -167,7 +200,11 @@ export class ControladorMapa {
     this.mapa.on('moveend', this.aoMover);
     container.addEventListener('keydown', this.aoTeclar);
     this.ajustarZoomMinimo();
-    this.visaoGeral(false);
+    // Vista inicial: a área principal inteira, no maior tamanho que cabe. Sem tamanho ainda
+    // (contêiner oculto), enquadra provisoriamente e repete quando o tamanho chegar.
+    const tamanho = this.mapa.getSize();
+    this.vistaInicialPendente = tamanho.x === 0 || tamanho.y === 0;
+    this.enquadrarExato(this.principal, false, 'principal');
     this.aoMudarZoom();
     this.aoMover();
     this.observador = new ResizeObserver(this.aoRedimensionar);
@@ -196,7 +233,9 @@ export class ControladorMapa {
       ocupadas.add(posicao.id);
       const area = recuar(posicao, RECUO_PALETE);
       const forma = L.rectangle(this.limitesDe(area), {
-        className: `pr-palete pr-palete--${palete.countState}${palete.activeCountId !== null ? ' pr-palete--em-conferencia' : ''}`,
+        // Preenchimento: neutro = estoque, lilás = separação para agenda (reservado); conferência no contorno e no rótulo.
+        // Reconferência vencida (20 dias): laranja adicional; agenda, conferência e seleção continuam com seus marcadores.
+        className: `pr-palete pr-palete--${estadoExibido(palete).chave}${palete.activeCountId !== null ? ' pr-palete--em-conferencia' : ''}${palete.flowState === 'RESERVADO' ? ' pr-palete--agenda' : ''}${palete.reconference?.due === true ? ' pr-palete--reconferencia' : ''}`,
         bubblingMouseEvents: false,
       });
       forma.on('click', () => {
@@ -206,8 +245,9 @@ export class ControladorMapa {
       const caminho = forma.getElement();
       caminho?.setAttribute('data-palete-id', palete.id);
       caminho?.setAttribute('data-codigo', palete.code);
-      caminho?.setAttribute('data-estado', palete.countState);
+      caminho?.setAttribute('data-estado', estadoExibido(palete).chave);
       if (palete.activeCountId !== null) caminho?.setAttribute('data-em-conferencia', 'true');
+      if (palete.flowState === 'RESERVADO') caminho?.setAttribute('data-agenda', 'true');
       this.formas.set(palete.id, forma);
       rotulaveis.push({
         chave: `p:${palete.id}`,
@@ -224,7 +264,8 @@ export class ControladorMapa {
         chave: `e:${posicao.id}`,
         paleteId: null,
         centro: this.latLng(this.conv.centroDe(posicao)),
-        nivelMinimo: 2,
+        // Posição em uso: endereço desde o primeiro nível; área desativada só de perto.
+        nivelMinimo: posicao.deactivated ? 3 : 1,
         criar: () => this.criarRotuloPosicao(posicao),
       });
     }
@@ -234,6 +275,24 @@ export class ControladorMapa {
     this.rotulosAtivos.clear();
     this.aplicarClasses();
     this.atualizarRotulos();
+  }
+
+  /**
+   * Atualiza o estado das posições já desenhadas (ex.: "palete livre") sem
+   * recriar o mapa nem perder a câmera; os rótulos são refeitos na próxima
+   * definição de paletes.
+   */
+  definirPosicoes(posicoes: readonly Posicao[]): void {
+    for (const p of posicoes) {
+      if (!this.posicoes.has(p.id)) continue;
+      this.posicoes.set(p.id, p);
+      const el = this.formasPosicao.get(p.id)?.getElement();
+      if (!el) continue;
+      for (const c of [...el.classList]) if (c.startsWith('pr-posicao--')) el.classList.remove(c);
+      el.classList.add(`pr-posicao--${ocupacaoSemPalete(p)}`);
+      if (p.freeConfirmed) el.setAttribute('data-livre', 'true');
+      else el.removeAttribute('data-livre');
+    }
   }
 
   selecionar(id: string | null): void {
@@ -248,10 +307,15 @@ export class ControladorMapa {
     this.aplicarClasses();
   }
 
-  /** Enquadra o palete em nível legível. Retorna `false` se ele não está no mapa. */
+  /**
+   * Enquadra o palete em nível legível, onde ele estiver (também fora da área
+   * principal). Retorna `false` se ele não está no mapa.
+   */
   centralizar(id: string, opcoes: OpcoesCentralizar = {}): boolean {
     const forma = this.formas.get(id);
     if (!forma) return false;
+    this.vistaInicialPendente = false;
+    this.container.dataset.enquadramento = 'palete';
     const zoom = Math.min(Math.max(this.mapa.getZoom(), ZOOM_LEGIVEL), this.mapa.getMaxZoom());
     let centro = forma.getBounds().getCenter();
     const deslocamento = opcoes.deslocamentoInferiorPx ?? 0;
@@ -267,31 +331,67 @@ export class ControladorMapa {
     this.margens = margens;
   }
 
+  /** "Ver praça completa": a praça inteira, inclusive as posições superiores. */
   visaoGeral(animar = true): void {
-    this.enquadrar(this.limites, animar);
+    this.vistaInicialPendente = false;
+    this.enquadrarExato(this.limites, animar, 'completo');
+  }
+
+  /** "Focar L'Oréal": volta ao enquadramento inicial (área principal inteira). */
+  focarPrincipal(animar = true): void {
+    this.vistaInicialPendente = false;
+    this.enquadrarExato(this.principal, animar, 'principal');
   }
 
   /** Enquadra uma zona ou bloco do layout. */
   focarElemento(codigo: string): void {
     const alvo = this.layout.elements.find((e) => e.code === codigo);
-    if (alvo) this.enquadrar(this.limitesDe(alvo), true);
+    if (!alvo) return;
+    this.vistaInicialPendente = false;
+    this.enquadrarExato(this.limitesDe(alvo), true, 'elemento');
   }
 
   ampliar(): void {
+    this.vistaInicialPendente = false;
     this.mapa.zoomIn();
   }
 
   reduzir(): void {
+    this.vistaInicialPendente = false;
     this.mapa.zoomOut();
   }
 
-  private enquadrar(limites: L.LatLngBounds, animar: boolean): void {
-    const { topo, direita, base, esquerda } = this.margens;
-    this.mapa.fitBounds(limites, {
-      paddingTopLeft: [esquerda, topo],
-      paddingBottomRight: [direita, base],
-      animate: animar && !reduzirMovimento(),
-    });
+  /**
+   * Maior zoom em que os limites cabem inteiros no espaço livre: entre os
+   * controles sobrepostos medidos agora (computador) ou as margens fixas
+   * (celular), com uma pequena folga. Zoom calculado, sem degrau fixo.
+   */
+  private enquadrarExato(limites: L.LatLngBounds, animar: boolean, tipo: Enquadramento): void {
+    this.container.dataset.enquadramento = tipo;
+    const tamanho = this.mapa.getSize();
+    const no = this.mapa.project(limites.getNorthWest(), 0);
+    const se = this.mapa.project(limites.getSouthEast(), 0);
+    const larguraU = Math.abs(se.x - no.x);
+    const alturaU = Math.abs(se.y - no.y);
+    const caixas = this.medirSobrepostos?.() ?? null;
+    const m: Margens = caixas === null ? this.margens : margensLivres(tamanho.x, tamanho.y, larguraU / Math.max(alturaU, 1), caixas, FOLGA_ENQUADRAMENTO);
+    const livreX = tamanho.x - m.esquerda - m.direita;
+    const livreY = tamanho.y - m.topo - m.base;
+    if (livreX <= 0 || livreY <= 0 || larguraU <= 0 || alturaU <= 0) {
+      // Sem espaço medido (contêiner oculto): enquadramento provisório.
+      this.mapa.fitBounds(limites, { animate: false });
+      return;
+    }
+    const zoom = Math.min(Math.max(this.mapa.getScaleZoom(Math.min(livreX / larguraU, livreY / alturaU), 0), this.mapa.getMinZoom()), this.mapa.getMaxZoom());
+    // O centro dos limites vai para o centro do espaço livre (não do contêiner).
+    const centro = this.mapa.unproject(this.mapa.project(limites.getCenter(), zoom).subtract(L.point((m.esquerda - m.direita) / 2, (m.topo - m.base) / 2)), zoom);
+    const passo = this.mapa.options.zoomSnap;
+    this.mapa.options.zoomSnap = 0;
+    try {
+      this.mapa.setView(centro, zoom, { animate: animar && !reduzirMovimento() });
+    } finally {
+      this.mapa.options.zoomSnap = passo;
+    }
   }
 
   private limitesDe(r: Retangulo): L.LatLngBounds {
@@ -335,12 +435,22 @@ export class ControladorMapa {
 
     for (const posicao of this.layout.positions) {
       const forma = L.rectangle(this.limitesDe(posicao), {
-        ...fixo,
+        interactive: !posicao.deactivated,
+        bubblingMouseEvents: false,
         className: `pr-posicao pr-posicao--${ocupacaoSemPalete(posicao)}`,
       });
       // O Leaflet só cria o elemento quando o mapa já tem visão: marcar no "add".
-      forma.on('add', () => forma.getElement()?.setAttribute('data-posicao', posicao.code));
+      forma.on('add', () => {
+        forma.getElement()?.setAttribute('data-posicao', posicao.code);
+        if (posicao.freeConfirmed) forma.getElement()?.setAttribute('data-livre', 'true');
+      });
+      if (!posicao.deactivated) {
+        forma.on('click', () => {
+          this.eventos.aoEscolherPosicao?.(posicao.id);
+        });
+      }
       forma.addTo(base);
+      this.formasPosicao.set(posicao.id, forma);
       if (!posicao.available && !posicao.deactivated) {
         const { x, y, width: w, height: h } = recuar(posicao, 8);
         L.polyline(
@@ -355,20 +465,32 @@ export class ControladorMapa {
   }
 
   private criarRotuloPalete(palete: PaleteResumo): HTMLElement {
-    const rotulo = ROTULOS_CONFERENCIA[palete.countState];
-    const raiz = elemento('div', `pr-rotulo-palete pr-rotulo-palete--${palete.countState}`);
+    const { chave, rotulo } = estadoExibido(palete);
+    const raiz = elemento('div', `pr-rotulo-palete pr-rotulo-palete--${chave}`);
+    const posicao = palete.positionId === null ? undefined : this.posicoes.get(palete.positionId);
+    // Endereço operacional em destaque; código do palete e código técnico da posição ficam como apoio.
+    raiz.title = `${palete.code} · ${palete.positionCode ?? ''}`;
     raiz.append(
+      // Curto (sem a rua) quando a posição é estreita; completo nos níveis seguintes.
+      elemento('span', 'pr-rotulo-endereco pr-rotulo-endereco--curto', enderecoCurto(posicao, palete.positionCode)),
+      elemento('span', 'pr-rotulo-endereco pr-rotulo-endereco--principal', rotuloEnderecoMapa(posicao, palete.positionCode)),
       elemento('span', 'pr-rotulo-codigo', palete.code),
-      elemento('span', 'pr-rotulo-endereco', textoEndereco(palete.positionId === null ? undefined : this.posicoes.get(palete.positionId), palete.positionCode)),
       elemento('span', 'pr-rotulo-estado', `${rotulo.marcador} ${rotulo.curto}${palete.activeCountId !== null ? ' · ✎ em conferência' : ''}`),
     );
+    if (palete.flowState === 'RESERVADO') raiz.append(elemento('span', 'pr-rotulo-agenda', 'AGENDA'));
+    if (palete.reconference?.due === true) raiz.append(elemento('span', 'pr-rotulo-reconferencia', '⟳ Reconferência necessária'));
     return raiz;
   }
 
   private criarRotuloPosicao(posicao: Posicao): HTMLElement {
     const ocupacao = ocupacaoSemPalete(posicao);
     const raiz = elemento('div', `pr-rotulo-posicao pr-rotulo-posicao--${ocupacao}`);
-    raiz.append(elemento('span', 'pr-rotulo-endereco', textoEndereco(posicao, posicao.code)), elemento('span', 'pr-rotulo-estado', TEXTO_OCUPACAO[ocupacao]));
+    raiz.title = `${rotuloEnderecoMapa(posicao, posicao.code)} · ${posicao.code}`;
+    raiz.append(
+      elemento('span', 'pr-rotulo-endereco pr-rotulo-endereco--curto', enderecoCurto(posicao, posicao.code)),
+      elemento('span', 'pr-rotulo-endereco pr-rotulo-endereco--principal', rotuloEnderecoMapa(posicao, posicao.code)),
+      elemento('span', 'pr-rotulo-estado', TEXTO_OCUPACAO[ocupacao]),
+    );
     return raiz;
   }
 
@@ -475,9 +597,19 @@ export class ControladorMapa {
     this.eventos.aoMudarVisao(visao);
   };
 
+  /**
+   * Novo tamanho (menu recolhido, janela redimensionada): mantém centro e zoom
+   * da navegação do usuário. Só a vista inicial ainda pendente (contêiner que
+   * estava oculto) é aplicada aqui, uma vez.
+   */
   private readonly aoRedimensionar = (): void => {
     this.mapa.invalidateSize({ pan: true, animate: false });
     this.ajustarZoomMinimo();
+    const tamanho = this.mapa.getSize();
+    if (this.vistaInicialPendente && tamanho.x > 0 && tamanho.y > 0) {
+      this.vistaInicialPendente = false;
+      this.enquadrarExato(this.principal, false, 'principal');
+    }
     this.aoMudarZoom();
     this.aoMover();
   };
@@ -486,7 +618,7 @@ export class ControladorMapa {
     if (evento.altKey || evento.ctrlKey || evento.metaKey) return;
     if (evento.key === 'Home') {
       evento.preventDefault();
-      this.visaoGeral();
+      this.focarPrincipal();
     } else if ((evento.key === 'c' || evento.key === 'C') && this.selecionado !== null) {
       evento.preventDefault();
       this.centralizar(this.selecionado);

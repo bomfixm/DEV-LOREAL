@@ -106,3 +106,71 @@ export const IconeArquivo = () => (
     <path d="M14 3v4h4M9 13h6M9 17h6" />
   </Svg>
 );
+
+export const IconePrancheta = () => (
+  <Svg>
+    <path d="M9 4h6v3H9z" />
+    <path d="M9 5.5H6v15h12v-15h-3M9 12h6M9 16h4" />
+  </Svg>
+);
+
+export const IconeCaixa = () => (
+  <Svg>
+    <path d="M3.5 8 12 4l8.5 4v8L12 20l-8.5-4z" />
+    <path d="M3.5 8 12 12l8.5-4M12 12v8" />
+  </Svg>
+);
+
+export const IconeCalendario = () => (
+  <Svg>
+    <path d="M4 6h16v14H4zM4 10h16M8 3v5M16 3v5" />
+  </Svg>
+);
+
+/** Painéis (gráfico de barras). */
+export const IconePainel = () => (
+  <Svg>
+    <path d="M4 20h16M7 16v-5M12 16V7M17 16v-8" />
+  </Svg>
+);
+
+/** Tema claro. */
+export const IconeSol = () => (
+  <Svg>
+    <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+  </Svg>
+);
+
+/** Tema escuro. */
+export const IconeLua = () => (
+  <Svg>
+    <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />
+  </Svg>
+);
+
+/** Abrir a lista correspondente (seta para cima e à direita). */
+export const IconeAbrir = () => (
+  <Svg>
+    <path d="M7 17 17 7M9 7h8v8" />
+  </Svg>
+);
+
+/** Menu lateral: expandir (setas para a direita) e recolher (para a esquerda). */
+export const IconeExpandirMenu = () => (
+  <Svg>
+    <path d="M6 6l6 6-6 6M13 6l6 6-6 6" />
+  </Svg>
+);
+
+export const IconeRecolherMenu = () => (
+  <Svg>
+    <path d="M18 6l-6 6 6 6M11 6l-6 6 6 6" />
+  </Svg>
+);
+
+/** "Mais" (demais páginas). */
+export const IconeReticencias = () => (
+  <Svg>
+    <path d="M5 12h.01M12 12h.01M19 12h.01" />
+  </Svg>
+);

@@ -53,6 +53,10 @@ export const InventarioResumoSchema = z.object({
   sheet: z.string().nullable(),
   batchId: z.uuid().nullable(),
   palletNumberMeaning: SignificadoNumeroPaleteSchema,
+  /** Base provisória ("Inventário em validação"): saldos não são disponibilidade certificada. */
+  inValidation: z.boolean().default(false),
+  /** Data-base informada do arquivo (AAAA-MM-DD), quando houver. */
+  baseDate: z.iso.date().nullable().default(null),
   totals: z.object({
     lines: z.number().int().nonnegative(),
     applied: z.number().int().nonnegative(),
@@ -137,6 +141,51 @@ export const PaginaLinhasInventarioSchema = z.object({
   pageSize: z.number().int().positive(),
 });
 export type PaginaLinhasInventario = z.infer<typeof PaginaLinhasInventarioSchema>;
+
+/**
+ * Causas de revisão do inventário preparado (pendências com bloqueio, código
+ * original em minúsculas): nome curto para agrupar. Código desconhecido usa
+ * a descrição da própria ocorrência.
+ */
+export const ROTULOS_CAUSA_REVISAO: Readonly<Record<string, string>> = {
+  endereco_a_validar: 'Endereço a validar (RUA = VALIDAR)',
+  numero_palete_ausente: 'N° Pallet ausente',
+  endereco_fora_da_regra: 'Endereço fora da regra do mapa',
+  duplicata_exata: 'Linhas iguais (possível recontagem duplicada)',
+  palete_em_multiplos_enderecos: 'Mesmo N° Pallet em mais de um endereço',
+  endereco_com_multiplos_paletes: 'Endereço com mais de um N° Pallet',
+  possivel_recontagem_com_quantidade_diferente: 'Possível recontagem com quantidade diferente',
+  formula_sem_validacao: 'Fórmula inválida na origem',
+  revisao_necessaria: 'Revisão indicada pela preparação',
+};
+
+/**
+ * GET /inventarios/:id/pendencias — linhas que requerem resolução agrupadas
+ * por causa e, dentro dela, por endereço e N° Pallet. Uma linha com mais de
+ * uma causa aparece em cada grupo (`totalLines` conta cada linha uma vez).
+ * Volumes não são somados (a revisão decide o que vale).
+ */
+export const GrupoPendenciasInventarioSchema = z.object({
+  cause: z.string().min(1),
+  description: z.string().min(1),
+  lines: z.number().int().nonnegative(),
+  places: z.array(
+    z.object({
+      /** Endereço normalizado ou, sem ele, o informado; `null` = sem endereço. */
+      address: z.string().nullable(),
+      palletNumbers: z.array(z.string()),
+      rows: z.array(z.number().int().positive()),
+    }),
+  ),
+});
+export type GrupoPendenciasInventario = z.infer<typeof GrupoPendenciasInventarioSchema>;
+
+export const PendenciasInventarioSchema = z.object({
+  inventoryId: z.uuid(),
+  totalLines: z.number().int().nonnegative(),
+  groups: z.array(GrupoPendenciasInventarioSchema),
+});
+export type PendenciasInventario = z.infer<typeof PendenciasInventarioSchema>;
 
 /**
  * POST /inventarios/:id/conferencia-externa — reconhece a conferência externa
@@ -242,6 +291,9 @@ export const DocumentoPaleteSchema = z.object({
   /** NFD = nota de devolução; outro tipo (MI) ou tipo pendente não é chamado de NFD. */
   isNfd: z.boolean().default(false),
   sender: z.string().nullable().default(null),
+  /** MÊS AGENDA e JANELA da linha de origem, como informados (manual ou agenda do cliente); `null` = não informado. */
+  scheduleMonth: z.string().nullable().default(null),
+  windowRef: z.string().nullable().default(null),
   /** Vazia = não informada (editável depois; nunca inferida do remetente). `version` 0 = ainda sem registro. */
   destinationCity: z.object({ value: z.string(), version: z.number().int().nonnegative() }).default({ value: '', version: 0 }),
   /** Produto na caixa: descrição livre do vínculo NF × palete e descrições por caixa/grupo. */

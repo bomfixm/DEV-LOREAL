@@ -1,7 +1,7 @@
 import { expect, test, type APIResponse, type Page, type TestInfo } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { abrirMenuConta, aguardarMapa, aguardarMapaParado, centroDaCaixa, entrar, forma, mapa, obterPraca, type PracaApi } from './apoio';
+import { abrirMenuConta, aguardarMapa, aguardarMapaParado, centroDaCaixa, entrar, forma, mapa, obterPraca, type PracaApi, verMais } from './apoio';
 import { credenciais, type Credenciais } from './credenciais';
 
 /**
@@ -177,7 +177,6 @@ test.describe('busca e importação', () => {
     // 5. Buscar o SKU: dois saldos validados e o documento à parte; resumo sem somar bases.
     await page.goto('/');
     await aguardarMapa(page);
-    await page.getByTestId('painel-busca-botao').click();
     await page.getByTestId('campo-busca').fill(sku);
     await expect(page.getByTestId('busca-total')).toContainText('3 resultado(s)');
     const resultados = page.getByTestId('resultado-busca');
@@ -191,9 +190,11 @@ test.describe('busca e importação', () => {
     // Mapa destaca só os paletes do resultado.
     await expect(page.locator('path[data-palete-id]:not(.pr-palete--esmaecido)')).toHaveCount(2);
 
-    // 6. Escolher o palete B: o mapa centraliza o palete certo e o detalhe abre.
+    // 6. Escolher o palete B: o mapa centraliza o palete certo e a janela dele abre; detalhes completos recolhidos nela.
     await page.locator(`[data-testid="resultado-busca"][data-base="SALDO_VALIDADO"][data-palete="${pb.code}"]`).getByTestId('resultado-abrir').click();
-    await expect(page.getByTestId('detalhe').getByRole('heading', { level: 2 })).toHaveText(pb.code);
+    await expect(page.getByTestId('janela-titulo')).toHaveText(`Palete ${pb.code}`);
+    await expect(page.getByTestId('detalhe')).toHaveCount(0);
+    await verMais(page);
     await expect(page.getByTestId('itens-saldo')).toContainText('7 UN');
     await aguardarMapaParado(page);
     const noMapa = await centroDaCaixa(forma(page, pb.code));
@@ -210,6 +211,9 @@ test.describe('busca e importação', () => {
     await expect(page.getByTestId('painel-busca')).toBeVisible();
     await expect(page.getByTestId('campo-busca')).toHaveValue(sku);
     await expect(page.locator(`[data-testid="resultado-busca"][data-palete="${pb.code}"][aria-current="true"]`)).toHaveCount(1);
+    // A volta pela rota do palete reabre a janela dele; fechar devolve o mapa com a busca.
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('janela-palete')).toHaveCount(0);
 
     // 8. Exportação CSV do mesmo filtro.
     const [exportado] = await Promise.all([page.waitForEvent('download'), page.getByTestId('busca-exportar').click()]);
@@ -226,7 +230,6 @@ test.describe('busca e importação', () => {
       await rota.continue();
     });
     await aguardarMapa(page);
-    await page.getByTestId('painel-busca-botao').click();
     await page.getByTestId('campo-busca').fill('LENTA');
     await page.waitForRequest((r) => r.url().includes('texto=LENTA'));
     await page.getByTestId('campo-busca').fill('MODELO-KG');
@@ -244,7 +247,6 @@ test.describe('busca e importação', () => {
     test.skip(isMobile, 'Fluxo de computador.');
     await entrar(page, 'consultaCadastro');
     await aguardarMapa(page);
-    await page.getByTestId('painel-busca-botao').click();
     await page.getByTestId('campo-busca').fill('000123');
     await expect(page.getByTestId('busca-total')).toContainText('resultado(s)');
     await expect(page.getByTestId('busca-exportar')).toHaveCount(0);
@@ -275,11 +277,11 @@ test.describe('busca e importação', () => {
     const larguras = await page.getByTestId('painel-busca').evaluate((el) => ({ rolagem: el.scrollWidth, visivel: el.clientWidth }));
     expect(larguras.rolagem).toBeLessThanOrEqual(larguras.visivel + 1);
     await page.getByTestId('resultado-abrir').click();
-    await expect(page.getByRole('button', { name: 'Mapa', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('.resumo-selecao')).toContainText(palete.code);
-    await page.getByRole('button', { name: 'Ver conteúdo' }).click();
-    await expect(page.getByTestId('detalhe').getByRole('heading', { level: 2 })).toHaveText(palete.code);
+    await expect(page.getByTestId('janela-titulo')).toHaveText(`Palete ${palete.code}`);
+    // O voltar do aparelho fecha a janela e mostra o mapa.
     await page.goBack();
+    await expect(page.getByTestId('janela-palete')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Mapa', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await page.getByRole('button', { name: 'Busca', exact: true }).click();
     await expect(page.getByTestId('campo-busca')).toHaveValue(sku);
     await expect(page.getByTestId('resultado-busca')).toHaveCount(1);

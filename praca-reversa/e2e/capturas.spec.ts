@@ -1,6 +1,6 @@
 import { expect, test, type APIResponse, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { aguardarMapa, aguardarMapaParado, entrar, obterPraca, type PracaApi } from './apoio';
+import { abrirPalete, aguardarMapa, aguardarMapaParado, entrar, obterPraca, type PracaApi } from './apoio';
 
 /**
  * Capturas de evidência da etapa 08 (npm run capturas), que também servem de
@@ -136,7 +136,7 @@ test.describe('capturas @captura', () => {
     const c = await liberar(page, await paleteComSaldo(page, vagas[2]?.id ?? '', produto.id, '15', 'DEV-DEMO-0803'), '15');
 
     // 1. Liberação parcial pelo detalhe do palete (conferência não libera).
-    await page.goto(`/paletes/${a.id}`);
+    await abrirPalete(page, a.id);
     await aguardarMapa(page);
     const lib = page.getByTestId('secao-liberacao');
     await lib.getByTestId('abrir-liberar').click();

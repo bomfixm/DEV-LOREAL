@@ -497,8 +497,8 @@ export function PainelEntrada({ habilitado, motivoBloqueio, origens, aoRegistrar
       {estado.tipo === 'nao-cadastrado' && (
         <div className="cartao-confirmacao cartao-confirmacao--pendente" data-testid="codigo-nao-cadastrado">
           <p>
-            <strong>Código {estado.codigo} não cadastrado neste escopo.</strong> Nenhum SKU foi associado. Registre como pendência (a quantidade fica sem
-            conversão e não entra no saldo) ou cadastre o produto/código e leia de novo.
+            <strong>Código {estado.codigo} não cadastrado neste escopo.</strong> Nenhum SKU foi associado. Registre como pendência: a quantidade fica sem
+            conversão e não entra no saldo.
           </p>
           <div className="formulario-grade">
             <label className="campo">

@@ -261,6 +261,18 @@ describe('Documentos de devolução (T16)', () => {
       palletsLocated: 0,
       selectionId: null,
       selectionLines: 0,
+      // Contadores da bipagem (palete de destino e notas) também zerados.
+      documentLinksEnded: 0,
+      palletId: null,
+      documentsWritten: 0,
+      contentsCreated: 0,
+      countsRegistered: 0,
+      documentsUnchanged: 0,
+      recordsWithoutReads: 0,
+      volumesRead: 0,
+      palletCode: null,
+      palletCreated: false,
+      rowsRevalidated: 0,
     });
     expect(await estadoFisico()).toBe(antes);
     const gravadas = await db.linhaDocumentoDevolucao.findMany({ orderBy: { linhaArquivo: 'asc' } });

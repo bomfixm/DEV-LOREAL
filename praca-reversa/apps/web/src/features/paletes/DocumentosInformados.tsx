@@ -15,6 +15,7 @@ import { IconeAtualizar } from '../../components/Icones';
 import { MensagemAcao } from '../../components/Moldura';
 import { formatarData, formatarDataHora } from '../../utils/datas';
 import { formatarQuantidade } from '../../utils/numeros';
+import { apresentarVolumes, textoSequenciaFull } from './volumes';
 
 /**
  * Notas do palete (inventário conferido / carga em lote): para cada NF, só os
@@ -31,7 +32,9 @@ interface Edicao {
   gravar: (assinatura: string, metodo: 'PUT' | 'POST', caminho: string, corpo: unknown, sucesso: string) => Promise<boolean>;
 }
 
-const volumesTexto = (d: DocumentoPalete) => (d.volumes === null ? null : `${formatarQuantidade(d.volumes)} ${d.volumesUnit.toLowerCase()}`);
+/** Volumes da parcela neste palete. Sem fonte dos esperados ainda: só os lidos (regra lidos × esperados em `volumes.ts`). */
+const volumesTexto = (d: DocumentoPalete) =>
+  d.volumes === null ? null : d.volumesUnit.toUpperCase() === 'VOLUMES' ? apresentarVolumes(d.volumes, null).texto : `${formatarQuantidade(d.volumes)} ${d.volumesUnit.toLowerCase()}`;
 
 function textoLocal(o: LocalNota): string {
   if (o.kind === 'FORA_DA_PRACA') {
@@ -182,6 +185,12 @@ function Nota({ paleteId, d, full, edicao }: { paleteId: string; d: DocumentoPal
           </dd>
         </div>
         <div>
+          <dt>Delivery</dt>
+          <dd className={d.delivery === null ? 'pendente' : undefined} data-testid="nota-delivery">
+            {d.delivery ?? 'Não informado'}
+          </dd>
+        </div>
+        <div>
           <dt>Remetente</dt>
           <dd className={d.sender === null ? 'pendente' : undefined}>{d.sender ?? 'Não informado'}</dd>
         </div>
@@ -223,7 +232,22 @@ function Nota({ paleteId, d, full, edicao }: { paleteId: string; d: DocumentoPal
         </div>
         <div>
           <dt>Palete full</dt>
-          <dd data-testid="nota-full">{ROTULOS_PALETE_FULL[full.value]}</dd>
+          <dd data-testid="nota-full">
+            {ROTULOS_PALETE_FULL[full.value]}
+            {textoSequenciaFull(d.palletFull) !== null && <> · sequência {textoSequenciaFull(d.palletFull)}</>}
+          </dd>
+        </div>
+        <div>
+          <dt>Mês de agenda</dt>
+          <dd className={d.scheduleMonth === null ? 'pendente' : undefined} data-testid="nota-mes-agenda">
+            {d.scheduleMonth ?? 'Não informado'}
+          </dd>
+        </div>
+        <div>
+          <dt>Janela</dt>
+          <dd className={d.windowRef === null ? 'pendente' : undefined} data-testid="nota-janela">
+            {d.windowRef ?? 'Não informada'}
+          </dd>
         </div>
         <div>
           <dt>Mesma NFD em mais de um palete</dt>

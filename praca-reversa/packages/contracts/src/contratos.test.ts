@@ -106,6 +106,9 @@ function palete(parcial: Partial<PaleteDetalhe>): PaleteDetalhe {
     flowState: 'EM_ESTOQUE',
     pendingReason: null,
     activeCountId: null,
+    reconference: null,
+    volumeCheck: null,
+    legacyCode: null,
     currentItems: null,
     observedCounts: [],
     activeCount: null,
@@ -143,8 +146,8 @@ function layout(parcial: Partial<Layout> = {}): Layout {
     elements: [],
     rows: [{ id: ID_FILEIRA, code: 'F01', label: 'F01', order: 1, blockCode: null, x: 0, y: 10, width: 140, height: 30, labelBox: caixa, side: null }],
     positions: [
-      { id: ID_POS_1, code: 'F01-P01', provisionalCode: true, rowId: ID_FILEIRA, number: 1, x: 40, y: 10, width: 40, height: 30, available: true, unavailableReason: null, occupancySurveyed: false, deactivated: false, address: null },
-      { id: ID_POS_2, code: 'F01-P02', provisionalCode: true, rowId: ID_FILEIRA, number: 2, x: 90, y: 10, width: 40, height: 30, available: false, unavailableReason: 'Pilar', occupancySurveyed: false, deactivated: false, address: null },
+      { id: ID_POS_1, code: 'F01-P01', provisionalCode: true, rowId: ID_FILEIRA, number: 1, x: 40, y: 10, width: 40, height: 30, available: true, unavailableReason: null, occupancySurveyed: false, deactivated: false, address: null, freeConfirmed: null },
+      { id: ID_POS_2, code: 'F01-P02', provisionalCode: true, rowId: ID_FILEIRA, number: 2, x: 90, y: 10, width: 40, height: 30, available: false, unavailableReason: 'Pilar', occupancySurveyed: false, deactivated: false, address: null, freeConfirmed: null },
     ],
     ...parcial,
   };
@@ -264,6 +267,9 @@ describe('ocupação', () => {
     flowState: 'EM_ESTOQUE',
     pendingReason: null,
     activeCountId: null,
+    reconference: null,
+    volumeCheck: null,
+    legacyCode: null,
   });
 
   it('aceita palete em posição existente e palete sem posição', () => {
@@ -285,11 +291,17 @@ describe('ocupação', () => {
 });
 
 describe('perfis e permissões', () => {
-  it('todos os perfis consultam a praça e só o administrador administra acesso', () => {
+  it('todos os perfis da operação consultam a praça e só o administrador administra acesso', () => {
     for (const perfil of PERFIS) {
-      expect(perfilPossui(perfil, 'praca.consultar')).toBe(true);
+      expect(perfilPossui(perfil, 'praca.consultar')).toBe(perfil !== 'CLIENTE_CONSULTA');
       expect(perfilPossui(perfil, 'acesso.administrar')).toBe(perfil === 'ADMINISTRADOR');
     }
+  });
+
+  it('perfil do cliente só consulta a projeção do painel do cliente (nada interno, nenhuma escrita)', () => {
+    expect(PERMISSOES_POR_PERFIL.CLIENTE_CONSULTA).toEqual(['painel.cliente']);
+    expect(PERFIS.filter((p) => perfilPossui(p, 'painel.operacao'))).toEqual(['CONSULTA', 'OPERADOR', 'SUPERVISOR_ESTOQUE', 'ANALISTA_CLAIMS', 'ADMINISTRADOR']);
+    expect(PERFIS.filter((p) => perfilPossui(p, 'painel.cliente'))).toEqual(['SUPERVISOR_ESTOQUE', 'CLIENTE_CONSULTA']);
   });
 
   it('aprovação financeira não é concedida automaticamente a nenhum perfil, nem ao administrador', () => {

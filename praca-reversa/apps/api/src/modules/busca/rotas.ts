@@ -15,6 +15,8 @@ export const ROTULO_BASE: Readonly<Record<BaseResultado, string>> = {
   DECLARADO_PALETE: 'Declarado no cadastro do palete (documento)',
   DOCUMENTO: 'Documento importado (sem vínculo físico)',
   INVENTARIO: 'Vínculo informado no inventário (NF × palete)',
+  CONTEUDO: 'Conteúdo registrado no palete',
+  ORIGEM_INVENTARIO: 'Origem do inventário sem alocação',
 };
 
 const ROTULO_CORRESPONDENCIA: Readonly<Record<Correspondencia, string>> = {
@@ -79,14 +81,14 @@ function linhaCsv(r: ResultadoBusca): string[] {
     quantidadeCsv(r.document?.declaredQuantity ?? null),
     celulaCsv(r.document?.declaredUnit ?? null),
     quantidadeCsv(r.document?.factor ?? null),
-    celulaCsv(r.documentLink?.inventoryCode ?? null),
-    r.documentLink ? String(r.documentLink.row) : '',
-    celulaCsv(r.documentLink?.documentType ?? null),
-    celulaCsv(r.documentLink?.documentNumber ?? null),
-    celulaCsv(r.documentLink?.delivery ?? null),
-    quantidadeCsv(r.documentLink?.volumes ?? null),
+    celulaCsv(r.documentLink?.inventoryCode ?? r.inventoryOrigin?.inventoryCode ?? null),
+    r.documentLink ? String(r.documentLink.row) : r.inventoryOrigin ? String(r.inventoryOrigin.row) : '',
+    celulaCsv(r.documentLink?.documentType ?? r.contentLink?.documentType ?? r.inventoryOrigin?.documentType ?? null),
+    celulaCsv(r.documentLink?.documentNumber ?? r.contentLink?.documentNumber ?? r.inventoryOrigin?.documentNumber ?? null),
+    celulaCsv(r.documentLink?.delivery ?? r.contentLink?.delivery ?? r.inventoryOrigin?.delivery ?? null),
+    quantidadeCsv(r.documentLink?.volumes ?? r.contentLink?.counted ?? r.inventoryOrigin?.volumes ?? null),
     celulaCsv(r.documentLink?.volumesUnit ?? null),
-    celulaCsv(r.documentLink?.informedAddress ?? null),
+    celulaCsv(r.documentLink?.informedAddress ?? (r.inventoryOrigin ? (r.inventoryOrigin.informedAddress ?? 'sem alocação / endereço não informado') : null)),
     celulaCsv(r.documentLink?.documentation ?? null),
   ];
 }

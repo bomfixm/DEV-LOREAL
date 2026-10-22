@@ -70,6 +70,8 @@ export default async function configuracaoGlobal(config: FullConfig): Promise<vo
   const tutorialComputador = await novo(sAdmin, 'tutorial.pc.e2e', 'Primeiro acesso (computador)', 'CONSULTA');
   const tutorialCelular = await novo(sAdmin, 'tutorial.cel.e2e', 'Primeiro acesso (celular)', 'CONSULTA');
   const tutorialAdiar = await novo(sAdmin, 'tutorial.adiar.e2e', 'Primeiro acesso (adiar)', 'CONSULTA');
+  // Painéis: acesso de consulta do cliente (projeção permitida, sem mapa nem dados internos).
+  const clienteDemo = await novo(sAdmin, 'cliente.demo.e2e', 'Cliente (consulta) demonstração', 'CLIENTE_CONSULTA');
   // Cenário de navegação. A troca entre escopos pela interface é testada com
   // o administrador, que tem vínculo nos dois.
   await enviar(sAdmin, 'PUT', '/api/v1/sessao/escopo', { scopeId: escopo(sAdmin, 'Cenário de navegação') }, false);
@@ -96,7 +98,7 @@ export default async function configuracaoGlobal(config: FullConfig): Promise<vo
 
   // As demais contas já "viram" o convite (escolheram "Agora não"): as specs das etapas
   // anteriores testam a operação, não o primeiro acesso, e não mudam de layout por causa dele.
-  const veteranos = [admin, adminCadastro, adminVazio, consulta, descartavel, restrito, consultaNavegacao, operadorDemo, supervisorDemo, analistaDemo, financeiroDemo, supervisor, operador, consultaCadastro, analista, financeiro];
+  const veteranos = [admin, adminCadastro, adminVazio, consulta, descartavel, restrito, consultaNavegacao, operadorDemo, supervisorDemo, analistaDemo, financeiroDemo, clienteDemo, supervisor, operador, consultaCadastro, analista, financeiro];
   for (const quem of veteranos) {
     const s = await entrar(quem);
     await enviar(s, 'PUT', '/api/v1/preferencias/tutorial', { state: 'ADIADO', step: null }, false);
@@ -122,6 +124,7 @@ export default async function configuracaoGlobal(config: FullConfig): Promise<vo
     tutorialComputador,
     tutorialCelular,
     tutorialAdiar,
+    clienteDemo,
   };
   writeFileSync(ARQUIVO_CREDENCIAIS, JSON.stringify(credenciais, null, 2), { mode: 0o600 });
 }

@@ -1,0 +1,80 @@
+{
+  "finalidade": "Recorte histórico real para apresentação; não é comando de importação ou movimentação.",
+  "preparado_em": "2026-10-21",
+  "fonte": {
+    "arquivo": "Inventario_Loreal_otimizado (4).xlsx",
+    "sha256": "25266432c1d6386c2c01a9f879c676ea4a705a62db7937352251a018fa58d0b8",
+    "aba": "Inventario L'oreal",
+    "linhas": [
+      3,
+      4
+    ]
+  },
+  "registros": [
+    {
+      "linha_fonte": 3,
+      "palete": "256",
+      "posicao": "11 - A42",
+      "tipo": "NFD",
+      "numero_documento": "9059802",
+      "volumes_no_registro": 117,
+      "remetente": "J SLEIMAN SA COM DE PROD HIGIENE",
+      "identificacao_full_origem": "03/09",
+      "identificacao_full_exibicao": "3/9",
+      "delivery_origem": "89443472",
+      "delivery_exibicao": "89443472",
+      "conferencia_informada_origem": "16-10",
+      "conferencia_informada": "2026-10-16",
+      "origem_ano": "2026 conforme período do inventário confirmado pelo usuário; célula contém somente dia-mês",
+      "campos_origem": {
+        "A": "A3",
+        "B": "B3",
+        "C": "C3",
+        "D": "D3",
+        "E": "E3",
+        "F": "F3",
+        "I": "I3",
+        "K": "K3",
+        "M": "M3"
+      }
+    },
+    {
+      "linha_fonte": 4,
+      "palete": "257",
+      "posicao": "11 - A43",
+      "tipo": "NFD",
+      "numero_documento": "9059802",
+      "volumes_no_registro": 117,
+      "remetente": "J SLEIMAN SA COM DE PROD HIGIENE",
+      "identificacao_full_origem": "01/09",
+      "identificacao_full_exibicao": "1/9",
+      "delivery_origem": "*",
+      "delivery_exibicao": "Não informado",
+      "conferencia_informada_origem": "16-10",
+      "conferencia_informada": "2026-10-16",
+      "origem_ano": "2026 conforme período do inventário confirmado pelo usuário; célula contém somente dia-mês",
+      "campos_origem": {
+        "A": "A4",
+        "B": "B4",
+        "C": "C4",
+        "D": "D4",
+        "E": "E4",
+        "F": "F4",
+        "I": "I4",
+        "K": "K4",
+        "M": "M4"
+      }
+    }
+  ],
+  "estado_atual_app": "Não verificado neste briefing: não houve acesso ao código nem ao banco atuais.",
+  "limites": [
+    "Os dois registros não constituem o total da NF, do inventário ou da praça.",
+    "Os volumes pertencem a cada registro/palete; FULL identifica a parte, não multiplica volumes.",
+    "A data é uma conferência informada no inventário; não atesta conferência completa registrada no app.",
+    "Posição, status e quantidade atuais precisam de snapshot próprio e reconciliação; não atualizar apenas a data da apresentação.",
+    "Delivery * representa ausência de informação, não herda a Delivery da outra linha.",
+    "PF/CNPJ é classificação da planilha; não é um CNPJ numérico do remetente.",
+    "Não foi fornecido pedido real de janela para esta apresentação nem série de ganhos financeiros ou produtividade.",
+    "Não gerar importação, baixa, mudança de status ou liberação de endereço a partir deste recorte."
+  ]
+}

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Praça Reversa — apresentação</title>
+<link rel="stylesheet" href="estilos.css">
+<link rel="stylesheet" href="cenas.css">
+</head>
+<body>
+<div id="tela">
+  <div id="palco">
+    <div id="carregando">Preparando a apresentação…</div>
+    <div id="cenas"></div>
+    <div id="pontes" aria-hidden="true"></div>
+    <div id="cortina" aria-hidden="true"></div>
+  </div>
+</div>
+<div id="progresso" aria-hidden="true"></div>
+<nav id="controles" aria-label="Controles da apresentação">
+  <button type="button" data-acao="anterior" title="Anterior (← ou PageUp)" aria-label="Cena anterior">‹</button>
+  <span class="contador" id="contador" aria-live="polite">01 / 12</span>
+  <button type="button" data-acao="proxima" title="Próxima (→, espaço ou PageDown)" aria-label="Próxima cena">›</button>
+  <span class="sep"></span>
+  <button type="button" data-acao="indice" title="Índice de cenas (I)">Índice</button>
+  <button type="button" data-acao="notas" title="Notas do apresentador em outra janela (N)">Notas</button>
+  <button type="button" data-acao="movimento" id="b-movimento" aria-pressed="false" title="Reduzir movimentos (M)">Movimento reduzido</button>
+  <button type="button" data-acao="tela" id="b-tela" aria-pressed="false" title="Tela cheia (F); sair com Esc">Tela cheia</button>
+  <button type="button" data-acao="ocultar" title="Ocultar controles (H)" aria-label="Ocultar controles">✕</button>
+</nav>
+<div id="indice" hidden role="dialog" aria-label="Índice de cenas">
+  <div class="caixa">
+    <h2>Índice <span>Esc ou I para fechar</span></h2>
+    <ol></ol>
+    <div class="atalhos">
+      <kbd>→</kbd> <kbd>espaço</kbd> <kbd>PageDown</kbd> próxima · <kbd>←</kbd> <kbd>PageUp</kbd> anterior · <kbd>Home</kbd>/<kbd>End</kbd> primeira/última ·
+      <kbd>F</kbd> tela cheia (sair: <kbd>Esc</kbd>) · <kbd>N</kbd> notas · <kbd>M</kbd> movimento reduzido · <kbd>B</kbd> tela preta · <kbd>H</kbd> ocultar controles
+    </div>
+  </div>
+</div>
+<div id="aviso" role="status"></div>
+<script src="dados.js"></script>
+<script src="dados-mapa.js"></script>
+<script src="roteiro.js"></script>
+<script src="cenas.js"></script>
+<script src="motor.js"></script>
+</body>
+</html>

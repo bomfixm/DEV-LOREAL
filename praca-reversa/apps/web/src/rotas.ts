@@ -20,20 +20,28 @@ import { ehTarefa, type IdTarefa } from './features/ajuda/tarefas';
  * /aplicativo (instalação, aparelho e versões, sem dados da operação). Etapa
  * 10: /ajuda (?guia=<tarefa>), /indicadores (?inicio&fim) e /relatorios
  * (?tipo e filtros do relatório), e /paletes/<uuid>/retirar (palete vazio
- * depois de consolidação). Complemento "seleção do cliente": /selecoes,
+ * depois de consolidação). Importar bipagem: /bipagem (arquivo → prévia → posição no mapa) ou /paletes/<uuid>/bipagem (destino = o palete aberto). Complemento "seleção do cliente": /selecoes,
  * /selecoes/<uuid> (?situacao=… filtros da conciliação), /inventarios e
  * /inventarios/<uuid>; /importacoes/nova?tipo=<TIPO> abre a importação com o
- * tipo escolhido (o servidor confere a permissão). Todos
- * os caminhos são internos; com caminho-base (CAMINHO_BASE=/praca/), a barra
- * de endereços mostra /praca/paletes/<uuid>.
+ * tipo escolhido (o servidor confere a permissão). Conteúdo do palete:
+ * /conteudos/novo (?palete=<uuid>) e /paletes/<uuid>/volumes; os endereços
+ * antigos /produtos e /produtos/catalogo levam a /conteudos/novo. Todos
+ * os caminhos são internos. Painéis: /painel (?inicio&fim), /painel/estoque
+ * (lista dos cards, com os filtros na URL), /painel/janelas/<uuid> (volumes
+ * da janela) e /painel/cliente (?aba, janela e filtros); com caminho-base (CAMINHO_BASE=/praca/), a barra
+ * de endereços mostra /praca/paletes/<uuid>. "Seleção cliente — teste":
+ * /selecao-teste (?solicitacao=<uuid> = carrinho em uso), /selecao-teste/solicitacoes
+ * e /selecao-teste/solicitacoes/<uuid> (revisão e acompanhamento).
  */
 export type Rota =
   | { tipo: 'praca' }
   | { tipo: 'palete'; id: string; claim?: ContextoClaim; reserva?: string }
   | { tipo: 'conferencia'; id: string }
   | { tipo: AcaoPalete; id: string }
-  | { tipo: 'novo-palete' }
-  | { tipo: 'produtos' }
+  /** Importar bipagem sem palete: arquivo, prévia e escolha da posição no mapa (/bipagem). */
+  | { tipo: 'bipagem-escolher' }
+  | { tipo: 'novo-palete'; posicao?: string }
+  | { tipo: 'novo-conteudo'; palete?: string }
   | { tipo: 'importacoes' }
   | { tipo: 'nova-importacao'; importar?: TipoImportacao }
   | { tipo: 'importacao'; id: string }
@@ -58,7 +66,16 @@ export type Rota =
   | { tipo: 'selecoes' }
   | { tipo: 'selecao'; id: string; situacao: string | null }
   | { tipo: 'inventarios' }
+  /** Fila interna "Validação urgente — sem endereço" (21 out. 2026). */
+  | { tipo: 'validacao' }
   | { tipo: 'inventario'; id: string }
+  | { tipo: 'painel'; parametros: string }
+  | { tipo: 'painel-estoque'; parametros: string }
+  | { tipo: 'painel-janela'; id: string }
+  | { tipo: 'painel-cliente'; parametros: string }
+  | { tipo: 'selecao-teste'; solicitacao: string | null }
+  | { tipo: 'selecao-teste-solicitacoes' }
+  | { tipo: 'selecao-teste-solicitacao'; id: string }
   | { tipo: 'entrar'; retorno: string | null }
   | { tipo: 'desconhecida' };
 
@@ -77,8 +94,8 @@ export interface ContextoClaim {
 }
 
 /** Páginas próprias de um palete (movimentações). */
-export type AcaoPalete = 'mover' | 'transferir' | 'historico' | 'retirar';
-const ACOES_PALETE: readonly AcaoPalete[] = ['mover', 'transferir', 'historico', 'retirar'];
+export type AcaoPalete = 'mover' | 'transferir' | 'historico' | 'retirar' | 'bipagem' | 'volumes';
+const ACOES_PALETE: readonly AcaoPalete[] = ['mover', 'transferir', 'historico', 'retirar', 'bipagem', 'volumes'];
 
 const DATA = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 /** Filtros aceitos na rota dos relatórios (os demais são descartados); validados de novo pela API. */
@@ -97,12 +114,52 @@ export function parametrosRelatorio(busca: string | URLSearchParams): string {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Filtros aceitos nas rotas dos painéis (guardados na URL para voltar à mesma consulta); validados de novo pela API. */
+export const PARAMETROS_PAINEL = ['aba', 'janela', 'inicio', 'fim', 'rua', 'palete', 'documento', 'delivery', 'remetente', 'situacao', 'pagina'] as const;
+
+/** Parâmetros dos painéis em ordem fixa, só chaves conhecidas e valores curtos. */
+export function parametrosPainel(busca: string | URLSearchParams): string {
+  const entrada = typeof busca === 'string' ? new URLSearchParams(busca) : busca;
+  const saida = new URLSearchParams();
+  for (const chave of PARAMETROS_PAINEL) {
+    const valor = (entrada.get(chave) ?? '').trim();
+    if (valor !== '' && valor.length <= 80 && !/\p{Cc}/u.test(valor)) saida.set(chave, valor);
+  }
+  return saida.toString();
+}
+
+/**
+ * Endereços antigos que continuam abrindo a página que os substituiu
+ * (favoritos, links salvos); a barra de endereços passa a mostrar o endereço
+ * atual (useRota). /produtos ("Novo produto") e /produtos/catalogo (catálogo
+ * de SKU, retirado da interface em out. 2026) levam a "Registrar conteúdo".
+ */
+const ENDERECOS_ANTIGOS: ReadonlyMap<string, 'novo-conteudo'> = new Map([
+  ['/produtos', 'novo-conteudo'],
+  ['/produtos/catalogo', 'novo-conteudo'],
+]);
+
+function partesDe(caminho: string): string[] {
+  return caminho.replace(/\/+$/, '').split('/').filter(Boolean);
+}
+
+/** O caminho é um endereço antigo (a barra de endereços deve mostrar o atual). */
+export function ehEnderecoAntigo(caminho: string): boolean {
+  return ENDERECOS_ANTIGOS.has(`/${partesDe(caminho).join('/')}`);
+}
+
 export function lerRota(caminho: string, busca: string): Rota {
-  const partes = caminho.replace(/\/+$/, '').split('/').filter(Boolean);
+  const partes = partesDe(caminho);
   const parametros = new URLSearchParams(busca);
   const [primeira, segunda, terceira] = partes;
   if (partes.length === 0) return { tipo: 'praca' };
-  if (primeira === 'paletes' && partes.length === 2 && segunda === 'novo') return { tipo: 'novo-palete' };
+  const antigo = ENDERECOS_ANTIGOS.get(`/${partes.join('/')}`);
+  if (antigo !== undefined) return { tipo: antigo };
+  if (primeira === 'paletes' && partes.length === 2 && segunda === 'novo') {
+    // "Receber palete aqui" (posição livre): a posição chega escolhida no cadastro.
+    const posicao = parametros.get('posicao') ?? '';
+    return UUID.test(posicao) ? { tipo: 'novo-palete', posicao: posicao.toLowerCase() } : { tipo: 'novo-palete' };
+  }
   if (primeira === 'paletes' && partes.length === 2 && segunda !== undefined && UUID.test(segunda)) {
     const claim = parametros.get('claim') ?? '';
     const linha = parametros.get('linha') ?? '';
@@ -119,7 +176,11 @@ export function lerRota(caminho: string, busca: string): Rota {
   if (primeira === 'conferencias' && partes.length === 2 && segunda !== undefined && UUID.test(segunda)) {
     return { tipo: 'conferencia', id: segunda.toLowerCase() };
   }
-  if (partes.length === 1 && primeira === 'produtos') return { tipo: 'produtos' };
+  if (primeira === 'conteudos' && partes.length === 2 && segunda === 'novo') {
+    const palete = parametros.get('palete') ?? '';
+    return UUID.test(palete) ? { tipo: 'novo-conteudo', palete: palete.toLowerCase() } : { tipo: 'novo-conteudo' };
+  }
+  if (partes.length === 1 && primeira === 'bipagem') return { tipo: 'bipagem-escolher' };
   if (partes.length === 1 && primeira === 'importacoes') return { tipo: 'importacoes' };
   if (primeira === 'importacoes' && partes.length === 2 && segunda === 'nova') {
     const tipo = TipoImportacaoSchema.safeParse(parametros.get('tipo'));
@@ -131,6 +192,7 @@ export function lerRota(caminho: string, busca: string): Rota {
     return { tipo: 'selecao', id: segunda.toLowerCase(), situacao: /^[A-Z_,]{1,300}$/.test(situacao) ? situacao : null };
   }
   if (partes.length === 1 && primeira === 'inventarios') return { tipo: 'inventarios' };
+  if (partes.length === 1 && primeira === 'validacao') return { tipo: 'validacao' };
   if (primeira === 'inventarios' && partes.length === 2 && segunda !== undefined && UUID.test(segunda)) return { tipo: 'inventario', id: segunda.toLowerCase() };
   if (primeira === 'importacoes' && partes.length === 2 && segunda !== undefined && UUID.test(segunda)) return { tipo: 'importacao', id: segunda.toLowerCase() };
   if (partes.length === 1 && primeira === 'claims') return { tipo: 'claims' };
@@ -170,6 +232,18 @@ export function lerRota(caminho: string, busca: string): Rota {
   }
   if (partes.length === 1 && primeira === 'relatorios') return { tipo: 'relatorios', parametros: parametrosRelatorio(parametros) };
   if (partes.length === 1 && primeira === 'planilha') return { tipo: 'planilha' };
+  if (partes.length === 1 && primeira === 'painel') return { tipo: 'painel', parametros: parametrosPainel(parametros) };
+  if (primeira === 'painel' && partes.length === 2 && segunda === 'estoque') return { tipo: 'painel-estoque', parametros: parametrosPainel(parametros) };
+  if (primeira === 'painel' && partes.length === 2 && segunda === 'cliente') return { tipo: 'painel-cliente', parametros: parametrosPainel(parametros) };
+  if (primeira === 'painel' && partes.length === 3 && segunda === 'janelas' && terceira !== undefined && UUID.test(terceira)) return { tipo: 'painel-janela', id: terceira.toLowerCase() };
+  if (partes.length === 1 && primeira === 'selecao-teste') {
+    const solicitacao = parametros.get('solicitacao') ?? '';
+    return { tipo: 'selecao-teste', solicitacao: UUID.test(solicitacao) ? solicitacao.toLowerCase() : null };
+  }
+  if (primeira === 'selecao-teste' && partes.length === 2 && segunda === 'solicitacoes') return { tipo: 'selecao-teste-solicitacoes' };
+  if (primeira === 'selecao-teste' && partes.length === 3 && segunda === 'solicitacoes' && terceira !== undefined && UUID.test(terceira)) {
+    return { tipo: 'selecao-teste-solicitacao', id: terceira.toLowerCase() };
+  }
   if (partes.length === 1 && primeira === 'entrar') return { tipo: 'entrar', retorno: parametros.get('retorno') };
   if (partes.length === 1 && primeira === 'etiquetas') {
     const ids = [...new Set((parametros.get('ids') ?? '').split(',').map((id) => id.trim().toLowerCase()))].filter((id) => UUID.test(id));
@@ -219,11 +293,15 @@ export function caminhoDe(rota: Rota): string {
     case 'transferir':
     case 'historico':
     case 'retirar':
+    case 'bipagem':
+    case 'volumes':
       return `/paletes/${rota.id}/${rota.tipo}`;
     case 'novo-palete':
-      return '/paletes/novo';
-    case 'produtos':
-      return '/produtos';
+      return rota.posicao ? `/paletes/novo?posicao=${rota.posicao}` : '/paletes/novo';
+    case 'novo-conteudo':
+      return rota.palete ? `/conteudos/novo?palete=${rota.palete}` : '/conteudos/novo';
+    case 'bipagem-escolher':
+      return '/bipagem';
     case 'importacoes':
       return '/importacoes';
     case 'nova-importacao':
@@ -234,6 +312,8 @@ export function caminhoDe(rota: Rota): string {
       return rota.situacao ? `/selecoes/${rota.id}?situacao=${rota.situacao}` : `/selecoes/${rota.id}`;
     case 'inventarios':
       return '/inventarios';
+    case 'validacao':
+      return '/validacao';
     case 'inventario':
       return `/inventarios/${rota.id}`;
     case 'importacao':
@@ -259,6 +339,21 @@ export function caminhoDe(rota: Rota): string {
     }
     case 'planilha':
       return '/planilha';
+    case 'painel':
+    case 'painel-estoque':
+    case 'painel-cliente': {
+      const q = parametrosPainel(rota.parametros);
+      const base = rota.tipo === 'painel' ? '/painel' : rota.tipo === 'painel-estoque' ? '/painel/estoque' : '/painel/cliente';
+      return `${base}${q ? `?${q}` : ''}`;
+    }
+    case 'painel-janela':
+      return `/painel/janelas/${rota.id}`;
+    case 'selecao-teste':
+      return rota.solicitacao === null ? '/selecao-teste' : `/selecao-teste?solicitacao=${rota.solicitacao}`;
+    case 'selecao-teste-solicitacoes':
+      return '/selecao-teste/solicitacoes';
+    case 'selecao-teste-solicitacao':
+      return `/selecao-teste/solicitacoes/${rota.id}`;
     case 'etiquetas':
       return `/etiquetas?ids=${rota.ids.join(',')}`;
     case 'entrar':
@@ -319,5 +414,10 @@ export function useRota(): [Rota, Navegar] {
     }
     setLocal(localAtual());
   }, []);
+  // Endereço antigo (ex.: /produtos/catalogo): a barra passa a mostrar o endereço da página que abriu (a rota já é a nova).
+  const antigo = ehEnderecoAntigo(local.caminho);
+  useEffect(() => {
+    if (antigo) window.history.replaceState(window.history.state, '', paraEndereco(caminhoDe(rota)));
+  }, [antigo, rota]);
   return [rota, navegar];
 }

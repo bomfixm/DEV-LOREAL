@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Praça Reversa — amostra de acabamento</title>
+<style>
+@font-face { font-family: 'Inter'; src: url('../ativos/inter-latin-wght-normal.woff2') format('woff2'); font-weight: 100 900; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215; }
+@font-face { font-family: 'Inter'; src: url('../ativos/inter-latin-ext-wght-normal.woff2') format('woff2'); font-weight: 100 900; unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+:root { --amarelo: #ffcc00; --vermelho: #d40511; --grafite: #101114; --tinta: #f4f1ea; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--grafite); }
+body { font-family: 'Inter', sans-serif; color: var(--tinta); -webkit-font-smoothing: antialiased; }
+#palco { position: absolute; inset: 0; overflow: hidden; perspective: 1900px; perspective-origin: 50% 46%; background: var(--grafite); }
+.camada { position: absolute; inset: 0; }
+/* Sem will-change: o Chromium rasteriza cada quadro na escala atual (nítido ao aproximar). */
+.plano { position: absolute; transform-style: preserve-3d; }
+/* Câmera de cada plano: contêiner 2D com a mesma perspectiva; filtros (movimento, foco) em espaço de tela. */
+.camera { position: absolute; inset: 0; perspective: 1900px; perspective-origin: 50% 46%; }
+.plano > img { display: block; width: 100%; height: 100%; }
+.sombra-plano { box-shadow: 0 60px 120px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.10); border-radius: 18px; overflow: hidden; }
+/* Luz de fundo: elipses suaves (gradientes, sem filtro), em outra velocidade que o conteúdo. */
+.luz { position: absolute; border-radius: 50%; mix-blend-mode: screen; }
+#luz-a { width: 1700px; height: 520px; background: radial-gradient(closest-side, rgb(255 204 0 / 0.42), rgb(255 150 0 / 0.16) 45%, transparent 75%); }
+#luz-b { width: 1300px; height: 420px; background: radial-gradient(closest-side, rgb(212 5 17 / 0.40), rgb(212 5 17 / 0.10) 50%, transparent 78%); }
+#luz-c { width: 900px; height: 900px; background: radial-gradient(closest-side, rgb(255 230 160 / 0.10), transparent 70%); }
+#vinheta { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgb(0 0 0 / 0.55) 100%); pointer-events: none; }
+/* Corredores da praça em perspectiva (abertura). */
+#cena-piso { perspective: 1300px; perspective-origin: 50% 30%; }
+#piso { position: absolute; left: 50%; top: 50%; width: 2600px; height: 2600px; margin: -1300px 0 0 -1300px; transform-style: preserve-3d; }
+#piso svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+/* Tipografia. */
+.titulo { position: absolute; font-weight: 750; letter-spacing: -0.035em; line-height: 1; white-space: nowrap; }
+.palavra { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: 0.12em; }
+.palavra > span { display: inline-block; }
+.legenda-tela { position: absolute; font-weight: 650; letter-spacing: -0.02em; white-space: nowrap; }
+.etiqueta { position: absolute; padding: 8px 16px; border-radius: 999px; background: rgb(16 17 20 / 0.86); border: 1px solid rgb(255 204 0 / 0.55); color: var(--tinta); font-size: 25px; font-weight: 650; white-space: nowrap; box-shadow: 0 10px 30px rgb(0 0 0 / 0.35); }
+.etiqueta b { color: var(--amarelo); font-weight: 750; }
+.realce { position: absolute; border: 3px solid var(--amarelo); border-radius: 8px; box-shadow: 0 0 0 6px rgb(255 204 0 / 0.18), 0 0 40px rgb(255 204 0 / 0.45); }
+.marca-dhl { position: absolute; height: 46px; }
+#selo-demo { position: absolute; right: 44px; bottom: 36px; padding: 7px 14px; border-radius: 999px; background: rgb(255 204 0 / 0.92); color: #141414; font-size: 17px; font-weight: 750; letter-spacing: 0.04em; text-transform: uppercase; }
+#ficha { position: absolute; padding: 12px 20px; border-radius: 14px; background: var(--amarelo); color: #141414; font-size: 26px; font-weight: 750; white-space: nowrap; box-shadow: 0 18px 50px rgb(0 0 0 / 0.45); }
+#ficha small { display: block; font-size: 17px; font-weight: 600; opacity: 0.78; }
+</style>
+</head>
+<body>
+<div id="palco">
+  <div class="camada" id="fundo">
+    <div class="luz" id="luz-a"></div>
+    <div class="luz" id="luz-b"></div>
+    <div class="luz" id="luz-c"></div>
+  </div>
+  <div class="camada" id="cena-piso"><div id="piso"><svg id="svg-piso" viewBox="0 0 2600 2600"></svg></div></div>
+
+  <!-- Abertura -->
+  <img class="marca-dhl" id="dhl" src="../ativos/dhl-simbolo.png" alt="">
+  <div class="titulo" id="titulo" style="font-size:150px"><span class="palavra"><span>Praça</span></span> <span class="palavra"><span>Reversa</span></span></div>
+  <div class="legenda-tela" id="subtitulo" style="font-size:40px"></div>
+
+  <!-- Planilha da bipagem (plano claro) -->
+  <div class="plano sombra-plano" id="planilha" style="width:1116px;height:525px"><img src="../ativos/tabela-bipagem.png" alt="">
+    <div class="realce" id="realce-linha" style="left:12px;top:284px;width:1092px;height:35px"></div>
+  </div>
+
+  <!-- Mapa (plano escuro) -->
+  <div class="plano" id="mapa" style="width:1818px;height:944px;border-radius:16px;overflow:hidden;box-shadow:0 0 0 1px rgb(255 255 255 / 0.08), 0 80px 160px rgb(0 0 0 / 0.6)"><img src="../capturas/20-mapa-loreal-escuro.png" alt="">
+    <div class="realce" id="realce-palete" style="left:256px;top:118px;width:72px;height:43px"></div>
+  </div>
+
+  <!-- Linha da NF: depois do mapa, para voar por cima dele -->
+  <div class="plano sombra-plano" id="linha" style="width:1072px;height:27px;border-radius:6px"><img src="../ativos/linha-bipagem.png" alt=""></div>
+
+  <!-- Janela do palete (plano claro) -->
+  <div class="plano sombra-plano" id="janela" style="width:860px;height:535px"><img src="../capturas/22-janela-claro.png" alt="">
+    <div class="realce" id="realce-resumo" style="left:15px;top:80px;width:300px;height:48px"></div>
+    <div class="realce" id="realce-janela-linha" style="left:16px;top:228px;width:828px;height:39px"></div>
+  </div>
+
+  <!-- Janela de saída no painel (plano claro) -->
+  <div class="plano sombra-plano" id="painel" style="width:965px;height:212px"><img src="../capturas/24-painel-janela-claro.png" alt="" style="height:auto">
+    <div class="realce" id="realce-separado" style="left:206px;top:84px;width:176px;height:64px"></div>
+  </div>
+
+  <div id="ficha">5 volumes<small>NF-e 900123 · separado para a janela</small></div>
+  <div class="legenda-tela" id="texto-a" style="font-size:66px"></div>
+  <div class="legenda-tela" id="texto-b" style="font-size:66px"></div>
+  <div class="etiqueta" id="etq-endereco"><b>11 - A1</b> · PAL-DEMO-001</div>
+  <div class="etiqueta" id="etq-lidos"><b>Lidos 5</b> = 5 volumes</div>
+  <div class="etiqueta" id="etq-campos">Tipo · Número · Lidos · CNPJ · Remetente</div>
+  <div id="etiquetas-colunas"></div>
+  <div id="vinheta"></div>
+  <div id="selo-demo">Demonstração · dados fictícios</div>
+</div>
+<script src="cena.js"></script>
+</body>
+</html>

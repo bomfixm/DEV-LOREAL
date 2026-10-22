@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redesign: antes e depois</title>
+<style>
+  :root { --fundo: #f4f7f5; --tinta: #1e3028; --suave: #61726a; --borda: #e3eae5; --amarelo: #fff0a3; }
+  body { margin: 0; background: var(--fundo); color: var(--tinta); font-family: Inter, 'Segoe UI', system-ui, sans-serif; }
+  header { padding: 24px 32px 8px; }
+  h1 { margin: 0 0 4px; font-size: 1.5rem; }
+  p { margin: 0; color: var(--suave); }
+  section { margin: 20px 32px; padding: 16px 20px; border: 1px solid var(--borda); border-radius: 16px; background: #fff; }
+  h2 { margin: 0 0 12px; font-size: 1.05rem; }
+  .par { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .par--celular { grid-template-columns: repeat(2, minmax(0, 320px)); }
+  figure { margin: 0; }
+  figcaption { margin-bottom: 6px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--suave); }
+  figure.depois figcaption { color: var(--tinta); }
+  img { display: block; width: 100%; border: 1px solid var(--borda); border-radius: 10px; }
+  @media (max-width: 800px) { .par, .par--celular { grid-template-columns: 1fr; } section, header { margin-left: 16px; margin-right: 16px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Praça Reversa — redesign do front</h1>
+  <p>Mesmas telas e mesmos passos, antes e depois, com os dados fictícios do ambiente de teste (E2E). Geradas por <code>e2e/redesign.spec.ts</code>.</p>
+</header>
+<main id="telas"></main>
+<script>
+  const telas = [
+    ['computador-01-mapa', 'Mapa da praça (entrada, sem seleção)'],
+    ['computador-02-pesquisa', 'Pesquisa em destaque'],
+    ['computador-03-resumo', 'Clique no resultado → resumo'],
+    ['computador-04-ver-mais', '"Ver mais" → consulta completa'],
+    ['computador-05-duas-deliveries', 'Nota com duas Deliveries: 1 documento, 2 parcelas'],
+    ['computador-05a-recebimento-previa', 'Recebimento: prévia da bipagem'],
+    ['computador-06-inventario', 'Inventário'],
+    ['computador-07-recebimento', 'Recebimento: receber palete'],
+    ['computador-08-agendas', 'Agendas'],
+    ['celular-01-mapa', 'Celular: mapa'],
+    ['celular-02-pesquisa', 'Celular: pesquisa'],
+    ['celular-03-resumo', 'Celular: resumo'],
+    ['celular-04-ver-mais', 'Celular: "Ver mais"'],
+  ];
+  const raiz = document.getElementById('telas');
+  for (const [nome, titulo] of telas) {
+    const s = document.createElement('section');
+    const h = document.createElement('h2');
+    h.textContent = titulo;
+    const par = document.createElement('div');
+    par.className = nome.startsWith('celular') ? 'par par--celular' : 'par';
+    for (const fase of ['antes', 'depois']) {
+      const f = document.createElement('figure');
+      f.className = fase;
+      const c = document.createElement('figcaption');
+      c.textContent = fase === 'antes' ? 'Antes' : 'Depois';
+      const i = document.createElement('img');
+      i.src = `${fase}-${nome}.png`;
+      i.alt = `${titulo} — ${fase}`;
+      i.loading = 'lazy';
+      f.append(c, i);
+      par.append(f);
+    }
+    s.append(h, par);
+    raiz.append(s);
+  }
+</script>
+</body>
+</html>

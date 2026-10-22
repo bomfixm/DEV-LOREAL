@@ -22,5 +22,6 @@ export async function escoposDoUsuario(db: Banco | Transacao, usuarioId: string)
     demo: v.escopo.demonstracao,
     role: v.perfil,
     financialApproval: v.aprovaFinanceiro,
+    clientSelectionTest: v.selecaoClienteTeste,
   }));
 }

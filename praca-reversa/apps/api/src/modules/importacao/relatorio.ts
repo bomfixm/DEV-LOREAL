@@ -13,7 +13,7 @@ export const ROTULO_CLASSIFICACAO: Readonly<Record<LinhaImportacao['classificati
   DUPLICADA: 'Duplicada (ignorada)',
   INVALIDA: 'Inválida',
   CONFLITANTE: 'Conflitante',
-  EXCLUIDA: 'Fora da seleção (marcação)',
+  EXCLUIDA: 'Fora da seleção / deixada de fora',
 };
 
 const ROTULO_TIPO = {
@@ -22,6 +22,7 @@ const ROTULO_TIPO = {
   CLAIMS: 'Lista de claims',
   INVENTARIO: 'Inventário conferido',
   SELECAO_CLIENTE: 'Seleção do cliente',
+  BIPAGEM: 'Excel da bipagem (palete)',
 } as const;
 
 export function relatorioCsv(dados: { lote: LoteResumo; opcoes: OpcoesLeitura | null; linhas: readonly LinhaImportacao[] }, agora: Date): Buffer {
@@ -29,7 +30,7 @@ export function relatorioCsv(dados: { lote: LoteResumo; opcoes: OpcoesLeitura | 
   const campos = CAMPOS_IMPORTACAO[lote.type];
   const c = lote.counters;
   // Coluna "Ação" só nos tipos com ação por linha (inventário e seleção); os demais mantêm o formato anterior.
-  const comAcao = lote.type === 'INVENTARIO' || lote.type === 'SELECAO_CLIENTE';
+  const comAcao = lote.type === 'INVENTARIO' || lote.type === 'SELECAO_CLIENTE' || lote.type === 'BIPAGEM';
   const cab = (rotulo: string, valor: string) => [celulaCsv(rotulo), celulaCsv(valor)];
   const topo = [
     [celulaCsv('Relatório de erros, conflitos e duplicidades da importação')],

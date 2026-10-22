@@ -51,6 +51,7 @@ import {
 import { criteriosDe, criteriosRegra, detalheExpedicao, lerJanela, lerMaterial, lerReserva, materialRegra, restricaoRegra } from './leitura.js';
 import { janelaOperavel, problemasParaExpedir } from './regras.js';
 import { exigirAnexosDaJanela } from './servico.js';
+import { registrarMovimentacaoRelevante } from '../paletes/relogio.js';
 
 type DadosConfirmar = z.output<typeof ConfirmarExpedicaoSchema>;
 type DadosCorrigir = z.output<typeof CorrigirExpedicaoSchema>;
@@ -340,6 +341,8 @@ export async function confirmarExpedicao(tx: Transacao, escopo: Escopo, reservaI
       versao: { increment: 1 },
     },
   });
+  // Saída parcial de material: os paletes que continuam na praça reiniciam a contagem de 20 dias (os que saíram inteiros deixam de ter prazo).
+  await registrarMovimentacaoRelevante(tx, escopo.id, [...enviadasPorPalete.keys()].filter((id) => !saem.has(id)), 'SAIDA_PARCIAL', agora);
   // Palete que saiu inteiro: sem posição e fluxo expedido (evento de localização próprio).
   for (const paleteId of saem) {
     const p = paletes.get(paleteId);
@@ -543,6 +546,8 @@ export async function registrarRetorno(tx: Transacao, escopo: Escopo, expedicaoI
       },
     });
   }
+  // Material que voltou fisicamente para um palete: entrada de material (reinicia a contagem de 20 dias).
+  if (destino !== null) await registrarMovimentacaoRelevante(tx, escopo.id, [destino.id], 'RETORNO_FISICO', agora);
   if (destino !== null) await tx.palete.update({ where: { id: destino.id }, data: { versao: { increment: 1 } } });
   await registrarEventoJanela(tx, {
     escopoId: escopo.id,

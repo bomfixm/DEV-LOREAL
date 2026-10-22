@@ -219,7 +219,6 @@ test.describe('seleção do cliente', () => {
     await percursoComputador(page, false);
     // Documentos do inventário no detalhe do palete e busca por NF (base própria, sem quantidade de produto).
     await page.goto('/');
-    await page.getByTestId('painel-busca-botao').click();
     await page.getByTestId('campo-busca').fill('777D001');
     const vinculos = page.locator('[data-testid="resultado-busca"][data-base="INVENTARIO"]');
     await expect(vinculos).toHaveCount(2);

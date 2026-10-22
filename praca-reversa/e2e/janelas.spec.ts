@@ -1,6 +1,6 @@
 import { expect, test, type APIResponse, type Page, type TestInfo } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { abrirMenuConta, aguardarMapa, entrar, obterPraca, type PracaApi } from './apoio';
+import { abrirPalete, abrirMenuConta, aguardarMapa, entrar, obterPraca, type PracaApi } from './apoio';
 import { credenciais, type Credenciais } from './credenciais';
 
 /**
@@ -132,7 +132,7 @@ test.describe('janelas e expedição', () => {
     const c = await liberarPelaApi(page, await paleteComSaldo(page, vagas[2]?.id ?? null, produto.id, '15', `DEV-E2E-J-${s}`), '15');
 
     // 1. Liberação pelo detalhe do palete (conferência não libera).
-    await page.goto(`/paletes/${a.id}`);
+    await abrirPalete(page, a.id);
     const lib = page.getByTestId('secao-liberacao');
     await expect(lib.getByTestId('item-liberacao')).toContainText('0 de 12 UN liberado(s)');
     await lib.getByTestId('abrir-liberar').click();
@@ -199,7 +199,15 @@ test.describe('janelas e expedição', () => {
     await page.getByTestId('abrir-palete-preparacao').click();
     await aguardarMapa(page);
     await expect(page.getByTestId('retorno-reserva')).toBeVisible();
-    await expect(page.getByTestId('detalhe')).toContainText(a.code);
+    await expect(page.getByTestId('janela-palete')).toContainText(a.code);
+    // Separação parcial (8 de 12): o detalhe mostra solicitado × permanece; reservar não é saída.
+    await page.getByTestId('janela-detalhes-completos').locator('summary').click();
+    const agenda = page.getByTestId('secao-agenda');
+    await expect(agenda.getByTestId('linha-agenda')).toHaveCount(1);
+    await expect(agenda.getByTestId('linha-agenda')).toContainText('8 UN');
+    await expect(agenda.getByTestId('linha-agenda')).toContainText('4 UN');
+    await expect(agenda).toContainText('não é saída');
+    await page.keyboard.press('Escape');
     await page.getByTestId('voltar-a-preparacao').click();
     await expect(page.getByTestId('tela-reserva')).toBeVisible();
 

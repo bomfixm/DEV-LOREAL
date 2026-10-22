@@ -1,9 +1,9 @@
-import { CorrespondenciaEnderecosSchema, DocumentosPaleteSchema, ResultadoLayoutSchema, type DocumentosPalete, type Escopo } from '@praca-reversa/contracts';
+import { ConteudosPaleteSchema, CorrespondenciaEnderecosSchema, DocumentosPaleteSchema, RespostaBuscaSchema, ResultadoLayoutSchema, type DocumentosPalete, type Escopo } from '@praca-reversa/contracts';
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Banco } from '../../src/db/cliente.js';
-import { executarCarga, lerPacote, type PacoteLido } from '../../src/modules/importacao/carga-lote.js';
+import { carregarEstadoCarga, executarCarga, lerPacote, planejarCarga, type PacoteLido } from '../../src/modules/importacao/carga-lote.js';
 import { ID_ESCOPO_PRACA, appDeTeste, bancoDeTeste, codigoErro, como, criarUsuario, entrar, mutar, prepararDados, type SessaoTeste, type UsuarioTeste } from './apoio.js';
 import { bytesDoPacote, montarPacote, type LinhaTeste } from './pacote-carga.js';
 
@@ -12,7 +12,9 @@ import { bytesDoPacote, montarPacote, type LinhaTeste } from './pacote-carga.js'
  * escopo operacional (não-demo) criado no teste: validação do pacote, gravação
  * integral, reenvio sem duplicar, cidade/produto preservados, NF em dois
  * endereços, palete misto, volumes pendentes, N° Pallet repetido, posição
- * ocupada em conflito e recusa do escopo de demonstração. Dados fictícios.
+ * ocupada em conflito e recusa do escopo de demonstração; linhas sem RUA
+ * (pendentes, sem palete), endereço só proposto, diferenças da substituição
+ * e preservação de conteúdo registrado e de movimento posterior. Dados fictícios.
  */
 const API = '/api/v1';
 let db: Banco;
@@ -25,7 +27,7 @@ const A = { tipo: 'NFD', numero: '0001001', delivery: 'D-001', remetente: 'Remet
 
 /** Linhas do inventário fictício (linha 1 = título; 2 = cabeçalho). */
 const LINHAS: LinhaTeste[] = [
-  { linha: 3, ...A, endereco: '13 - A101', volumes: '3', marcador: '01\\02', numeroPlanilha: '501' },
+  { linha: 3, ...A, endereco: '13 - A101', volumes: '3', marcador: '01\\02', numeroPlanilha: '501', mesAgenda: 'OUT/2026', janela: 'J1' },
   { linha: 4, tipo: 'NFD', numero: '0001002', delivery: 'D-002', remetente: 'Remetente B', endereco: '13 - A101', volumes: '2', numeroPlanilha: '501' },
   { linha: 5, ...A, endereco: '15 - A120', volumes: '1', marcador: '02\\02', numeroPlanilha: '502' },
   { linha: 6, tipo: 'NFD', numero: '0001003', remetente: 'Remetente C', endereco: '15 - A122', volumes: '4', numeroPlanilha: '171' },
@@ -38,6 +40,19 @@ const LINHAS: LinhaTeste[] = [
   { linha: 13, endereco: '15 - A132', livre: true },
   { linha: 14, tipo: 'NFD', numero: '0001001', delivery: 'D-999', remetente: 'Remetente Outro', endereco: '15 - A134', volumes: '1', numeroPlanilha: '505' },
 ];
+
+/** Linhas sem RUA (como as três do pacote real, com dados fictícios): uma sem tipo com N° Pallet, uma NFD com Delivery. */
+const SEM_RUA: LinhaTeste[] = [
+  { linha: 15, numero: '0002001', endereco: '', volumes: '38', numeroPlanilha: '181' },
+  { linha: 16, tipo: 'NFD', numero: '0002002', delivery: 'D-777', remetente: 'Remetente H', endereco: '', volumes: '9' },
+];
+
+/** Erros de um pacote recusado (texto único). */
+function recusar(p: unknown): string {
+  const r = lerPacote(Buffer.from(JSON.stringify(p)), 'x.json');
+  expect(r.ok).toBe(false);
+  return r.ok ? '' : r.erros.join(' | ');
+}
 
 function lido(linhas: readonly LinhaTeste[] = LINHAS, opcoes: Parameters<typeof montarPacote>[1] = {}): PacoteLido {
   const r = lerPacote(bytesDoPacote(montarPacote(linhas, opcoes)), 'dados-importacao.json');
@@ -105,10 +120,32 @@ describe('Leitura do pacote', () => {
     const r = lerPacote(Buffer.from('{não é json'), 'x.json');
     expect(r.ok).toBe(false);
   });
+
+  it('linhas sem RUA: extensão opcional (pacote antigo continua aceito); sem a extensão, linha marcada livre ou alterada, o pacote é recusado', () => {
+    const comSemRua = montarPacote([...LINHAS, ...SEM_RUA]);
+    const aceito = lerPacote(bytesDoPacote(comSemRua), 'x.json');
+    expect(aceito.ok && aceito.pacote.pacote.linhas_sem_endereco.map((l) => l.linha)).toEqual([15, 16]);
+    // Pacote anterior (sem o campo): assume lista vazia.
+    const { linhas_sem_endereco: _vazio, ...antigo } = montarPacote(LINHAS);
+    const r = lerPacote(Buffer.from(JSON.stringify(antigo)), 'x.json');
+    expect(r.ok && r.pacote.pacote.linhas_sem_endereco).toEqual([]);
+    // Linhas sem RUA sem a extensão ficam descobertas.
+    const { linhas_sem_endereco: _ignorado, ...semExtensao } = comSemRua;
+    expect(recusar(semExtensao)).toMatch(/Linha 15 não está em nenhum vínculo/);
+    const marcar = (alterar: (l: (typeof comSemRua.linhas_sem_endereco)[number]) => object) => ({ ...comSemRua, linhas_sem_endereco: comSemRua.linhas_sem_endereco.map((l, i) => (i === 0 ? alterar(l) : l)) });
+    expect(recusar(marcar((l) => ({ ...l, endereco_livre: true })))).toMatch(/não pode ser marcada como livre/);
+    expect(recusar(marcar((l) => ({ ...l, volumes: '99' })))).toMatch(/não corresponde à linha de origem/);
+  });
+
+  it('número do documento acima de 200 caracteres é recusado na leitura (nada é truncado)', () => {
+    const base = montarPacote(LINHAS);
+    const longo = { ...base, nfds_na_praca: base.nfds_na_praca.map((v, i) => (i === 0 ? { ...v, numero_documento: '1'.repeat(201) } : v)) };
+    expect(recusar(longo)).toMatch(/acima de 200 caracteres/);
+  });
 });
 
 describe('Gravação da carga', () => {
-  it('grava o conjunto: paletes com código gerado, vínculos, referências fora da praça e posição só pela tabela confirmada; nenhum saldo por SKU', async () => {
+  it('grava o conjunto: paletes pelo N° Pallet único (sem ele, código gerado), vínculos, referências fora da praça e posição só pela tabela confirmada; nenhum saldo por SKU', async () => {
     const r = await carregar(lido());
     expect(r).toMatchObject({
       reenvio: false,
@@ -121,8 +158,9 @@ describe('Gravação da carga', () => {
     });
     const paletes = await db.palete.findMany({ where: { escopoId: escopo.id }, select: { codigo: true, posicao: { select: { codigo: true } } } });
     expect(paletes).toHaveLength(7);
-    // N° Pallet da planilha nunca vira o código/ID.
-    expect(paletes.every((p) => /^PR-\d{6}$/.test(p.codigo))).toBe(true);
+    // N° Pallet único do endereço = número operacional (código); o 171 aparece em dois endereços: código gerado. O ID técnico é outro.
+    expect(paletes.map((p) => p.codigo).filter((c) => !/^PR-\d{6}$/.test(c)).sort()).toEqual(['501', '502', '503', '504', '505']);
+    expect(paletes.filter((p) => /^PR-\d{6}$/.test(p.codigo))).toHaveLength(2);
     expect(paletes.flatMap((p) => (p.posicao ? [p.posicao.codigo] : []))).toEqual(['F04-P01']);
     expect(await db.vinculoDocumentoPalete.count({ where: { escopoId: escopo.id, situacao: 'ATIVO' } })).toBe(8);
     // Endereços livres (15 - A126 e 15 - A132) não criam palete; endereço com espaços extras é normalizado.
@@ -143,6 +181,43 @@ describe('Gravação da carga', () => {
     const nfA = misto.items.find((i) => i.documentNumber === '0001001');
     expect(nfA).toMatchObject({ isNfd: true, sender: 'Remetente Fictício A', volumes: '3', destinationCity: { value: '' }, productInBox: { value: '' } });
     expect(nfA?.multiplePallets).toMatchObject({ indicated: true, declaredPallets: 2, partsHere: [1] });
+    // Delivery, sequência FULL (marcador), mês de agenda e janela da linha de origem; ausentes = null (não informado).
+    expect(nfA).toMatchObject({ delivery: 'D-001', palletFull: '01\\02', scheduleMonth: 'OUT/2026', windowRef: 'J1' });
+    expect(misto.items.find((i) => i.documentNumber === '0001002')).toMatchObject({ scheduleMonth: null, windowRef: null });
+
+    // Pesquisa única também por remetente (igual ou início) e por DELIVERY: localiza o vínculo e o palete, sem abrir nada.
+    const buscar = async (texto: string) => {
+      const r = await como(app, sup, { method: 'GET', url: `${API}/busca?texto=${encodeURIComponent(texto)}` });
+      expect(r.statusCode, r.body).toBe(200);
+      return r.json<{ items: { base: string; match: string; pallet: { id: string } | null }[] }>().items.filter((i) => i.base === 'INVENTARIO');
+    };
+    const porRemetente = await buscar('remetente b');
+    expect(porRemetente.map((i) => [i.match, i.pallet?.id])).toEqual([['DOCUMENTO', a101.id]]);
+    expect((await buscar('Remetente Fic')).every((i) => i.match === 'DOCUMENTO_PREFIXO')).toBe(true);
+    expect((await buscar('Remetente Fic')).length).toBeGreaterThan(0);
+    expect((await buscar('D-002')).map((i) => i.pallet?.id)).toEqual([a101.id]);
+
+    // Conteúdo do palete (cadastro de conteúdo): vínculos importados entram na mesma lista; volumes importados = contagem realizada.
+    const conteudos = async (paleteId: string) => {
+      const r = await como(app, sup, { method: 'GET', url: `${API}/paletes/${paleteId}/conteudos` });
+      expect(r.statusCode, r.body).toBe(200);
+      return ConteudosPaleteSchema.parse(r.json());
+    };
+    const doMisto = await conteudos(a101.id);
+    expect(doMisto.items.map((i) => [i.kind, i.documentNumber, i.count.state, i.count.counted, i.count.origin])).toEqual([
+      ['IMPORTADO', '0001001', 'REALIZADA', '3', 'IMPORTACAO'],
+      ['IMPORTADO', '0001002', 'REALIZADA', '2', 'IMPORTACAO'],
+    ]);
+    expect(doMisto.documents).toBe(2);
+    // Volume vazio no inventário = aguardando conferência (nunca zero); a contagem já feita pode ser registrada sem recontar.
+    const paleteSemVolume = await paleteDoEndereco('13 - A120');
+    const [semVolume] = (await conteudos(paleteSemVolume.id)).items;
+    expect(semVolume).toMatchObject({ kind: 'IMPORTADO', documentNumber: '0001004', count: { state: 'AGUARDANDO', counted: null } });
+    const c = await mutar(app, sup, 'POST', `${API}/paletes/${paleteSemVolume.id}/conteudos/contagens`, { target: { kind: 'IMPORTADO', id: semVolume?.id }, counted: 4, origin: 'CONTAGEM_INFORMADA' });
+    expect(c.statusCode, c.body).toBe(201);
+    expect((await conteudos(paleteSemVolume.id)).items[0]?.count).toMatchObject({ state: 'REALIZADA', counted: '4', expected: null, origin: 'CONTAGEM_INFORMADA' });
+    // O vínculo importado não é alterado pela contagem (fica o que foi importado; a contagem vigente vale na tela e na planilha).
+    expect((await db.vinculoDocumentoPalete.findUniqueOrThrow({ where: { id: semVolume?.id ?? '' }, select: { volumes: true } })).volumes).toBeNull();
     expect(nfA?.multiplePallets.others.map((o) => [o.kind, o.address, o.mapPending])).toEqual([
       ['ATUAL', '15 - A120', true],
       ['FORA_DA_PRACA', '15 - A126', false],
@@ -237,6 +312,144 @@ describe('Gravação da carga', () => {
     // O palete atual continua na posição, sem vínculos novos.
     const atual = await db.palete.findFirstOrThrow({ where: { posicaoId: f04p01.id }, select: { id: true, _count: { select: { documentos: true } } } });
     expect(atual._count.documentos).toBe(0);
+  });
+
+  it('linhas sem RUA: guardadas no inventário sem palete nem posição, pendentes, consultáveis e localizadas pela busca; reenvio não duplica', async () => {
+    const p = lido([...LINHAS, ...SEM_RUA]);
+    const r = await carregar(p);
+    expect(r).toMatchObject({ linhas: { total: 14, aplicadas: 9, pendentes: 2, semEndereco: 2 }, paletes: { criados: 7 }, vinculos: { criados: 8 } });
+    expect(r.pendencias.join(' ')).toMatch(/Linhas sem endereço \(preservadas, sem alocação\): linha 15: 0002001, linha 16: 0002002/);
+    const linhas = await db.linhaInventario.findMany({
+      where: { escopoId: escopo.id, linhaArquivo: { in: [15, 16] } },
+      select: { linhaArquivo: true, acao: true, aplicada: true, paleteId: true, posicaoId: true, enderecoCanonico: true, enderecoLido: true, numeroDocumento: true, delivery: true, volumes: true, numeroPalete: true },
+      orderBy: { linhaArquivo: 'asc' },
+    });
+    expect(linhas.map((l) => [l.linhaArquivo, l.acao, l.aplicada, l.paleteId, l.posicaoId, l.enderecoCanonico, l.enderecoLido, l.numeroDocumento, l.delivery, l.volumes?.toFixed() ?? null, l.numeroPalete])).toEqual([
+      [15, 'REQUER_RESOLUCAO', false, null, null, null, null, '0002001', null, '38', '181'],
+      [16, 'REQUER_RESOLUCAO', false, null, null, null, null, '0002002', 'D-777', '9', null],
+    ]);
+    // Consulta do inventário: filtro "Requerem resolução", sem endereço nem palete.
+    const inv = await db.inventarioReferencia.findFirstOrThrow({ where: { escopoId: escopo.id }, select: { id: true } });
+    const consulta = await como(app, sup, { method: 'GET', url: `${API}/inventarios/${inv.id}/linhas?situacao=PENDENTES` });
+    expect(consulta.statusCode, consulta.body).toBe(200);
+    const pendentes = consulta.json<{ items: { row: number; address: string | null; addressRead: string | null; pallet: unknown; reasons: { code: string }[] }[] }>().items;
+    expect(pendentes.map((l) => [l.row, l.address, l.addressRead, l.pallet, l.reasons[0]?.code])).toEqual([
+      [15, null, null, null, 'ENDERECO_NAO_INFORMADO'],
+      [16, null, null, null, 'ENDERECO_NAO_INFORMADO'],
+    ]);
+    // Busca: a origem é localizada, sem palete nem posição presumidos.
+    const buscar = async (texto: string) => {
+      const b = await como(app, sup, { method: 'GET', url: `${API}/busca?texto=${encodeURIComponent(texto)}` });
+      expect(b.statusCode, b.body).toBe(200);
+      return RespostaBuscaSchema.parse(b.json()).items;
+    };
+    const porDelivery = (await buscar('D-777')).filter((i) => i.base === 'ORIGEM_INVENTARIO');
+    expect(porDelivery.map((i) => [i.match, i.pallet, i.inventoryOrigin?.documentNumber, i.inventoryOrigin?.informedAddress, i.inventoryOrigin?.row, i.inventoryOrigin?.volumes])).toEqual([['DOCUMENTO', null, '0002002', null, 16, '9']]);
+    expect((await buscar('0002001')).map((i) => [i.base, i.match, i.inventoryOrigin?.palletNumber])).toEqual([['ORIGEM_INVENTARIO', 'NF', '181']]);
+    // Reenvio: nada duplicado.
+    const re = await carregar(p);
+    expect(re).toMatchObject({ reenvio: true, linhas: { total: 14, pendentes: 2, semEndereco: 2 } });
+    expect(await db.linhaInventario.count({ where: { escopoId: escopo.id } })).toBe(14);
+    expect(await db.palete.count({ where: { escopoId: escopo.id } })).toBe(7);
+  });
+
+  it('número composto da origem (lista por vírgulas com mais de 64 caracteres) é conservado por inteiro, sem dividir volumes', async () => {
+    const lista = '9001, 9002345, 9003, 09004, 90005,9006, 90007, 90008,9009,9010, 9011';
+    expect(lista.length).toBeGreaterThan(64);
+    const r = await carregar(lido([{ linha: 3, numero: lista, remetente: 'Remetente L', endereco: '13 - A103', volumes: '15' }]));
+    expect(r).toMatchObject({ vinculos: { criados: 1, tipoPendente: 1 } });
+    const v = await db.vinculoDocumentoPalete.findFirstOrThrow({ where: { escopoId: escopo.id }, select: { numeroDocumento: true, tipoDocumento: true, volumes: true } });
+    expect([v.numeroDocumento, v.tipoDocumento, v.volumes?.toFixed()]).toEqual([lista, null, '15']);
+    // A cidade destino editada no aplicativo também guarda o número inteiro.
+    const palete = await paleteDoEndereco('13 - A103');
+    const [nota] = (await notas(palete.id)).items;
+    if (!nota?.identity) throw new Error('sem identidade');
+    expect(nota.documentNumber).toBe(lista);
+    const cidade = await mutar(app, sup, 'PUT', `${API}/paletes/${palete.id}/documentos/cidade-destino`, { identity: nota.identity, expectedVersion: 0, value: 'Cidade fictícia' });
+    expect(cidade.statusCode, cidade.body).toBe(200);
+  });
+
+  it('posição registrada pelo reenvio depois de confirmar a faixa não é movimentação: o prazo de reconferência não reinicia', async () => {
+    const p = lido([{ linha: 3, tipo: 'NFD', numero: '0004001', remetente: 'Remetente R', endereco: '15 - A101', volumes: '2' }]);
+    await carregar(p);
+    const select = { id: true, posicaoId: true, relogioInicioEm: true, ultimaMovimentacaoEm: true } as const;
+    const antes = await db.palete.findFirstOrThrow({ where: { escopoId: escopo.id }, select });
+    expect([antes.posicaoId, antes.relogioInicioEm.toISOString(), antes.ultimaMovimentacaoEm]).toEqual([null, '2026-10-06T12:00:00.000Z', null]);
+    const c = CorrespondenciaEnderecosSchema.parse((await como(app, sup, { method: 'GET', url: `${API}/layout/enderecos` })).json());
+    const faixa = c.blocks.find((b) => b.addressPrefix === '15' && !b.deactivated)?.rows.find((r) => r.side === 'ESQUERDO');
+    if (!faixa) throw new Error('sem faixa esquerda da Fileira 15');
+    const proposta = await mutar(app, sup, 'PUT', `${API}/layout/fileiras/${faixa.rowId}/sequencia`, { expectedRevision: c.revision, segments: `A101-A${String(101 + 2 * (faixa.positions - 1))}/2`, direction: 'P01_PRIMEIRO', source: 'Levantamento fictício' });
+    expect(proposta.statusCode, proposta.body).toBe(200);
+    const confirmar = await mutar(app, sup, 'POST', `${API}/layout/fileiras/${faixa.rowId}/enderecos/confirmar`, { expectedRevision: ResultadoLayoutSchema.parse(proposta.json()).revision, expectedProposed: faixa.positions });
+    expect(confirmar.statusCode, confirmar.body).toBe(200);
+    const r = await carregar(p);
+    expect(r).toMatchObject({ reenvio: true, paletes: { localizacoesRegistradas: 1 } });
+    const depois = await db.palete.findUniqueOrThrow({ where: { id: antes.id }, select });
+    expect(depois.posicaoId).not.toBeNull();
+    expect([depois.relogioInicioEm, depois.ultimaMovimentacaoEm]).toEqual([antes.relogioInicioEm, null]);
+  });
+
+  it('endereço só proposto (sequência não confirmada) não aloca posição', async () => {
+    const c = CorrespondenciaEnderecosSchema.parse((await como(app, sup, { method: 'GET', url: `${API}/layout/enderecos` })).json());
+    const faixa = c.blocks.find((b) => b.addressPrefix === '15' && !b.deactivated)?.rows[0];
+    if (!faixa) throw new Error('sem faixa da Fileira 15');
+    const fim = 101 + 2 * (faixa.positions - 1);
+    const proposta = await mutar(app, sup, 'PUT', `${API}/layout/fileiras/${faixa.rowId}/sequencia`, { expectedRevision: c.revision, segments: `A101-A${String(fim)}/2`, direction: 'P01_PRIMEIRO', source: 'Levantamento fictício (não confirmado)' });
+    expect(proposta.statusCode, proposta.body).toBe(200);
+    const r = await carregar(lido([{ linha: 3, tipo: 'NFD', numero: '0003001', remetente: 'Remetente P', endereco: '15 - A101', volumes: '1' }]));
+    expect(r).toMatchObject({ paletes: { criados: 1, localizacoesRegistradas: 0, posicaoNoMapaPendente: 1 } });
+    expect((await paleteDoEndereco('15 - A101')).posicaoId).toBeNull();
+    const linha = await db.linhaInventario.findFirstOrThrow({ where: { escopoId: escopo.id, linhaArquivo: 3 }, select: { posicaoId: true, motivos: true } });
+    expect(linha.posicaoId).toBeNull();
+    expect(JSON.stringify(linha.motivos)).toMatch(/POSICAO_NO_MAPA_PENDENTE/);
+  });
+
+  it('substituição: a prévia mostra as diferenças; conteúdo registrado e movimento posterior são preservados', async () => {
+    await carregar(lido());
+    const a101 = await paleteDoEndereco('13 - A101');
+    // Conteúdo registrado no aplicativo (manual) no palete do 15 - A128.
+    const p128 = await paleteDoEndereco('15 - A128');
+    const conteudo = await mutar(app, sup, 'POST', `${API}/paletes/${p128.id}/conteudos`, { sender: 'Remetente manual', documentType: null, documentNumber: '', delivery: '', description: '' });
+    expect(conteudo.statusCode, conteudo.body).toBe(201);
+    // Movimento posterior: o palete de 13 - A101 (F04-P01) vai para F04-P03.
+    const f04p03 = await db.posicao.findFirstOrThrow({ where: { escopoId: escopo.id, codigo: 'F04-P03', layout: { ativo: true } }, select: { id: true } });
+    const { versao } = await db.palete.findUniqueOrThrow({ where: { id: a101.id }, select: { versao: true } });
+    const mov = await mutar(app, sup, 'POST', `${API}/paletes/${a101.id}/movimentos`, { destinationPositionId: f04p03.id, confirmedPositionCode: 'F04-P03', expectedVersion: versao, reason: 'Reorganização fictícia' });
+    expect(mov.statusCode, mov.body).toBe(200);
+    // Nova versão: sem 15 - A134 (linha 14), volumes da linha 4 corrigidos e mês/janela da linha 3 alterados (metadados: vínculo mantido).
+    const novas = LINHAS.filter((l) => l.linha !== 14).map((l) => (l.linha === 4 ? { ...l, volumes: '5' } : l.linha === 3 ? { ...l, mesAgenda: 'NOV/2026', janela: 'J2' } : l));
+    const p2 = lido(novas, { variante: 'v2' });
+    const plano = planejarCarga(p2, await carregarEstadoCarga(db, escopo.id, p2, 'INV-000001'));
+    expect(plano.resumo.join(' ')).toMatch(/Substitui INV-000001: 8 vínculos ativos — 6 mantidos, 1 atualizados .*1 encerrados por não constarem desta versão/);
+    expect(plano.resumo.join(' ')).toMatch(/Endereços do INV-000001 fora desta versão: 1 .*15 - A134/);
+    // Sem --substitui, a prévia avisa do inventário ativo anterior.
+    const semSubstituir = planejarCarga(p2, await carregarEstadoCarga(db, escopo.id, p2, null));
+    expect(semSubstituir.pendencias.join(' ')).toMatch(/Inventário ativo anterior neste escopo: INV-000001\. .*--substitui INV-000001/);
+    const r = await carregar(p2, 'INV-000001');
+    expect(r).toMatchObject({ inventarioCodigo: 'INV-000002', vinculos: { criados: 0, atualizados: 1, jaExistentes: 6 }, paletes: { criados: 0 } });
+    expect(await db.vinculoDocumentoPalete.count({ where: { escopoId: escopo.id, situacao: 'ATIVO' } })).toBe(7);
+    // Conteúdo registrado continua; o palete movido continua onde está; o palete do endereço ausente é preservado.
+    expect(await db.conteudoPalete.count({ where: { escopoId: escopo.id, situacao: 'ATIVO' } })).toBe(1);
+    expect((await db.palete.findUniqueOrThrow({ where: { id: a101.id }, select: { posicaoId: true } })).posicaoId).toBe(f04p03.id);
+    expect(await db.palete.count({ where: { escopoId: escopo.id, arquivadoEm: null } })).toBe(7);
+    expect(await db.inventarioReferencia.findMany({ where: { escopoId: escopo.id }, select: { codigo: true, situacao: true }, orderBy: { numero: 'asc' } })).toEqual([
+      { codigo: 'INV-000001', situacao: 'SUBSTITUIDO' },
+      { codigo: 'INV-000002', situacao: 'ATIVO' },
+    ]);
+    // Vínculo mantido (NF A em 13 - A101): a origem citada é a planilha atual, com o mês de agenda e a janela novos.
+    expect((await notas(a101.id)).items.find((i) => i.documentNumber === '0001001')).toMatchObject({ scheduleMonth: 'NOV/2026', windowRef: 'J2', source: { inventoryCode: 'INV-000002', row: 3 } });
+    const busca = await como(app, sup, { method: 'GET', url: API + '/busca?texto=0001001' });
+    expect(RespostaBuscaSchema.parse(busca.json()).items.filter((i) => i.base === 'INVENTARIO' && i.pallet?.id === a101.id).map((i) => [i.documentLink?.inventoryCode, i.documentLink?.row])).toEqual([['INV-000002', 3]]);
+    // Palete com vínculo só mantido (15 - A120): endereço informado continua, citado pela versão ativa; a linha já importada guarda o palete.
+    const p120 = await paleteDoEndereco('15 - A120');
+    expect((await notas(p120.id)).informedAddress).toMatchObject({ address: '15 - A120', inventoryCode: 'INV-000002' });
+    const praca = await como(app, sup, { method: 'GET', url: `${API}/praca` });
+    expect(praca.json<{ pallets: { id: string; informedAddress: string | null }[] }>().pallets.find((x) => x.id === p120.id)?.informedAddress).toBe('15 - A120');
+    expect(await db.linhaInventario.findFirstOrThrow({ where: { escopoId: escopo.id, linhaArquivo: 5, inventario: { codigo: 'INV-000002' } }, select: { acao: true, aplicada: true, paleteId: true } })).toEqual({ acao: 'JA_IMPORTADO', aplicada: false, paleteId: p120.id });
+    // Próxima versão: todos os endereços reconhecem o palete existente (nenhum cadastro novo).
+    const p3 = lido(novas, { variante: 'v3' });
+    const plano3 = planejarCarga(p3, await carregarEstadoCarga(db, escopo.id, p3, 'INV-000002'));
+    expect(plano3.enderecos.filter((e) => e.acao === 'CRIAR').map((e) => e.endereco)).toEqual([]);
   });
 
   it('escopo de demonstração é recusado sem gravar nada', async () => {

@@ -77,7 +77,7 @@ export function chaveDocumento(tipo: string | null, numero: string): string {
  * de até 15 dígitos aceito com aviso (o Excel não guarda zeros à esquerda);
  * notação científica ou mais de 15 dígitos = precisão já perdida (erro).
  */
-function identificadorPlanilha(c: CelulaTabela | undefined, f: Campo, max: number): { valor: string | null; erro?: MotivoLinha; aviso?: MotivoLinha } {
+export function identificadorPlanilha(c: CelulaTabela | undefined, f: Campo, max: number): { valor: string | null; erro?: MotivoLinha; aviso?: MotivoLinha } {
   if (c?.tipo === 'NUMERO' && !c.formula) {
     const t = (c.texto ?? '').trim();
     if (/^\d{1,15}$/.test(t)) {
@@ -676,7 +676,8 @@ export interface ResultadoInventario {
 }
 
 export async function proximoNumeroInventario(tx: Transacao, escopoId: string): Promise<number> {
-  const [r] = await tx.$queryRaw<{ n: number }[]>`SELECT COALESCE(MAX(numero), 0)::int + 1 AS n FROM inventario_referencia WHERE escopo_id = ${escopoId}::uuid`;
+  // Bipagens (BIP-…) têm numeração própria.
+  const [r] = await tx.$queryRaw<{ n: number }[]>`SELECT COALESCE(MAX(numero), 0)::int + 1 AS n FROM inventario_referencia WHERE escopo_id = ${escopoId}::uuid AND origem <> 'BIPAGEM'`;
   return r?.n ?? 1;
 }
 
@@ -764,6 +765,7 @@ export async function gravarInventario(
             declaredItems: [],
           },
           autor,
+          agora,
         );
         paleteId = detalhe.id;
         paletesCriados += 1;

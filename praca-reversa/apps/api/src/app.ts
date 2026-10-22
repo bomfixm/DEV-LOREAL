@@ -17,6 +17,8 @@ import { registrarRotasAdmin } from './modules/admin/rotas.js';
 import { registrarRotasAjuda } from './modules/ajuda/rotas.js';
 import { registrarRotasIndicadores } from './modules/indicadores/rotas.js';
 import { registrarRotasConferencia } from './modules/conferencia/rotas.js';
+import { registrarRotasConteudos } from './modules/conteudos/rotas.js';
+import { registrarRotasPaineis } from './modules/paineis/rotas.js';
 import { registrarRotasBusca } from './modules/busca/rotas.js';
 import { registrarRotasEtiquetas } from './modules/etiquetas/rotas.js';
 import { LIMITE_EXPORTACAO_PADRAO, LIMITES_IMPORTACAO_PADRAO, LIMITES_PLANILHA_PADRAO } from './modules/importacao/campos.js';
@@ -31,6 +33,7 @@ import { registrarRotasProdutos } from './modules/produtos/rotas.js';
 import { registrarRotasSaude } from './modules/saude/rotas.js';
 import { registrarRotasSelecao } from './modules/selecao/rotas.js';
 import { registrarRotasPlanilha } from './modules/planilha/rotas.js';
+import { registrarRotasSelecaoTeste } from './modules/selecao-teste/rotas.js';
 import type { ConfigPlanilha } from './modules/planilha/situacao.js';
 
 export interface OpcoesApp {
@@ -53,6 +56,8 @@ export interface OpcoesApp {
   aplicativo?: Partial<ConfigAplicativo>;
   /** Planilha única (padrão: sem destino independente, agendador desligado, geração local em .dados/planilha). */
   planilha?: ConfigPlanilha;
+  /** "Seleção cliente — teste" (padrão: ligada; o acesso continua só por concessão explícita). */
+  selecaoClienteTeste?: boolean;
 }
 
 const QUINZE_MINUTOS = 15 * 60_000;
@@ -98,6 +103,7 @@ export async function criarApp(opcoes: OpcoesApp): Promise<FastifyInstance> {
     exportacaoMaxLinhas: opcoes.exportacaoMaxLinhas ?? LIMITE_EXPORTACAO_PADRAO,
     claims: { ordemPadrao: 'PRIORIDADE', anexoMaxBytes: 5 * 1_048_576, ...opcoes.claims },
     caminhoBase: opcoes.aplicativo?.caminhoBase ?? '/',
+    selecaoClienteTeste: opcoes.selecaoClienteTeste ?? true,
   };
   void hashParaContaInexistente();
   const aplicativo: ConfigAplicativo = {
@@ -187,6 +193,7 @@ export async function criarApp(opcoes: OpcoesApp): Promise<FastifyInstance> {
         registrarRotasOperacoes(privado, deps);
         registrarRotasPraca(privado, deps, auth);
         registrarRotasPaletes(privado, deps, auth);
+        registrarRotasConteudos(privado, deps, auth);
         registrarRotasConferencia(privado, deps, auth);
         registrarRotasMovimentos(privado, deps, auth);
         registrarRotasBusca(privado, deps, auth);
@@ -200,7 +207,10 @@ export async function criarApp(opcoes: OpcoesApp): Promise<FastifyInstance> {
         registrarRotasAdmin(privado, deps, auth);
         registrarRotasAjuda(privado, deps, auth);
         registrarRotasIndicadores(privado, deps, auth);
+        registrarRotasPaineis(privado, deps, auth);
         registrarRotasPlanilha(privado, deps, auth, opcoes.planilha ?? PLANILHA_PADRAO);
+        // Desligada na instalação (SELECAO_CLIENTE_TESTE=desativada): as rotas não existem.
+        if (deps.selecaoClienteTeste) registrarRotasSelecaoTeste(privado, deps, auth);
         pronto();
       });
     },

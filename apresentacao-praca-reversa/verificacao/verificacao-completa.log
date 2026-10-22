@@ -1,0 +1,46 @@
+OK   arquivo sem credenciais, conexões ou URLs externas — 111 KB
+OK   abre offline por file:// na cena 01
+OK   fonte Inter carregada (embutida)
+OK   sem avanço automático (4 s parado)
+OK   tecla "ArrowRight" avança uma cena
+OK   tecla "PageDown" avança uma cena
+OK   tecla " " avança uma cena
+OK   tecla "ArrowDown" avança uma cena
+OK   tecla "Enter" avança uma cena
+OK   tecla ArrowLeft volta uma cena
+OK   tecla PageUp volta uma cena
+OK   tecla ArrowUp volta uma cena
+OK   tecla Backspace volta uma cena
+OK   End vai à última
+OK   na última, avançar não passa do fim
+OK   Home vai à primeira
+OK   botão Próxima avança uma cena
+OK   espaço depois do clique avança só uma vez
+OK   botão Anterior volta
+OK   avanço rápido (11 teclas seguidas) termina na 12 — {"ativas":["12"],"saindo":0,"pontes":0,"ocultos":0}
+OK   volta de 12 até 01, uma a uma, com título visível em cada cena
+OK   I abre o índice
+OK   salto pelo índice para a 09 mostra a cena completa
+OK   Esc fecha o índice
+OK   ponte 02→03 acontece e termina limpa — no meio: 3 clones; depois: {"ativas":["03"],"saindo":0,"pontes":0,"ocultos":0}
+OK   ponte 05→06 (palete 256 → janela do palete) termina limpa — no meio: {"ativas":["06"],"saindo":1,"pontes":3,"ocultos":2}; depois: {"ativas":["06"],"saindo":0,"pontes":0,"ocultos":0}
+OK   ponte também na volta 06→05
+OK   N abre a janela de notas com a fala da cena atual
+OK   avançar na janela de notas avança a apresentação e atualiza a fala
+OK   botão Anterior das notas volta a apresentação
+OK   avançar na apresentação atualiza as notas
+OK   nenhuma fala aparece na tela projetada — 0 trechos
+OK   M reduz movimentos (luz parada) e mantém a cena
+OK   com movimento reduzido a navegação continua
+OK   B escurece a tela
+OK   F pede tela cheia — entrou em tela cheia
+OK   recarregar com #7 volta à cena 07
+OK   cena 05 parada 60 s: 209 textos sem mudar de lugar nem de valor; luz ambiente em movimento
+OK   cena 06 parada 60 s: 210 textos sem mudar de lugar nem de valor; luz ambiente em movimento
+OK   cena 08 parada 60 s: 32 textos sem mudar de lugar nem de valor; luz ambiente em movimento
+OK   respeita "reduzir movimento" do sistema
+OK   1366×768: nenhum texto fora do palco e sem rolagem nas 12 cenas
+OK   sem erros no console nem requisições externas (internet desligada)
+
+43 de 43 verificações aprovadas.
+saida=0

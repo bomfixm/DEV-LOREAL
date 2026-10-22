@@ -57,17 +57,17 @@ export const GUIAS: readonly GuiaTarefa[] = [
       {
         fazer: 'Escolha o cartão certo e toque em "Ver no mapa".',
         onde: 'Cartão do resultado.',
-        aparece: 'O palete centralizado no mapa. No computador o detalhe abre ao lado; no celular toque em "Ver conteúdo".',
+        aparece: 'O palete centralizado no mapa e a janela do palete aberta sobre a página (tocar num palete do mapa também a abre).',
       },
       {
-        fazer: 'Leia o código do palete, a "Posição" e o "ID permanente", e depois a seção "Conteúdo".',
-        onde: 'Detalhe do palete.',
-        aparece: 'Endereço atual (ou "Localização pendente") e o conteúdo com a base de cada quantidade.',
+        fazer: 'Leia o número do palete e o endereço no topo da janela, o resumo (volumes e notas/minutas) e a tabela de conteúdo. "Fechar" ou Esc fecha a janela.',
+        onde: 'Janela do palete.',
+        aparece: 'Tipo, número, remetente, CNPJ (quando houver) e volumes de cada documento; "Informações adicionais" e "Detalhes completos e outras ações" ficam recolhidos.',
       },
       {
-        fazer: 'Para ver todos os paletes, use "Paletes" (computador) ou a aba "Lista" (celular). O filtro aceita o código ou o link do QR.',
+        fazer: 'No celular, a aba "Lista" mostra todos os paletes; o filtro aceita o código ou o link do QR. No computador, "Ler QR" fica no canto do mapa.',
         onde: 'Mapa da praça.',
-        aparece: 'Lista agrupada por fileira; tocar num palete centraliza no mapa.',
+        aparece: 'Lista agrupada por fileira (celular) ou o leitor da câmera; escolher um palete abre a janela dele.',
       },
     ],
     atencao: [
@@ -85,37 +85,77 @@ export const GUIAS: readonly GuiaTarefa[] = [
     semPermissao: 'Seu perfil não cadastra paletes: anote o código e o endereço e peça ao operador ou ao supervisor de estoque.',
     passos: [
       {
-        fazer: 'Toque em "Novo palete" (lista de paletes) ou em "Cadastrar palete" no Menu.',
+        fazer: 'Toque em "Receber palete" (topo do mapa), em "Novo palete" (lista, no celular) ou em "Cadastrar palete" no Menu.',
         onde: 'Mapa da praça ou Menu.',
         aparece: 'O formulário de cadastro.',
         permissao: 'palete.cadastrar',
       },
       {
-        fazer: 'Em "Código do palete", use a identificação que já está no palete ou escolha "Gerar código interno".',
+        fazer: 'Em "Número do palete", escolha "Próximo número da sequência da praça" ou "Usar o número que já está no palete".',
         onde: 'Formulário de cadastro.',
         aparece: 'O código precisa ser único; código de palete arquivado nunca é reutilizado.',
         permissao: 'palete.cadastrar',
       },
       {
-        fazer: 'Em "Localização inicial", informe o código de uma posição livre ou marque "Sem posição (localização pendente)".',
+        fazer: 'Em "Destino na praça", informe o código de uma posição livre ou marque "Sem posição (localização pendente)".',
         onde: 'Formulário de cadastro.',
         aparece: 'Só posições livres e disponíveis do layout ativo são aceitas.',
         permissao: 'palete.cadastrar',
       },
       {
-        fazer: 'Se houver documento, preencha "Declarado em documento (opcional)". Campos vazios ficam pendentes.',
+        fazer: 'Se já houver itens de documento em mãos, preencha "Itens de documento (opcional)". Campos vazios ficam pendentes.',
         onde: 'Formulário de cadastro.',
         aparece: 'Linhas declaradas: elas não comprovam presença física e não criam saldo.',
         permissao: 'palete.cadastrar',
       },
       {
-        fazer: 'Toque em "Cadastrar palete" e depois em "Imprimir etiqueta".',
+        fazer: 'Toque em "Cadastrar palete"; depois, em "Importar bipagem" (documentos e volumes lidos) e "Imprimir etiqueta".',
         onde: 'Formulário e detalhe do palete.',
         aparece: 'O palete no mapa como "Não conferido" (conteúdo desconhecido) e a etiqueta com QR para colar no palete.',
         permissao: 'palete.cadastrar',
       },
     ],
     atencao: ['Cadastrar não é conferir: o conteúdo fica desconhecido até a conferência.', 'Cadastro feito por engano é arquivado pelo supervisor ("Arquivar cadastro feito por engano…"), nunca apagado.'],
+  },
+  {
+    id: 'bipagem',
+    titulo: TITULOS_TAREFA.bipagem,
+    objetivo: 'Trazer as notas e os volumes lidos na bipagem de UM palete, sem digitar nota por nota, e escolher no mapa onde o palete está.',
+    quem: 'Operador e supervisor de estoque importam. Os demais perfis consultam o conteúdo do palete.',
+    executam: ['palete.cadastrar'],
+    semPermissao: 'Seu perfil não importa a bipagem: entregue o arquivo ao operador ou ao supervisor de estoque.',
+    passos: [
+      {
+        fazer: 'Abra "Recebimento" e toque em "Importar a bipagem e escolher a posição no mapa" (ou, num palete aberto, em "Importar bipagem").',
+        onde: 'Menu "Recebimento" ou a janela do palete.',
+        aparece: 'A página "Importar bipagem".',
+        permissao: 'palete.cadastrar',
+      },
+      {
+        fazer: 'Escolha o Excel exportado da bipagem (planilha "Etiquetas", um palete por arquivo) e toque em "Ler arquivo". Não é preciso ajustar abas, linhas nem colunas.',
+        onde: 'Página "Importar bipagem", em "Arquivo da bipagem".',
+        aparece: 'As notas a importar, os volumes e o total; linhas sem volumes e pendências à parte. CNPJ e Última Leitura ficam em "Mais informações".',
+        permissao: 'palete.cadastrar',
+      },
+      {
+        fazer: 'No mapa, toque numa posição vazia (palete novo) ou no palete onde o material está (acrescentar).',
+        onde: '"Onde está este palete?".',
+        aparece: 'Posição vazia: "Palete novo", com o número "gerado ao confirmar". Palete existente: "Este palete já contém notas. Deseja acrescentar os conteúdos desta importação?", com o que ele já tem e o que vai receber.',
+        permissao: 'palete.cadastrar',
+      },
+      {
+        fazer: 'Se aparecer "Notas repetidas", escolha para cada uma: "Revalidar" (mantém a que já está; esta linha não entra) ou "Importar separadamente" (nova entrada; as duas contam). Depois, confirme.',
+        onde: '"Revisar e confirmar".',
+        aparece: 'O número do palete criado (ou o palete que recebeu as notas) e o resumo do que foi importado.',
+        permissao: 'palete.cadastrar',
+      },
+    ],
+    atencao: [
+      'Lidos é a quantidade usada (não Leituras). Linha com Lidos = 0 aparece no resumo e não entra no palete. Linha com erro impede a importação: exporte de novo no padrão.',
+      'O número do palete novo é gerado pelo sistema na confirmação (série do piso; nunca reutiliza número). Nada é gravado antes de confirmar.',
+      'Mesmo número de nota com outro remetente ou CNPJ é outra nota. Nada é somado nem substituído: Revalidar não muda a quantidade antiga e não é conferência do palete.',
+      'Delivery, SKU e validade são complementos opcionais, preenchidos depois. Importar não libera, não reserva e não expede.',
+    ],
   },
   {
     id: 'conferir',
@@ -470,6 +510,90 @@ export const GUIAS: readonly GuiaTarefa[] = [
       'Antes de "Atualizar" para uma versão nova, resolva o que estiver em confirmação ou não enviado.',
     ],
   },
+  {
+    id: 'painel',
+    titulo: TITULOS_TAREFA.painel,
+    objetivo: 'Ver estoque, localização, reconferência e janelas num só lugar e registrar quantos volumes foram separados e expedidos em cada janela.',
+    quem: 'Todos os perfis da DHL consultam; o operador e o supervisor registram a separação; só o supervisor registra a meta e confirma a expedição.',
+    executam: ['expedicao.preparar', 'expedicao.confirmar', 'janela.gerenciar'],
+    semPermissao: 'Sem permissão de registro, o painel é só consulta: peça ao supervisor de estoque para registrar a meta ou confirmar a saída.',
+    passos: [
+      {
+        fazer: 'Abra "Painel da operação": numa tela só estão os quatro cartões ("Paletes na praça", "Volumes registrados", "Sem endereço", "Precisa conferir"), a janela selecionada, a situação da praça, os volumes por rua e as prioridades. Toque num cartão para ver a lista com os mesmos filtros.',
+        onde: 'Menu lateral, "Painel". Janela e período na linha de filtros, no topo; "Atualizar" aplica o período e busca os números de novo.',
+        aparece: 'A hora da consulta ao lado de "Atualizar"; a lista mostra uma linha por NF × palete e o total igual ao do cartão.',
+      },
+      {
+        fazer: 'Para as definições e os números secundários (informado × conferido, sem volume, identificação incompleta, posições desativadas, claims), toque em "Detalhes". Para a lista completa, use "Ver todas" (prioridades), "Tabela" (ruas) ou "Comparar" (janelas do período).',
+        onde: 'Linha de filtros e canto de cada painel.',
+        aparece: 'Uma janela sobre o painel; Esc ou "Fechar" volta ao resumo.',
+      },
+      {
+        fazer: 'Na janela, informe os volumes pedidos pelo cliente e a referência e toque em "Registrar meta".',
+        onde: 'Janela no painel, seção "Meta do cliente".',
+        aparece: 'A meta vigente e as anteriores no histórico; as porcentagens aparecem só com meta maior que zero.',
+        permissao: 'janela.gerenciar',
+      },
+      {
+        fazer: 'Procure o palete ou a NF em "Buscar conteúdo", informe os volumes efetivamente separados e toque em "Registrar separação".',
+        onde: 'Janela no painel, seção "Registrar separação".',
+        aparece: 'O volume entra em "Separados aguardando saída"; o restante da NF continua no estoque e não pode ser separado de novo além da base.',
+        permissao: 'expedicao.preparar',
+      },
+      {
+        fazer: 'Quando a carga sair, informe os volumes e toque em "Confirmar expedição".',
+        onde: 'Janela no painel, seção "Separados nesta janela".',
+        aparece: 'Os volumes saem de separados e entram em expedidos na mesma operação; o palete reinicia o prazo de reconferência.',
+        permissao: 'expedicao.confirmar',
+      },
+      {
+        fazer: 'Registro errado: use "Estornar (corrigir registro)" com os volumes e o motivo.',
+        onde: 'Janela no painel, seção "Registros da janela".',
+        aparece: 'Um estorno ligado ao registro original; nada é apagado e os totais não contam duas vezes.',
+        permissao: 'expedicao.preparar',
+      },
+    ],
+    atencao: [
+      'Janela em volumes: Falta separar = Solicitado − Separado − Expedido; Falta expedir = Solicitado − Expedido (nunca abaixo de zero). Preparação = (Separado + Expedido) ÷ Solicitado; Expedição = Expedido ÷ Solicitado. Sem meta, não há porcentagem.',
+      'Selecionar a NF ou reservar não é separar: só a separação registrada conta, e só a saída confirmada conta como expedida.',
+      'Volumes são a contagem operacional do inventário/pedido (não é m³, caixa nem unidade de produto). Sem volume informado, registre a contagem na conferência de volumes antes de separar.',
+      'Sem endereço confirmado não quer dizer posição livre: o painel separa ocupadas, livres confirmadas e ocupação desconhecida.',
+    ],
+  },
+  {
+    id: 'painel-cliente',
+    titulo: TITULOS_TAREFA['painel-cliente'],
+    objetivo: 'Acompanhar o estoque da operação, o andamento das janelas e o histórico, sem alterar nada.',
+    quem: 'Perfil de consulta do cliente (e o supervisor, para conferir o que o cliente vê).',
+    executam: ['painel.cliente'],
+    semPermissao: 'O painel do cliente só aparece para o acesso do cliente; a equipe DHL usa o painel da operação.',
+    passos: [
+      {
+        fazer: 'Confira os quatro cartões: "Paletes", "Volumes registrados", "Solicitado" e "Expedido" da janela escolhida.',
+        onde: '"Painel do cliente" (uma tela, com a janela na linha de filtros).',
+        aparece: 'Os números de agora, com a hora da consulta; volume desconhecido aparece como "Não informado", nunca como zero.',
+      },
+      {
+        fazer: 'Veja a janela selecionada (solicitado, separado, expedido e o que falta, com as barras de preparação e expedição) e as etapas das NFs selecionadas; "Ver seleção" abre a lista de NFs.',
+        onde: 'Painéis "Janela selecionada" e "Etapas da seleção".',
+        aparece: 'Cada NF como localizada, em separação, separada ou expedida; sem meta, não há porcentagem.',
+      },
+      {
+        fazer: 'Em "Estoque e histórico" (ou "Ver tudo" no histórico recente), use os filtros (janela, rua, palete, NF, Delivery, remetente) e a aba "Histórico".',
+        onde: 'Botão "Estoque e histórico" na linha de filtros.',
+        aparece: 'A mesma consulta fica no endereço da página; "Voltar ao painel" volta ao resumo.',
+      },
+      {
+        fazer: 'Para levar os dados, toque em "Exportar estoque (CSV)" ou "Exportar histórico (CSV)".',
+        onde: '"Estoque e histórico".',
+        aparece: 'Um arquivo só com os campos da tela, códigos como texto e proteção contra fórmulas.',
+      },
+    ],
+    atencao: [
+      '"Entrada registrada no sistema" é a data do cadastro, não a chegada física.',
+      'Conferência registrada não é liberação nem saída; a seleção do cliente não marca a NF como separada.',
+    ],
+  },
 ];
 
 export interface TermoGlossario {
@@ -496,6 +620,11 @@ export const GLOSSARIO: readonly TermoGlossario[] = [
   { termo: 'Janela', explicacao: 'Período de devolução autorizado pelo cliente, com capacidade por métrica.', exemplo: 'Janela com limite de 20 UN e 3 paletes (fictício).' },
   { termo: 'Reserva', explicacao: 'Separa material e capacidade para uma janela. Não baixa o estoque.', exemplo: 'Reserva de 8 UN; o saldo continua 12 até a saída.' },
   { termo: 'Expedição', explicacao: 'Registro da saída física confirmada: baixa o saldo uma única vez.', exemplo: 'Saíram 6 UN; 2 UN reservadas voltaram a ficar disponíveis.' },
+  {
+    termo: 'Volumes da janela',
+    explicacao: 'Meta pedida pelo cliente, separados aguardando saída e expedidos, contados em volumes (não em m³, caixas ou unidades de produto).',
+    exemplo: 'Meta 8.000; expedidos 2.000; separados aguardando 4.500; preparados 6.500 (81,25%) — fictício.',
+  },
   { termo: 'Consolidação', explicacao: 'Juntar o conteúdo de paletes num só. Reduz posições ocupadas, mas não é saída de estoque.', exemplo: 'Dois paletes viram um; o total de peças continua igual.' },
   { termo: 'Inventário de referência', explicacao: 'Fotografia do que foi informado ao cliente: NF, palete, endereço e volumes, com data e fonte.', exemplo: 'INV-000001 conferido em 28/09 (fictício).' },
   { termo: 'Seleção do cliente', explicacao: 'Lista do material que o cliente escolheu para devolver, com pedido e versão.', exemplo: 'Pedido PED-DEMO-1, versão 1 (fictício).' },

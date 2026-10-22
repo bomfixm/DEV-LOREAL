@@ -1,6 +1,6 @@
 import { expect, test, type APIResponse, type Page, type TestInfo } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { entrar, obterPraca, type PracaApi } from './apoio';
+import { abrirPalete, entrar, obterPraca, type PracaApi, verMais } from './apoio';
 import { credenciais } from './credenciais';
 
 /**
@@ -119,9 +119,8 @@ test.describe('conferência e reconciliação', () => {
 
     // Operador abre o palete pelo link do QR.
     await entrar(page, 'operador');
-    await page.goto(`/paletes/${palete.id}`);
-    const detalhe = page.getByTestId('detalhe');
-    await expect(detalhe.getByRole('heading', { level: 2 })).toHaveText(palete.code);
+    await abrirPalete(page, palete.id);
+    await expect(page.getByTestId('janela-titulo')).toHaveText(`Palete ${palete.code}`);
     await expect(page.getByTestId('conteudo-desconhecido')).toBeVisible();
 
     // Parcial: duas leituras do mesmo código somam duas peças.
@@ -143,6 +142,7 @@ test.describe('conferência e reconciliação', () => {
     await concluir(page, false);
     await expect(page.getByTestId('comparacao')).toContainText('Parcial: não comparado');
     await page.getByRole('button', { name: `Palete ${palete.code}` }).first().click();
+    await verMais(page);
     await expect(page.getByTestId('conteudo-parcial')).toContainText('não é saldo validado');
     await expect(page.getByTestId('itens-observados')).toContainText('2 UN');
 
@@ -191,8 +191,10 @@ test.describe('conferência e reconciliação', () => {
     await expect(sup.getByTestId('mensagem-conferencia')).toContainText('Saldo inicial gravado');
     await expect(sup.getByTestId('reconciliada')).toBeVisible();
     await sup.getByRole('button', { name: 'Voltar ao palete' }).click();
+    await verMais(sup);
     await expect(sup.getByTestId('itens-saldo')).toContainText('12 UN');
-    await expect(sup.locator(`.item-palete[data-codigo="${palete.code}"]`)).toContainText('Reconciliado');
+    // Lista (se estiver na tela; no computador fica desativada, D254) e API com a mesma situação.
+    if ((await sup.locator('.painel-lista').count()) > 0) await expect(sup.locator(`.item-palete[data-codigo="${palete.code}"]`)).toContainText('Reconciliado');
     expect((await obterPraca(sup)).pallets.find((p) => p.id === palete.id)).toMatchObject({ countState: 'RECONCILIADO', activeCountId: null });
     // A conferência original foi substituída, com as observações preservadas.
     await sup.getByTestId('secao-conferencia').getByText('Histórico de conferências e estoque').click();
@@ -213,7 +215,7 @@ test.describe('conferência e reconciliação', () => {
       active: true,
       barcodes: [{ code: `0017890099${sufixo(testInfo)}`, packaging: 'CX', factor: null }],
     });
-    await page.goto(`/paletes/${palete.id}`);
+    await abrirPalete(page, palete.id);
     await iniciarPelaTela(page, 'Completa');
 
     // Fator desconhecido: conversão bloqueada; pendência explícita.
@@ -272,7 +274,7 @@ test.describe('conferência e reconciliação', () => {
     test.skip(isMobile, 'Fluxo de computador.');
     await entrar(page, 'supervisor');
     const { palete, codigoUnidade } = await prepararCenario(page, testInfo, 'S1');
-    await page.goto(`/paletes/${palete.id}`);
+    await abrirPalete(page, palete.id);
     const conferencia = await iniciarPelaTela(page, 'Completa');
     await prepararEntrada(page, 'Uma unidade por leitura', null);
     await ler(page, codigoUnidade, true);
@@ -307,7 +309,7 @@ test.describe('conferência e reconciliação', () => {
     await page.getByRole('button', { name: 'Sair' }).click();
     await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible();
     await entrar(page, 'consultaCadastro');
-    await page.goto(`/paletes/${palete.id}`);
+    await abrirPalete(page, palete.id);
     await expect(page.getByTestId('secao-conferencia')).toBeVisible();
     await expect(page.getByTestId('iniciar-conferencia')).toHaveCount(0);
     const r = await chamar(page, 'POST', `/api/v1/paletes/${palete.id}/conferencias`, { scope: 'COMPLETA', expectedVersion: 1 });
@@ -318,7 +320,7 @@ test.describe('conferência e reconciliação', () => {
     test.skip(!isMobile, 'Fluxo de celular.');
     await entrar(page, 'supervisor');
     const { palete, codigoUnidade } = await prepararCenario(page, testInfo, 'M1');
-    await page.goto(`/paletes/${palete.id}`);
+    await abrirPalete(page, palete.id);
     await expect(page.getByTestId('detalhe')).toBeVisible();
     await iniciarPelaTela(page, 'Completa');
     await prepararEntrada(page, 'Uma unidade por leitura', 'Nota fiscal 000555 (declarada)');

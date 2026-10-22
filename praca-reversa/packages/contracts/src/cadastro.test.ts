@@ -118,6 +118,7 @@ describe('geometria do layout', () => {
     occupancySurveyed: false,
     deactivated: false,
     address: null,
+    freeConfirmed: null,
   });
   const layout = (parcial: Partial<Layout>): Layout => ({
     id: '30000000-0000-4000-8000-000000000001',
@@ -155,6 +156,7 @@ describe('permissões da etapa 03', () => {
     expect(quem('produto.cadastrar')).toEqual(['SUPERVISOR_ESTOQUE']);
     expect(quem('layout.configurar')).toEqual(['SUPERVISOR_ESTOQUE']);
     expect(quem('palete.arquivar')).toEqual(['SUPERVISOR_ESTOQUE']);
-    expect(quem('produto.consultar')).toEqual(PERFIS);
+    // O acesso do cliente (painel do cliente) não consulta produtos.
+    expect(quem('produto.consultar')).toEqual(PERFIS.filter((p) => p !== 'CLIENTE_CONSULTA'));
   });
 });

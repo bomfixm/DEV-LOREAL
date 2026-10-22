@@ -163,6 +163,14 @@ function Resumo({ j, permissoes, aoNavegar, aoAtualizar, recarregar }: { j: Jane
         )}
       </section>
 
+      {pode('painel.operacao') && (
+        <p className="acoes-linha">
+          <button type="button" className="botao-secundario" onClick={() => { aoNavegar({ tipo: 'painel-janela', id: j.id }); }} data-testid="abrir-volumes-janela">
+            Volumes da janela (meta, separação e expedição por NF)
+          </button>
+        </p>
+      )}
+
       {pode('janela.gerenciar') && aberta && (
         <section className="cartao" aria-label="Ações da janela">
           <div className="acoes-linha">

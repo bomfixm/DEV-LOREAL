@@ -25,6 +25,13 @@ export * from './enderecos.js';
 export * from './inventario.js';
 export * from './selecao.js';
 export * from './planilha.js';
+export * from './bipagem.js';
 
 /** Prefixo das rotas da API (docs/ARQUITETURA.md). */
 export const API_PREFIXO = '/api/v1';
+export * from './conteudos.js';
+export * from './reconferencia.js';
+export * from './paineis.js';
+export * from './selecao-teste.js';
+export * from './conferencia-volumes.js';
+export * from './correcoes.js';

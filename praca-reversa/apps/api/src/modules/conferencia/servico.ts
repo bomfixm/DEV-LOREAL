@@ -37,6 +37,7 @@ import { ErroHttp, acessoNegado, corpoErro, naoEncontrado, requisicaoInvalida } 
 import { registrarEvento } from '../auditoria/registrar.js';
 import { aplicarEvento, bloquearSaldos, lerEventos, lerSaldoPalete, recalcularResumoPaletes, temEventoEstoque, ultimaReconciliacao } from '../estoque/saldo.js';
 import type { Resposta } from '../idempotencia/executar.js';
+import { registrarReconferenciaCompleta } from '../paletes/relogio.js';
 import { resolverEntrada, type EntradaResolvida } from './entrada.js';
 import { lerConferencia, totaisDaSessao } from './leitura.js';
 import { planejarReconciliacao } from './regras.js';
@@ -578,6 +579,8 @@ export async function concluirConferencia(
     await tx.sessaoConferencia.updateMany({ where: { id: sessao.sessaoOrigemId, situacao: 'CONCLUIDA' }, data: { situacao: 'SUBSTITUIDA' } });
   }
   const estado = await atualizarPalete(tx, escopoId, palete);
+  // Conferência COMPLETA concluída (com responsável e data) reinicia o prazo de reconferência; parcial não.
+  if (sessao.escopoContagem === 'COMPLETA') await registrarReconferenciaCompleta(tx, escopoId, palete.id, 'CONFERENCIA_COMPLETA', autor.usuarioId, agora);
   const { totais, pendencias } = await totaisDaSessao(tx, escopoId, sessaoId);
   await registrarEvento(tx, {
     acao: 'CONFERENCIA_CONCLUIDA',
@@ -730,7 +733,7 @@ async function analisar(
   const { totais, pendencias } = await totaisDaSessao(db, escopoId, sessao.id);
   if (pendencias.length > 0) {
     bloqueios.push(
-      `${String(pendencias.length)} observação(ões) pendente(s) (código não cadastrado ou fator desconhecido). Cadastre o produto/fator e solicite recontagem.`,
+      `${String(pendencias.length)} observação(ões) pendente(s) (código não cadastrado ou fator desconhecido). Inclua o produto/fator pela importação "Cadastro de produtos" e solicite recontagem.`,
     );
   }
   const saldo = await lerSaldoPalete(db, escopoId, sessao.paleteId);

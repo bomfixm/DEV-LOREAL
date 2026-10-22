@@ -127,7 +127,7 @@ function montarPassos(c: Contexto): Passo[] {
             : c.compacto
               ? 'Toque na aba "Busca", embaixo.'
               : 'Toque em "Buscar conteúdo".',
-      onde: campo ? 'Campo "Buscar", no painel de busca.' : c.compacto ? 'Barra de abas embaixo da tela.' : 'Painel da esquerda, ao lado de "Paletes".',
+      onde: campo ? (c.compacto ? 'Campo "Buscar", no painel de busca.' : 'Caixa de pesquisa no topo do mapa; os resultados aparecem sobre o mapa.') : c.compacto ? 'Barra de abas embaixo da tela.' : 'Caixa de pesquisa no topo do mapa.',
       aparece:
         ex?.kind === 'PALETE'
           ? `${ex.reason ?? ''} Os resultados aparecem em cartões logo abaixo do campo.`
@@ -139,7 +139,7 @@ function montarPassos(c: Contexto): Passo[] {
         return f !== null && codigo !== null && normal(f.value) === normal(codigo) && primeiro('[data-testid="resultado-busca"]') !== null;
       },
     });
-    const basesTexto = (ex?.occurrences.bases ?? []).map((b) => ({ SALDO_VALIDADO: 'saldo validado', OBSERVADO: 'observado em conferência', DECLARADO_PALETE: 'declarado no palete', DOCUMENTO: 'documento importado', PALETE: 'palete', INVENTARIO: 'vínculo do inventário' })[b]);
+    const basesTexto = (ex?.occurrences.bases ?? []).map((b) => ({ SALDO_VALIDADO: 'saldo validado', OBSERVADO: 'observado em conferência', DECLARADO_PALETE: 'declarado no palete', DOCUMENTO: 'documento importado', PALETE: 'palete', INVENTARIO: 'vínculo do inventário', CONTEUDO: 'conteúdo registrado', ORIGEM_INVENTARIO: 'origem do inventário sem alocação' })[b]);
     passos.push({
       titulo: 'Escolher o resultado',
       fazer: palete ? `Toque em "Ver no mapa" no cartão do palete ${palete.code}${ex?.kind === 'PRODUTO' ? ' com a base "Saldo validado"' : ''}.` : 'Toque em "Ver no mapa" no cartão escolhido.',
@@ -162,21 +162,22 @@ function montarPassos(c: Contexto): Passo[] {
     passos.push({
       titulo: 'Abrir o palete: ID e endereço',
       fazer:
-        c.compacto && !detalheVisivel()
-          ? 'Toque em "Ver conteúdo" no cartão do palete selecionado.'
-          : `Confira o código${palete ? ` ${palete.code}` : ''}, a "Posição" e o "ID permanente".`,
-      onde: c.compacto && !detalheVisivel() ? 'Cartão do palete, sobre o mapa.' : 'Topo do detalhe do palete.',
-      aparece: `ID identifica o palete. Endereço mostra onde ele está agora${palete?.positionCode ? ` (${palete.positionCode})` : ''}: pode mudar num movimento; o ID permanente nunca muda e é o que vai no QR da etiqueta.`,
-      alvo: () => (c.compacto && !detalheVisivel() ? primeiro('[data-tutorial="ver-conteudo"]') : primeiro('[data-tutorial="identificacao-palete"]')),
+        !detalheVisivel()
+          ? `${c.compacto ? 'Toque' : 'Clique'} no palete${palete ? ` ${palete.code}` : ''} no mapa: a janela do palete abre.`
+          : `Confira o número do palete${palete ? ` (${palete.code})` : ''} e o endereço no topo da janela.`,
+      onde: !detalheVisivel() ? 'Mapa da praça.' : 'Topo da janela do palete.',
+      aparece:
+        'O endereço mostra onde o palete está agora: pode mudar num movimento. O ID permanente, que vai no QR da etiqueta, nunca muda (em "Detalhes completos e outras ações").',
+      alvo: () => primeiro('[data-tutorial="identificacao-palete"]'),
       semAlvo: c.rota.tipo === 'palete' ? 'O detalhe do palete ainda está carregando…' : 'Escolha um resultado da busca (passo anterior) para abrir o palete.',
       feito: detalheVisivel,
     });
     passos.push({
       titulo: 'Quantidades e pendências',
-      fazer: 'Leia a seção "Conteúdo" e a "Situação" do palete.',
-      onde: 'Detalhe do palete, abaixo do endereço.',
+      fazer: 'Leia o resumo (volumes e notas/minutas) e a tabela de conteúdo da janela.',
+      onde: 'Janela do palete, abaixo do endereço.',
       aparece:
-        'Declarado veio do documento; observado veio da contagem; saldo validado foi conferido e aprovado. Reservado separa para uma janela (disponível = saldo − reservado). Conteúdo pendente significa que ainda falta informação — não que o palete está vazio.',
+        'Cada linha é um documento: tipo, número, remetente e os volumes dele neste palete, com a base (lidos na bipagem, contados ou do inventário). "Não informado" significa que ainda falta informação — não que o palete está vazio.',
       alvo: () => primeiro('[data-tutorial="conteudo-palete"]'),
       semAlvo: 'Abra o palete (passo anterior) para ver o conteúdo.',
     });
@@ -186,8 +187,8 @@ function montarPassos(c: Contexto): Passo[] {
   passos.push({
     titulo: 'Repetir e continuar',
     fazer: c.compacto
-      ? 'Para repetir: aba "Busca" → código → "Ver no mapa" → "Ver conteúdo". "Voltar ao mapa" fecha o detalhe.'
-      : 'Para repetir: "Buscar conteúdo" → código → "Ver no mapa". "Fechar" no detalhe volta ao mapa e à lista.',
+      ? 'Para repetir: aba "Busca" → código → "Ver no mapa" (ou toque no palete no mapa). "Fechar" fecha a janela.'
+      : 'Para repetir: pesquise no topo → "Ver no mapa" (ou clique no palete no mapa). "Fechar" ou Esc fecha a janela; o mapa continua onde estava.',
     onde: 'Botão "Ajuda" no topo: "Começar aqui" repete este tutorial; os guias por tarefa ficam na mesma página.',
     aparece: `Próximos guias para o seu perfil: ${guias.join('; ')}.`,
     alvo: () => primeiro('[data-tutorial="ajuda"]'),
@@ -311,8 +312,15 @@ export function Tutorial({ usuarioId, passo, rota, compacto, demo, escopo, perfi
   const largura = Math.min(380, larguraJanela - 2 * margem);
   let estilo: CSSProperties;
   if (compacto) {
-    const alvoEmBaixo = alvo !== null && alvo.top + alvo.height / 2 > alturaJanela / 2;
-    estilo = alvoEmBaixo ? { top: margem + 56, left: margem, right: margem } : { bottom: margem + abas, left: margem, right: margem };
+    // Celular: o balão vai para o lado com mais espaço livre (acima ou abaixo do elemento) e não passa desse espaço
+    // (rola por dentro), para nunca cobrir o elemento apontado.
+    const topo = margem + 56;
+    const espacoCima = alvo === null ? 0 : alvo.top - margem - topo;
+    const espacoBaixo = alvo === null ? alturaJanela : alturaJanela - margem - abas - (alvo.top + alvo.height + margem);
+    estilo =
+      alvo !== null && espacoCima >= espacoBaixo
+        ? { top: topo, left: margem, right: margem, maxHeight: Math.max(120, espacoCima), overflowY: 'auto' }
+        : { bottom: margem + abas, left: margem, right: margem, ...(alvo === null ? {} : { maxHeight: Math.max(120, espacoBaixo), overflowY: 'auto' as const }) };
   } else if (alvo === null) {
     estilo = { bottom: margem, right: margem, width: largura };
   } else {

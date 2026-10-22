@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { abrirMenuConta, dimensoesPng, entrar, entrarNoMapa, obterPraca } from './apoio';
+import { abrirPalete, abrirMenuConta, dimensoesPng, entrar, entrarNoMapa, obterPraca } from './apoio';
 
 test.skip(({ isMobile }) => isMobile, 'Verificações de instalação executadas no perfil de computador (Chromium).');
 
@@ -149,7 +149,7 @@ test.describe('PWA', () => {
         headers: { 'x-csrf-token': csrf, 'idempotency-key': randomUUID() },
       });
       const { id: paleteId } = (await palete.json()) as { id: string };
-      await page.goto(`/paletes/${paleteId}`);
+      await abrirPalete(page, paleteId);
       await page.getByTestId('iniciar-conferencia').click();
       await page.getByRole('radio', { name: /^Completa/ }).check();
       await page.getByTestId('confirmar-inicio').click();
@@ -219,12 +219,12 @@ test.describe('PWA', () => {
     page.on('request', (req) => {
       if (req.method() !== 'GET' && req.url().includes('/api/v1/') && !req.url().includes('/sessao')) gravacoes += 1;
     });
-    await page.goto('/produtos');
-    await page.getByRole('button', { name: 'Novo produto' }).click();
-    await page.getByLabel(/^SKU/).fill(`INC${randomUUID().slice(0, 6)}`);
-    await page.getByLabel('Descrição', { exact: true }).fill('Produto fictício');
-    await page.getByRole('button', { name: 'Gravar produto' }).click();
-    await expect(page.getByTestId('mensagem-produto')).toContainText('nada foi enviado');
+    const [palete] = (await obterPraca(page)).pallets;
+    if (!palete) throw new Error('Sem palete no escopo do supervisor.');
+    await page.goto(`/conteudos/novo?palete=${palete.id}`);
+    await page.getByTestId('conteudo-remetente').fill(`Remetente fictício ${randomUUID().slice(0, 6)}`);
+    await page.getByTestId('salvar-conteudo').click();
+    await expect(page.getByTestId('erro-conteudo')).toContainText('nada foi enviado');
     expect(gravacoes).toBe(0);
     // Sair continua possível para atualizar.
     await abrirMenuConta(page);

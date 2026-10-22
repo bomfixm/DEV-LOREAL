@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { UsuarioResumoSchema, type Permissao } from './acesso.js';
+import { ResumoBipagemSchema } from './bipagem.js';
 
 /**
  * Importação de cadastro de produtos e de documentos de devolução (etapa 06;
@@ -15,7 +16,13 @@ import { UsuarioResumoSchema, type Permissao } from './acesso.js';
  * NF × palete × endereço × volumes, sem saldo validado) e SELECAO_CLIENTE
  * (lista selecionada ou inventário com marcação; registra solicitações).
  */
-export const TipoImportacaoSchema = z.enum(['PRODUTOS', 'DEVOLUCOES', 'CLAIMS', 'INVENTARIO', 'SELECAO_CLIENTE']);
+/**
+ * BIPAGEM: exportação fixa da bipagem "Etiquetas" (Tipo, Número, Lidos,
+ * Remetente; CNPJ Remetente e Última Leitura opcionais) de UM palete, com o
+ * destino escolhido no mapa: cadastro de conteúdo + contagem informada de
+ * volumes (docs/IMPORTACAO-BIPAGEM.md).
+ */
+export const TipoImportacaoSchema = z.enum(['PRODUTOS', 'DEVOLUCOES', 'CLAIMS', 'INVENTARIO', 'SELECAO_CLIENTE', 'BIPAGEM']);
 export type TipoImportacao = z.infer<typeof TipoImportacaoSchema>;
 export const TIPOS_IMPORTACAO = TipoImportacaoSchema.options;
 
@@ -32,7 +39,12 @@ export const PERMISSOES_IMPORTACAO: Readonly<Record<TipoImportacao, Readonly<Rec
   CLAIMS: { executar: ['claim.consultar', 'claim.tratar'], consultar: ['claim.consultar'] },
   INVENTARIO: { executar: ['importacao.executar', 'inventario.importar', 'palete.cadastrar'], consultar: ['importacao.consultar'] },
   SELECAO_CLIENTE: { executar: ['selecao.consultar', 'selecao.importar'], consultar: ['selecao.consultar'] },
+  // Mesma permissão das edições das notas do palete; o histórico dos lotes fica com quem pode importar (o perfil de consulta vê as notas no palete).
+  BIPAGEM: { executar: ['palete.consultar', 'palete.cadastrar'], consultar: ['palete.consultar', 'palete.cadastrar'] },
 };
+
+/** Tipos iniciados pela tela genérica de importação (a bipagem começa pelo palete). */
+export const TIPOS_IMPORTACAO_GERAL: readonly TipoImportacao[] = ['PRODUTOS', 'DEVOLUCOES', 'CLAIMS', 'INVENTARIO', 'SELECAO_CLIENTE'];
 
 /** Tipos que as permissões informadas permitem para a ação. */
 export function tiposImportacaoPermitidos(permissoes: Iterable<Permissao>, acao: AcaoImportacao): TipoImportacao[] {
@@ -125,7 +137,10 @@ export const CampoSelecaoSchema = z.enum([
   'address',
   'notes',
 ]);
+/** Bipagem real (etapa 1): só os cinco campos de negócio; as demais colunas do arquivo são ignoradas. */
+export const CampoBipagemSchema = z.enum(['documentType', 'documentNumber', 'readVolumes', 'senderCnpj', 'sender', 'lastRead']);
 export type CampoImportacao =
+  | z.infer<typeof CampoBipagemSchema>
   | z.infer<typeof CampoProdutoSchema>
   | z.infer<typeof CampoDevolucaoSchema>
   | z.infer<typeof CampoClaimSchema>
@@ -273,6 +288,14 @@ export const CAMPOS_IMPORTACAO: Readonly<Record<TipoImportacao, readonly Definic
     { campo: 'windowRef', rotulo: 'Janela', obrigatorio: false, identificador: true, ajuda: 'Janela pedida pelo cliente, como texto.' },
     { campo: 'address', rotulo: 'Endereço informado (RUA)', obrigatorio: false, identificador: true, ajuda: 'Endereço que constava no arquivo; o atual vem dos registros.' },
     { campo: 'notes', rotulo: 'Observação', obrigatorio: false, identificador: false, ajuda: 'Texto livre, até 500 caracteres.' },
+  ],
+  BIPAGEM: [
+    { campo: 'documentType', rotulo: 'Tipo', obrigatorio: true, identificador: true, ajuda: 'NF-e ou Minuta (NFD também é aceito). Tipo original preservado; NF-e nunca vira NFD.' },
+    { campo: 'documentNumber', rotulo: 'Número', obrigatorio: true, identificador: true, ajuda: 'Número do documento, como texto.' },
+    { campo: 'readVolumes', rotulo: 'Lidos', obrigatorio: true, identificador: false, ajuda: 'Volumes lidos daquele documento no palete (inteiro, 0 ou mais). Leituras não é usada.' },
+    { campo: 'sender', rotulo: 'Remetente', obrigatorio: true, identificador: true, ajuda: 'Nome do remetente.' },
+    { campo: 'senderCnpj', rotulo: 'CNPJ Remetente', obrigatorio: false, identificador: true, ajuda: 'CNPJ do remetente, como texto; comparado só pelos 14 dígitos. Opcional.' },
+    { campo: 'lastRead', rotulo: 'Última Leitura', obrigatorio: false, identificador: false, ajuda: 'Data e hora da bipagem, como lidas (sem fuso inventado). Opcional; não é a data de conferência.' },
   ],
 };
 
@@ -508,6 +531,22 @@ export const ResultadoGravacaoSchema = z.object({
   /** Seleção do cliente registrada. */
   selectionId: z.uuid().nullable().default(null),
   selectionLines: z.number().int().nonnegative().default(0),
+  /** Bipagem (versão de 8 out.): registros anteriores encerrados por substituição explícita. Mantido nos lotes antigos. */
+  documentLinksEnded: z.number().int().nonnegative().default(0),
+  /** Bipagem: palete de destino (ID permanente) e documentos com leitura gravados (novos ou com contagem nova). */
+  palletId: z.uuid().nullable().default(null),
+  documentsWritten: z.number().int().nonnegative().default(0),
+  /** Bipagem: conteúdos cadastrados, contagens registradas, documentos sem mudança e registros sem leitura (Lidos = 0). */
+  contentsCreated: z.number().int().nonnegative().default(0),
+  countsRegistered: z.number().int().nonnegative().default(0),
+  documentsUnchanged: z.number().int().nonnegative().default(0),
+  recordsWithoutReads: z.number().int().nonnegative().default(0),
+  /** Bipagem: volumes das entradas gravadas (Lidos das linhas aceitas). */
+  volumesRead: z.number().int().nonnegative().default(0),
+  /** Bipagem (21 out.): número do palete de destino, se foi criado nesta importação, e linhas "Revalidar" (ignoradas). */
+  palletCode: z.string().nullable().default(null),
+  palletCreated: z.boolean().default(false),
+  rowsRevalidated: z.number().int().nonnegative().default(0),
 });
 export type ResultadoGravacao = z.infer<typeof ResultadoGravacaoSchema>;
 
@@ -537,6 +576,8 @@ export const LoteResumoSchema = z.object({
   confirmedBy: UsuarioResumoSchema.nullable(),
   discardedAt: z.iso.datetime().nullable(),
   previewVersion: z.number().int().nonnegative(),
+  /** Bipagem: palete de destino (ID permanente) escolhido no envio. */
+  palletId: z.uuid().nullable().default(null),
   counters: ContadoresImportacaoSchema,
   /** Última tentativa de confirmação que falhou (nada foi gravado). */
   lastFailure: z.object({ at: z.iso.datetime(), message: z.string().min(1) }).nullable(),
@@ -560,6 +601,8 @@ export const LoteImportacaoSchema = LoteResumoSchema.extend({
   blockReason: z.string().nullable(),
   result: ResultadoGravacaoSchema.nullable(),
   limits: LimitesImportacaoSchema,
+  /** Bipagem: resumo estruturado da prévia atual (notas, destinos, decisões e pendências). */
+  palletImport: ResumoBipagemSchema.nullable().default(null),
 });
 export type LoteImportacao = z.infer<typeof LoteImportacaoSchema>;
 
@@ -593,6 +636,8 @@ export const ROTULOS_ACAO_LINHA: Readonly<Record<string, string>> = {
   SOLICITACAO: 'solicitação',
   EXCLUIDA_MARCACAO: 'fora da seleção (marcação)',
   DUPLICIDADE_AGRUPADA: 'repetida (agrupada, sem somar)',
+  NOVA_PARCELA: 'nova parcela (volumes separados, sem soma)',
+  EXCLUIDA_OPERADOR: 'deixada de fora da importação',
 };
 
 export const LIMITE_LINHAS_PAGINA = 200;
@@ -661,6 +706,8 @@ export const LIMITE_LOTES_PAGINA = 100;
 export const FiltroLotesSchema = z.object({
   tipo: TipoImportacaoSchema.optional(),
   situacao: SituacaoImportacaoSchema.optional(),
+  /** Bipagem: só os lotes de um palete (ID permanente). */
+  palete: z.uuid().optional(),
   pagina: z.coerce.number().int().min(1).max(10_000).default(1),
   tamanho: z.coerce.number().int().min(1).max(LIMITE_LOTES_PAGINA).default(20),
 });
@@ -686,6 +733,8 @@ export const ArquivoModeloSchema = z.enum([
   'inventario.xlsx',
   'selecao.csv',
   'selecao.xlsx',
+  'bipagem.csv',
+  'bipagem.xlsx',
 ]);
 export type ArquivoModelo = z.infer<typeof ArquivoModeloSchema>;
 export const ARQUIVOS_MODELO = ArquivoModeloSchema.options;

@@ -57,6 +57,8 @@ export interface Dependencias {
   claims: ConfigClaims;
   /** Caminho-base público (etapa 09), terminado em "/"; padrão "/". */
   caminhoBase?: string;
+  /** "Seleção cliente — teste" ligada na instalação (padrão: ligada; acesso só por concessão). */
+  selecaoClienteTeste: boolean;
 }
 
 export function nomeCookie(config: ConfigAcesso): string {
@@ -103,7 +105,7 @@ export function corpoSessao(contexto: ContextoAcesso, config: ConfigAcesso): Ses
   };
 }
 
-export async function montarContexto(db: Banco, sessao: SessaoValida, token: string): Promise<ContextoAcesso> {
+export async function montarContexto(db: Banco, sessao: SessaoValida, token: string, selecaoTesteLigada: boolean): Promise<ContextoAcesso> {
   const escopos = await escoposDoUsuario(db, sessao.usuario.id);
   // Se o vínculo do escopo ativo foi removido, a sessão fica sem escopo até o
   // usuário escolher outro: nunca troca de escopo silenciosamente.
@@ -111,11 +113,13 @@ export async function montarContexto(db: Banco, sessao: SessaoValida, token: str
   let escopoAtivo: Escopo | null = null;
   let perfil: Perfil | null = null;
   let aprovacaoFinanceira = false;
+  let selecaoTeste = false;
   if (ativo) {
-    const { role, financialApproval, ...escopo } = ativo;
+    const { role, financialApproval, clientSelectionTest, ...escopo } = ativo;
     escopoAtivo = escopo;
     perfil = role;
     aprovacaoFinanceira = financialApproval;
+    selecaoTeste = clientSelectionTest && selecaoTesteLigada;
   }
   return {
     sessao,
@@ -123,8 +127,8 @@ export async function montarContexto(db: Banco, sessao: SessaoValida, token: str
     escopos,
     escopoAtivo,
     perfil,
-    // Perfil + concessão explícita do vínculo (aprovação financeira de claims).
-    permissoes: new Set(permissoesDoVinculo(perfil, aprovacaoFinanceira)),
+    // Perfil + concessões explícitas do vínculo (aprovação financeira de claims; seleção cliente — teste).
+    permissoes: new Set(permissoesDoVinculo(perfil, aprovacaoFinanceira, selecaoTeste)),
   };
 }
 
@@ -143,7 +147,7 @@ export function criarAutenticacao(deps: Dependencias) {
       limparCookie(reply, deps.config);
       throw resultado.estado === 'expirada' ? sessaoExpirada() : naoAutenticado();
     }
-    request.acesso = await montarContexto(deps.db, resultado.sessao, token);
+    request.acesso = await montarContexto(deps.db, resultado.sessao, token, deps.selecaoClienteTeste);
     if (ehMutavel(request.method)) {
       const enviado = request.headers['x-csrf-token'];
       if (typeof enviado !== 'string' || !iguaisEmTempoConstante(enviado, tokenCsrf(token))) {
@@ -153,10 +157,16 @@ export function criarAutenticacao(deps: Dependencias) {
   }
 
   function exigirPermissao(permissao: Permissao) {
+    return exigirAlguma([permissao]);
+  }
+
+  /** Basta uma das permissões (a verificação fina fica no serviço). */
+  function exigirAlguma(permissoes: readonly Permissao[]) {
+    const permissao = permissoes.join(' | ');
     return async function verificarPermissao(request: FastifyRequest): Promise<void> {
       const contexto = contextoDe(request);
       const escopo = escopoAtivoDe(request);
-      if (contexto.permissoes.has(permissao)) return;
+      if (permissoes.some((p) => contexto.permissoes.has(p))) return;
       await registrarEvento(deps.db, {
         acao: 'ACESSO_NEGADO',
         resultado: 'NEGADO',
@@ -171,7 +181,7 @@ export function criarAutenticacao(deps: Dependencias) {
     };
   }
 
-  return { autenticar, exigirPermissao };
+  return { autenticar, exigirPermissao, exigirAlguma };
 }
 
 export type Autenticacao = ReturnType<typeof criarAutenticacao>;

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { mostrarListaPaletesNoMapa } from '../apps/web/src/features/mapa/configuracao';
 import {
   aguardarMapaParado,
   centro,
@@ -9,6 +10,8 @@ import {
   forma,
   mapa,
   obterPraca,
+  resumo,
+  verMais,
   zoom,
 } from './apoio';
 
@@ -19,10 +22,27 @@ const INICIO = 'Fileira 11 · FB01';
 const PAR_15 = 'Fileira 12 · FB02';
 const detalhe = (page: Page) => page.getByTestId('detalhe');
 
+/**
+ * Escolhe o palete pela lista (coluna ativa) ou, com a lista desativada no
+ * computador (D254), pela pesquisa do cabeçalho ("Ver no mapa"). Nos dois
+ * casos o mapa centraliza e a janela do palete abre (etapa 3).
+ */
 async function escolherNaLista(page: Page, codigo: string): Promise<void> {
-  await page.getByLabel('Código, posição ou link do QR').fill(codigo);
-  await expect(page.locator(`.item-palete[data-codigo="${codigo}"]`)).toBeVisible();
-  await page.locator(`.item-palete[data-codigo="${codigo}"]`).click();
+  if (mostrarListaPaletesNoMapa) {
+    await page.getByLabel('Código, posição ou link do QR').fill(codigo);
+    await expect(page.locator(`.item-palete[data-codigo="${codigo}"]`)).toBeVisible();
+    await page.locator(`.item-palete[data-codigo="${codigo}"]`).click();
+  } else {
+    await page.getByTestId('campo-busca').fill(codigo);
+    await page.locator(`[data-testid="resultado-busca"][data-palete="${codigo}"]`).first().getByTestId('resultado-abrir').click();
+  }
+  await expect(page.getByTestId('janela-palete')).toBeVisible();
+}
+
+/** Fecha a janela do palete (Esc), mantendo a seleção. */
+async function fecharJanela(page: Page): Promise<void> {
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('janela-palete')).toHaveCount(0);
 }
 
 /** Títulos visíveis (não ocultos por falta de espaço) e alvos de seleção na tela. */
@@ -79,6 +99,7 @@ test.describe('desenho aprovado: Fileiras 11–16 e GR, área desativada', () =>
     await expect(page.locator('.pr-rotulo-fileira', { hasText: 'F02' })).toBeVisible();
     // Zoom de consulta (centralizar pela lista): títulos continuam fora dos alvos.
     await escolherNaLista(page, 'PAL-DEMO-005');
+    await fecharJanela(page);
     await aguardarMapaParado(page);
     expect(await titulosSobreAlvos(page)).toEqual([]);
     // Códigos legíveis e ocupação desconhecida identificada por texto.
@@ -95,7 +116,10 @@ test.describe('seleção e conteúdo', () => {
   test('palete não conferido mostra conteúdo desconhecido, sem quantidade presumida', async ({ page }) => {
     await focarArea(page, INICIO);
     await forma(page, 'PAL-DEMO-002').click();
-    await expect(detalhe(page).getByRole('heading', { level: 2 })).toHaveText('PAL-DEMO-002');
+    // Etapa 3: o clique abre a janela; os detalhes completos ficam recolhidos nela.
+    await expect(resumo(page).getByTestId('janela-titulo')).toHaveText('Palete PAL-DEMO-002');
+    await expect(detalhe(page)).toHaveCount(0);
+    await verMais(page);
     await expect(detalhe(page)).toContainText('Posição F01-P02');
     await expect(detalhe(page)).toContainText('código provisório');
     await expect(page.getByTestId('conteudo-desconhecido')).toContainText('Nenhuma quantidade física é presumida');
@@ -106,6 +130,7 @@ test.describe('seleção e conteúdo', () => {
   test('reconciliado mostra o saldo validado do palete correto', async ({ page }) => {
     await focarArea(page, INICIO);
     await forma(page, 'PAL-DEMO-001').click();
+    await verMais(page);
     const saldo = page.getByTestId('itens-saldo');
     await expect(saldo).toContainText('Shampoo');
     await expect(saldo).toContainText('24 UN');
@@ -115,6 +140,7 @@ test.describe('seleção e conteúdo', () => {
   test('conferência parcial não aparece como completa', async ({ page }) => {
     await focarArea(page, PAR_15);
     await forma(page, 'PAL-DEMO-005').click();
+    await verMais(page);
     await expect(page.getByTestId('conteudo-parcial')).toContainText('não é saldo validado');
     const observados = page.getByTestId('itens-observados');
     await expect(observados).toContainText('6 UN');
@@ -126,6 +152,7 @@ test.describe('seleção e conteúdo', () => {
   test('aguardando validação separa observado e declarado', async ({ page }) => {
     await focarArea(page, INICIO);
     await forma(page, 'PAL-DEMO-003').click();
+    await verMais(page);
     await expect(page.getByTestId('itens-observados')).toContainText('9 UN');
     await expect(page.getByTestId('itens-declarados')).toContainText('12 UN');
     await expect(page.getByTestId('itens-declarados')).toContainText('não comprova presença física');
@@ -134,20 +161,24 @@ test.describe('seleção e conteúdo', () => {
 
   test('seleções rápidas e repetidas terminam no conteúdo do último palete', async ({ page }) => {
     const praca = await obterPraca(page);
+    // A janela cobre o mapa: os cliques rápidos chegam direto às formas (como trocas de rota seguidas).
     for (const codigo of ['PAL-DEMO-001', 'PAL-DEMO-002', 'PAL-DEMO-006', 'PAL-DEMO-001', 'PAL-DEMO-004']) {
-      await forma(page, codigo).click({ delay: 0 });
+      await forma(page, codigo).dispatchEvent('click');
     }
     const ultimo = praca.pallets.find((p) => p.code === 'PAL-DEMO-004');
+    await expect(resumo(page).getByTestId('janela-titulo')).toHaveText('Palete PAL-DEMO-004');
+    await verMais(page);
     await expect(detalhe(page)).toHaveAttribute('data-palete-id', String(ultimo?.id));
     await expect(page.getByTestId('itens-saldo')).toContainText('Creme capilar');
     await expect(page.getByTestId('itens-saldo')).toContainText('36 UN');
     await expect(page.locator('path.pr-palete--selecionado')).toHaveCount(1);
-    await expect(page.locator('.item-palete[aria-current="true"]')).toHaveAttribute('data-codigo', 'PAL-DEMO-004');
+    if (mostrarListaPaletesNoMapa) await expect(page.locator('.item-palete[aria-current="true"]')).toHaveAttribute('data-codigo', 'PAL-DEMO-004');
   });
 
   test('erro ao carregar o detalhe é informado e pode ser repetido', async ({ page }) => {
     await page.route('**/api/v1/paletes/**', (rota) => rota.fulfill({ status: 500, body: '' }));
     await forma(page, 'PAL-DEMO-001').click();
+    await verMais(page);
     await expect(detalhe(page).getByRole('alert')).toContainText('Não foi possível carregar o conteúdo');
     await page.unroute('**/api/v1/paletes/**');
     await detalhe(page).getByRole('button', { name: 'Tentar novamente' }).click();
@@ -181,9 +212,13 @@ test.describe('navegação do mapa', () => {
     await expect.poll(() => zoom(page)).toBeGreaterThan(antesRoda);
     await aguardarMapaParado(page);
 
-    await page.getByRole('button', { name: 'Visão geral' }).click();
+    // Vista inicial = área da L'Oréal ("Focar L'Oréal" volta a ela); a praça completa fica mais afastada.
+    await page.getByRole('button', { name: "Focar L'Oréal" }).click();
     await aguardarMapaParado(page);
     expect(Math.abs((await zoom(page)) - inicial)).toBeLessThan(0.01);
+    await page.getByRole('button', { name: 'Ver praça completa' }).click();
+    await aguardarMapaParado(page);
+    expect(await zoom(page)).toBeLessThan(inicial);
 
     const depois = await obterPraca(page);
     expect(depois.pallets).toEqual(antes.pallets);
@@ -218,7 +253,8 @@ test.describe('navegação do mapa', () => {
     await page.mouse.up();
     await aguardarMapaParado(page);
 
-    await expect(page.getByTestId('detalhe-vazio')).toBeVisible();
+    // Sem seleção, o painel da seleção não ocupa espaço.
+    await expect(page.locator('.painel-detalhe')).toHaveCount(0);
     await expect(page.locator('path.pr-palete--selecionado')).toHaveCount(0);
     const centroDepois = await centro(page);
     expect(Math.abs(centroDepois.x - centroAntes.x) + Math.abs(centroDepois.y - centroAntes.y)).toBeGreaterThan(30);
@@ -227,7 +263,7 @@ test.describe('navegação do mapa', () => {
     await page.getByRole('button', { name: 'Ampliar' }).click();
     await expect.poll(() => zoom(page)).toBeGreaterThan(z);
     await forma(page, 'PAL-DEMO-002').click();
-    await expect(detalhe(page).getByRole('heading', { level: 2 })).toHaveText('PAL-DEMO-002');
+    await expect(resumo(page)).toContainText('PAL-DEMO-002');
   });
 
   test('limites de deslocamento permitem recuperar a praça', async ({ page }) => {
@@ -250,7 +286,7 @@ test.describe('navegação do mapa', () => {
       caixa,
     );
     expect(naTela).toBeGreaterThan(0);
-    await page.getByRole('button', { name: 'Visão geral' }).click();
+    await page.getByRole('button', { name: 'Ver praça completa' }).click();
     await aguardarMapaParado(page);
     const praca = await obterPraca(page);
     const totalNoMapa = praca.pallets.filter((p) => p.positionId !== null).length;
@@ -267,14 +303,20 @@ test.describe('navegação do mapa', () => {
 
   test('teclado: lista percorrida com setas, Enter seleciona; mapa responde a +, setas e Home', async ({ page }) => {
     await entrarNoMapa(page, 'consulta');
-    await page.locator('.item-palete[tabindex="0"]').focus();
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown');
-    await expect(page.locator('.item-palete:focus')).toHaveAttribute('data-codigo', 'PAL-DEMO-003');
-    await page.keyboard.press('Enter');
-    await expect(detalhe(page).getByRole('heading', { level: 2 })).toHaveText('PAL-DEMO-003');
-    await expect(page.locator('.item-palete[aria-current="true"]')).toHaveAttribute('data-codigo', 'PAL-DEMO-003');
-    await aguardarMapaParado(page);
+    if (mostrarListaPaletesNoMapa) {
+      await page.locator('.item-palete[tabindex="0"]').focus();
+      await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('ArrowDown');
+      await expect(page.locator('.item-palete:focus')).toHaveAttribute('data-codigo', 'PAL-DEMO-003');
+      await page.keyboard.press('Enter');
+      await expect(resumo(page)).toContainText('PAL-DEMO-003');
+      await expect(page.locator('.item-palete[aria-current="true"]')).toHaveAttribute('data-codigo', 'PAL-DEMO-003');
+      await fecharJanela(page);
+      await aguardarMapaParado(page);
+    } else {
+      // Sem a lista: aproxima uma área para haver para onde deslocar com as setas.
+      await focarArea(page, INICIO);
+    }
 
     await mapa(page).focus();
     const z = await zoom(page);
@@ -303,7 +345,8 @@ test.describe('lista, filtro no servidor e redimensionamento', () => {
 
     await escolherNaLista(page, distante.code);
     await aguardarMapaParado(page);
-    await expect(detalhe(page).getByRole('heading', { level: 2 })).toHaveText(distante.code);
+    await expect(resumo(page)).toContainText(distante.code);
+    await fecharJanela(page);
     expect(await zoom(page)).toBeGreaterThanOrEqual(0.75);
     const c = await centro(page);
     expect(Math.abs(c.x - (posicao.x + posicao.width / 2))).toBeLessThan(2);
@@ -318,6 +361,7 @@ test.describe('lista, filtro no servidor e redimensionamento', () => {
   test('redimensionar a janela preserva o centro e a seleção', async ({ page }) => {
     await entrarNoMapa(page, 'consulta');
     await escolherNaLista(page, 'PAL-DEMO-005');
+    await fecharJanela(page);
     await aguardarMapaParado(page);
     const antes = await centro(page);
     await page.setViewportSize({ width: 1100, height: 760 });
@@ -332,30 +376,36 @@ test.describe('lista, filtro no servidor e redimensionamento', () => {
     await expect(page.locator('path.pr-palete--selecionado')).toHaveAttribute('data-codigo', 'PAL-DEMO-005');
   });
 
-  test('filtro consultado no servidor: lista e mapa mostram o mesmo resultado', async ({ page }) => {
+  test('filtro consultado no servidor: lista (ou filtro do mapa) e mapa mostram o mesmo resultado', async ({ page }) => {
     await entrarNoMapa(page, 'consulta');
+    if (!mostrarListaPaletesNoMapa) await page.getByTestId('filtro-mapa').locator('summary').click();
     const consultas: string[] = [];
     page.on('request', (r) => {
       if (r.url().includes('/api/v1/paletes?')) consultas.push(r.url());
     });
     await page.getByLabel('Código, posição ou link do QR').fill('f02-p0');
-    await expect(page.locator('.item-palete')).toHaveCount(3);
+    if (mostrarListaPaletesNoMapa) await expect(page.locator('.item-palete')).toHaveCount(3);
+    else await expect(page.getByTestId('contagem-lista')).toContainText('3 de 3');
     await expect(page.locator('path[data-palete-id]:not(.pr-palete--esmaecido)')).toHaveCount(3);
     expect(consultas.some((u) => u.includes('texto=f02-p0'))).toBe(true);
-    await page.getByLabel('Conferência').selectOption('PARCIAL');
-    await expect(page.locator('.item-palete')).toHaveCount(1);
+    // A caixa de seleção (o filtro 'Precisam de reconferência' também tem 'conferência' no rótulo).
+    await page.locator(mostrarListaPaletesNoMapa ? '.painel-modo' : '.filtro-mapa-painel').getByRole('combobox', { name: /^Conferência/ }).selectOption('PARCIAL');
+    if (mostrarListaPaletesNoMapa) await expect(page.locator('.item-palete')).toHaveCount(1);
+    await expect(page.locator('path[data-palete-id]:not(.pr-palete--esmaecido)')).toHaveCount(1);
     await expect(page.locator('path[data-palete-id]:not(.pr-palete--esmaecido)')).toHaveAttribute('data-codigo', 'PAL-DEMO-005');
     await page.getByRole('button', { name: 'Limpar filtro' }).click();
     await expect(page.locator('path.pr-palete--esmaecido')).toHaveCount(0);
-    await expect(page.locator('.item-palete')).toHaveCount(6);
+    if (mostrarListaPaletesNoMapa) await expect(page.locator('.item-palete')).toHaveCount(6);
   });
 
   test('palete sem posição fica em localização pendente e não pode ser centralizado', async ({ page }) => {
     await entrarNoMapa(page, 'consultaNavegacao');
     await escolherNaLista(page, 'PAL-DEMO-343');
+    await expect(resumo(page).getByTestId('janela-endereco')).toHaveText('Endereço não informado');
+    await expect(resumo(page).getByTestId('janela-centralizar')).toBeDisabled();
+    await verMais(page);
     await expect(detalhe(page)).toContainText('Localização pendente');
-    await expect(detalhe(page).getByRole('button', { name: 'Centralizar no mapa' })).toBeDisabled();
-    await expect(page.getByRole('button', { name: 'Centralizar', exact: true })).toBeDisabled();
+    await expect(page.locator('.controles-mapa').getByRole('button', { name: 'Centralizar', exact: true })).toBeDisabled();
     await expect(page.getByTestId('conteudo-desconhecido')).toBeVisible();
   });
 

@@ -23,6 +23,7 @@ import { contextoDe, escopoAtivoDe, type Autenticacao, type Dependencias } from 
 import { registrarEvento } from '../auditoria/registrar.js';
 import { executarIdempotente, type Resposta } from '../idempotencia/executar.js';
 import { chaveIdempotencia, responder, validar } from '../idempotencia/http.js';
+import { paleteDestino, paleteDestinoParaContrato } from './bipagem.js';
 import { gerarModelo, tipoDoModelo } from './modelos.js';
 import { relatorioCsv } from './relatorio.js';
 import {
@@ -44,7 +45,7 @@ import {
 } from './servico.js';
 
 const IdSchema = z.object({ id: z.uuid() });
-const EnvioSchema = z.object({ tipo: TipoImportacaoSchema });
+const EnvioSchema = z.object({ tipo: TipoImportacaoSchema, palete: z.uuid().optional() });
 const NOME_CABECALHO = 'x-arquivo-nome';
 
 /** Prévia e confirmação leem e classificam o arquivo inteiro: limites maiores que os padrões. */
@@ -113,14 +114,14 @@ export function registrarRotasImportacao(app: FastifyInstance, deps: Dependencia
           auth.autenticar,
           exigirAlgum('executar'),
           async (request) => {
-            const { tipo } = validar(EnvioSchema, request.query, 'Informe o tipo da importação: PRODUTOS, DEVOLUCOES, CLAIMS, INVENTARIO ou SELECAO_CLIENTE.');
+            const { tipo } = validar(EnvioSchema, request.query, 'Informe o tipo da importação: PRODUTOS, DEVOLUCOES, CLAIMS, INVENTARIO, SELECAO_CLIENTE ou BIPAGEM.');
             await exigirTipo(request, tipo);
           },
         ],
       },
       async (request, reply) => {
         const escopo = escopoAtivoDe(request);
-        const { tipo } = validar(EnvioSchema, request.query, 'Informe o tipo da importação.');
+        const { tipo, palete } = validar(EnvioSchema, request.query, 'Informe o tipo da importação.');
         if (!Buffer.isBuffer(request.body)) throw requisicaoInvalida('Envie o arquivo como application/octet-stream.');
         const cabecalho = request.headers[NOME_CABECALHO];
         let nome = 'arquivo';
@@ -133,8 +134,9 @@ export function registrarRotasImportacao(app: FastifyInstance, deps: Dependencia
         }
         const conteudo = request.body;
         const analise = analisarArquivo(conteudo, nome, limites(tipo));
-        const resultado = await mutar(request, 'importacao.enviar', { tipo, nome, hash: analise.hash }, (tx, autor) =>
-          registrarEnvio(tx, escopo, autor, { tipo, nomeArquivo: nome, conteudo, ...analise }, limites),
+        const paleteId = tipo === 'BIPAGEM' ? (palete ?? null) : null;
+        const resultado = await mutar(request, 'importacao.enviar', { tipo, nome, hash: analise.hash, palete: paleteId }, (tx, autor) =>
+          registrarEnvio(tx, escopo, autor, { tipo, nomeArquivo: nome, conteudo, ...analise, paleteId }, limites, deps.agora()),
         );
         return responder(reply, resultado);
       },
@@ -165,6 +167,13 @@ export function registrarRotasImportacao(app: FastifyInstance, deps: Dependencia
       .send(conteudo);
   });
 
+  /** Bipagem: palete de destino como o servidor o vê (código, posição, endereço), mostrado durante toda a importação. */
+  app.get(`${API_PREFIXO}/importacoes/bipagem/destino/:id`, { preHandler: exigirAlgum('consultar') }, async (request) => {
+    await exigirTipo(request, 'BIPAGEM', 'consultar');
+    const { id } = validar(IdSchema, request.params, 'Identificador de palete inválido.');
+    return paleteDestinoParaContrato(await paleteDestino(deps.db, escopoAtivoDe(request).id, id));
+  });
+
   app.get(`${API_PREFIXO}/importacoes/:id`, { preHandler: exigirAlgum('consultar') }, async (request) => {
     const { id } = validar(IdSchema, request.params, 'Identificador de lote inválido.');
     const lote = await detalharLote(deps.db, escopoAtivoDe(request).id, id, limites);
@@ -192,9 +201,10 @@ export function registrarRotasImportacao(app: FastifyInstance, deps: Dependencia
   app.put(`${API_PREFIXO}/importacoes/:id/mapeamento`, { preHandler: exigirAlgum('executar') }, async (request, reply) => {
     const escopo = escopoAtivoDe(request);
     const { id } = validar(IdSchema, request.params, 'Identificador de lote inválido.');
-    const dados = validar(MapeamentoSchema, request.body, 'Mapeamento inválido.');
+    // Permissão do tipo do lote antes de ler o corpo (sem ela, 403 — não um erro de validação).
     const lote = await detalharLote(deps.db, escopo.id, id, limites);
     await exigirTipo(request, lote.type);
+    const dados = validar(MapeamentoSchema, request.body, 'Mapeamento inválido.');
     const resultado = await mutar(request, 'importacao.mapear', { id, corpo: request.body }, async (tx, autor) => ({
       status: 200,
       corpo: await gerarPrevia(tx, escopo, autor, id, dados, limites, deps.agora()),
@@ -206,9 +216,9 @@ export function registrarRotasImportacao(app: FastifyInstance, deps: Dependencia
     const escopo = escopoAtivoDe(request);
     const autor = autorDe(request);
     const { id } = validar(IdSchema, request.params, 'Identificador de lote inválido.');
-    const dados = validar(ConfirmarImportacaoSchema, request.body, 'Informe a versão da prévia revisada e confirme a revisão.');
     const lote = await detalharLote(deps.db, escopo.id, id, limites);
     await exigirTipo(request, lote.type);
+    const dados = validar(ConfirmarImportacaoSchema, request.body, 'Informe a versão da prévia revisada e confirme a revisão.');
     let resultado;
     try {
       resultado = await mutar(request, 'importacao.confirmar', { id, corpo: request.body }, async (tx, a) => ({
@@ -235,9 +245,9 @@ export function registrarRotasImportacao(app: FastifyInstance, deps: Dependencia
   app.post(`${API_PREFIXO}/importacoes/:id/descartar`, { preHandler: exigirAlgum('executar') }, async (request, reply) => {
     const escopo = escopoAtivoDe(request);
     const { id } = validar(IdSchema, request.params, 'Identificador de lote inválido.');
-    const dados = validar(DescartarImportacaoSchema, request.body, 'Informe a versão do lote.');
     const lote = await detalharLote(deps.db, escopo.id, id, limites);
     await exigirTipo(request, lote.type);
+    const dados = validar(DescartarImportacaoSchema, request.body, 'Informe a versão do lote.');
     const resultado = await mutar(request, 'importacao.descartar', { id, corpo: request.body }, async (tx, autor) => ({
       status: 200,
       corpo: await descartar(tx, escopo, autor, id, dados.expectedVersion, limites, deps.agora()),

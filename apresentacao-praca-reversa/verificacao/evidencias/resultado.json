@@ -1,0 +1,217 @@
+[
+ {
+  "nome": "arquivo sem credenciais, conexões ou URLs externas",
+  "ok": true,
+  "detalhe": "111 KB"
+ },
+ {
+  "nome": "abre offline por file:// na cena 01",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "fonte Inter carregada (embutida)",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "sem avanço automático (4 s parado)",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "tecla \"ArrowRight\" avança uma cena",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "tecla \"PageDown\" avança uma cena",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "tecla \" \" avança uma cena",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "tecla \"ArrowDown\" avança uma cena",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "tecla \"Enter\" avança uma cena",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "tecla ArrowLeft volta uma cena",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "tecla PageUp volta uma cena",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "tecla ArrowUp volta uma cena",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "tecla Backspace volta uma cena",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "End vai à última",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "na última, avançar não passa do fim",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "Home vai à primeira",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "botão Próxima avança uma cena",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "espaço depois do clique avança só uma vez",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "botão Anterior volta",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "avanço rápido (11 teclas seguidas) termina na 12",
+  "ok": true,
+  "detalhe": "{\"ativas\":[\"12\"],\"saindo\":0,\"pontes\":0,\"ocultos\":0}"
+ },
+ {
+  "nome": "volta de 12 até 01, uma a uma, com título visível em cada cena",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "I abre o índice",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "salto pelo índice para a 09 mostra a cena completa",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "Esc fecha o índice",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "ponte 02→03 acontece e termina limpa",
+  "ok": true,
+  "detalhe": "no meio: 3 clones; depois: {\"ativas\":[\"03\"],\"saindo\":0,\"pontes\":0,\"ocultos\":0}"
+ },
+ {
+  "nome": "ponte 05→06 (palete 256 → janela do palete) termina limpa",
+  "ok": true,
+  "detalhe": "no meio: {\"ativas\":[\"06\"],\"saindo\":1,\"pontes\":3,\"ocultos\":2}; depois: {\"ativas\":[\"06\"],\"saindo\":0,\"pontes\":0,\"ocultos\":0}"
+ },
+ {
+  "nome": "ponte também na volta 06→05",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "N abre a janela de notas com a fala da cena atual",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "avançar na janela de notas avança a apresentação e atualiza a fala",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "botão Anterior das notas volta a apresentação",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "avançar na apresentação atualiza as notas",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "nenhuma fala aparece na tela projetada",
+  "ok": true,
+  "detalhe": "0 trechos"
+ },
+ {
+  "nome": "M reduz movimentos (luz parada) e mantém a cena",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "com movimento reduzido a navegação continua",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "B escurece a tela",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "F pede tela cheia",
+  "ok": true,
+  "detalhe": "entrou em tela cheia"
+ },
+ {
+  "nome": "recarregar com #7 volta à cena 07",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "cena 05 parada 60 s: 209 textos sem mudar de lugar nem de valor; luz ambiente em movimento",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "cena 06 parada 60 s: 210 textos sem mudar de lugar nem de valor; luz ambiente em movimento",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "cena 08 parada 60 s: 32 textos sem mudar de lugar nem de valor; luz ambiente em movimento",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "respeita \"reduzir movimento\" do sistema",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "1366×768: nenhum texto fora do palco e sem rolagem nas 12 cenas",
+  "ok": true,
+  "detalhe": ""
+ },
+ {
+  "nome": "sem erros no console nem requisições externas (internet desligada)",
+  "ok": true,
+  "detalhe": ""
+ }
+]

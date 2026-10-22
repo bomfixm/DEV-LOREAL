@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type APIResponse, type Page, type TestInfo } from '@playwright/test';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { abrirMenuConta, entrar, obterPraca, type PracaApi } from './apoio';
+import { abrirPalete, abrirMenuConta, entrar, obterPraca, type PracaApi } from './apoio';
 import { credenciais } from './credenciais';
 
 /**
@@ -61,7 +61,7 @@ async function conferenciaAberta(page: Page, testInfo: TestInfo, nome: string) {
   const [posicao] = livres(await obterPraca(page), 'F03');
   if (!posicao) throw new Error('Sem posição livre.');
   const palete = await criar<Palete>(page, '/api/v1/paletes', { code: { mode: 'GERAR' }, positionId: posicao.id, notes: null, declaredItems: [] });
-  await page.goto(`/paletes/${palete.id}`);
+  await abrirPalete(page, palete.id);
   await page.getByTestId('iniciar-conferencia').click();
   await page.getByRole('radio', { name: /^Completa/ }).check();
   await page.getByTestId('confirmar-inicio').click();

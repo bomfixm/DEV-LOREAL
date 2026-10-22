@@ -23,7 +23,7 @@ import { executarIdempotente, type Resposta } from '../idempotencia/executar.js'
 import { chaveIdempotencia, responder, validar } from '../idempotencia/http.js';
 import { exportarSelecao } from './exportacao.js';
 import { notasDoPalete } from '../paletes/notas.js';
-import { lerInventario, linhasDoInventario, listarInventarios, reconhecerConferenciaExterna } from './inventarios.js';
+import { lerInventario, linhasDoInventario, listarInventarios, pendenciasDoInventario, reconhecerConferenciaExterna } from './inventarios.js';
 import { anularResolucao, conciliar, conciliarTudo, lerSelecao, listarSelecoes, proposta, reservar, resolverLinha, type Autor } from './servico.js';
 
 const IdSchema = z.object({ id: z.uuid() });
@@ -174,6 +174,11 @@ export function registrarRotasSelecao(app: FastifyInstance, deps: Dependencias, 
     const { id } = validar(IdSchema, request.params, 'Identificador inválido.');
     const filtro = validar(FiltroLinhasInventarioSchema, request.query, 'Filtro inválido.');
     return linhasDoInventario(deps.db, escopoAtivoDe(request).id, id, filtro);
+  });
+
+  app.get(`${API_PREFIXO}/inventarios/:id/pendencias`, consultarInventario, async (request) => {
+    const { id } = validar(IdSchema, request.params, 'Identificador inválido.');
+    return pendenciasDoInventario(deps.db, escopoAtivoDe(request).id, id);
   });
 
   app.post(`${API_PREFIXO}/inventarios/:id/conferencia-externa`, { preHandler: p('conferencia.reconciliar') }, async (request, reply) => {

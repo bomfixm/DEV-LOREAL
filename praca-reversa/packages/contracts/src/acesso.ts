@@ -1,7 +1,11 @@
 import { z } from 'zod';
 
-/** Perfis iniciais (docs/ARQUITETURA.md). */
-export const PerfilSchema = z.enum(['CONSULTA', 'OPERADOR', 'SUPERVISOR_ESTOQUE', 'ANALISTA_CLAIMS', 'ADMINISTRADOR']);
+/**
+ * Perfis iniciais (docs/ARQUITETURA.md). `CLIENTE_CONSULTA` é o acesso de
+ * consulta do cliente (painel do cliente): só a projeção permitida, nunca os
+ * dados internos da operação.
+ */
+export const PerfilSchema = z.enum(['CONSULTA', 'OPERADOR', 'SUPERVISOR_ESTOQUE', 'ANALISTA_CLAIMS', 'ADMINISTRADOR', 'CLIENTE_CONSULTA']);
 export type Perfil = z.infer<typeof PerfilSchema>;
 export const PERFIS = PerfilSchema.options;
 
@@ -72,6 +76,22 @@ export const PermissaoSchema = z.enum([
   'selecao.exportar',
   /** Planilha única: pedir nova publicação agora ("tentar novamente"); a situação é consulta de todos. */
   'planilha.publicar',
+  /** Painel da operação DHL (estoque, localização, reconferência, janelas e tarefas; claims só com claim.consultar). */
+  'painel.operacao',
+  /** Painel do cliente: estoque, janelas e histórico na projeção permitida (sem claims, valores nem pendências internas). */
+  'painel.cliente',
+  /**
+   * "Seleção cliente — teste": consultar o estoque (só leitura), montar o
+   * carrinho, enviar solicitações de teste e pedir alteração. Só por concessão
+   * explícita do vínculo (responsável interno), nunca por perfil.
+   */
+  'selecao_teste.solicitar',
+  /** "Seleção cliente — teste": aprovar ou recusar pedidos de alteração e registrar a resposta. Só por concessão explícita. */
+  'selecao_teste.responder',
+  /** Mover, enviar à validação sem endereço e cancelar conteúdos do palete (correção de cadastro/importação). */
+  'conteudo.corrigir',
+  /** Fila interna "Validação urgente — sem endereço" (nunca do cliente). */
+  'validacao.consultar',
 ]);
 export type Permissao = z.infer<typeof PermissaoSchema>;
 
@@ -111,6 +131,12 @@ export const PERMISSOES_IMPLEMENTADAS: ReadonlySet<Permissao> = new Set([
   'selecao.importar',
   'selecao.exportar',
   'planilha.publicar',
+  'painel.operacao',
+  'painel.cliente',
+  'selecao_teste.solicitar',
+  'selecao_teste.responder',
+  'conteudo.corrigir',
+  'validacao.consultar',
 ]);
 
 /**
@@ -130,9 +156,12 @@ export const PERMISSOES_IMPLEMENTADAS: ReadonlySet<Permissao> = new Set([
  * Seleção do cliente: importar inventário conferido e seleções, resolver
  * ambiguidades e encaminhar à janela ficam com o supervisor; operador e
  * analista consultam e exportam a lista de separação e as pendências.
+ * Painéis: todos os perfis DHL veem o painel da operação; o painel do cliente
+ * é do perfil do cliente (e do supervisor, para conferir o que o cliente vê).
+ * O cliente não recebe nenhuma permissão operacional nem interna.
  */
 export const PERMISSOES_POR_PERFIL: Readonly<Record<Perfil, readonly Permissao[]>> = {
-  CONSULTA: ['praca.consultar', 'palete.consultar', 'produto.consultar', 'janela.consultar'],
+  CONSULTA: ['praca.consultar', 'palete.consultar', 'produto.consultar', 'janela.consultar', 'painel.operacao'],
   OPERADOR: [
     'praca.consultar',
     'palete.consultar',
@@ -145,6 +174,8 @@ export const PERMISSOES_POR_PERFIL: Readonly<Record<Perfil, readonly Permissao[]
     'expedicao.preparar',
     'selecao.consultar',
     'selecao.exportar',
+    'painel.operacao',
+    'validacao.consultar',
   ],
   SUPERVISOR_ESTOQUE: [
     'praca.consultar',
@@ -177,6 +208,10 @@ export const PERMISSOES_POR_PERFIL: Readonly<Record<Perfil, readonly Permissao[]
     'selecao.importar',
     'selecao.exportar',
     'planilha.publicar',
+    'painel.operacao',
+    'painel.cliente',
+    'conteudo.corrigir',
+    'validacao.consultar',
   ],
   ANALISTA_CLAIMS: [
     'praca.consultar',
@@ -190,8 +225,21 @@ export const PERMISSOES_POR_PERFIL: Readonly<Record<Perfil, readonly Permissao[]
     'relatorio.exportar',
     'selecao.consultar',
     'selecao.exportar',
+    'painel.operacao',
   ],
-  ADMINISTRADOR: ['praca.consultar', 'palete.consultar', 'produto.consultar', 'acesso.administrar', 'auditoria.consultar', 'planilha.publicar'],
+  // Perfil administrativo máximo: corrige registros de conteúdo (cadastro/importação) e resolve a validação (21 out. 2026).
+  ADMINISTRADOR: [
+    'praca.consultar',
+    'palete.consultar',
+    'produto.consultar',
+    'acesso.administrar',
+    'auditoria.consultar',
+    'planilha.publicar',
+    'painel.operacao',
+    'conteudo.corrigir',
+    'validacao.consultar',
+  ],
+  CLIENTE_CONSULTA: ['painel.cliente'],
 };
 
 export function perfilPossui(perfil: Perfil | null, permissao: Permissao): boolean {
@@ -201,11 +249,22 @@ export function perfilPossui(perfil: Perfil | null, permissao: Permissao): boole
 /** Perfis que podem receber a concessão explícita de aprovação financeira de claims. */
 export const PERFIS_APROVACAO_FINANCEIRA: readonly Perfil[] = ['ANALISTA_CLAIMS'];
 
-/** Permissões efetivas de um vínculo: as do perfil e, se concedida a um perfil elegível, a aprovação financeira. */
-export function permissoesDoVinculo(perfil: Perfil | null, aprovacaoFinanceira: boolean): Permissao[] {
+/**
+ * Perfis internos que podem receber a concessão "Seleção cliente — teste"
+ * (responsável interno pelo projeto). O perfil do cliente nunca recebe.
+ */
+export const PERFIS_SELECAO_TESTE: readonly Perfil[] = ['SUPERVISOR_ESTOQUE', 'ADMINISTRADOR'];
+
+/**
+ * Permissões efetivas de um vínculo: as do perfil e, se concedidas a um perfil
+ * elegível, a aprovação financeira e a "Seleção cliente — teste" (esta só com
+ * a funcionalidade ligada na instalação).
+ */
+export function permissoesDoVinculo(perfil: Perfil | null, aprovacaoFinanceira: boolean, selecaoTeste = false): Permissao[] {
   if (perfil === null) return [];
   const lista: Permissao[] = [...PERMISSOES_POR_PERFIL[perfil]];
   if (aprovacaoFinanceira && PERFIS_APROVACAO_FINANCEIRA.includes(perfil)) lista.push('claim.aprovar_financeiro');
+  if (selecaoTeste && PERFIS_SELECAO_TESTE.includes(perfil)) lista.push('selecao_teste.solicitar', 'selecao_teste.responder');
   return lista;
 }
 
@@ -229,6 +288,8 @@ export const EscopoComPerfilSchema = EscopoSchema.extend({
   role: PerfilSchema,
   /** Concessão explícita de aprovação financeira de claims neste escopo. */
   financialApproval: z.boolean().default(false),
+  /** Concessão explícita da "Seleção cliente — teste" neste escopo (responsável interno). */
+  clientSelectionTest: z.boolean().default(false),
 });
 export type EscopoComPerfil = z.infer<typeof EscopoComPerfilSchema>;
 

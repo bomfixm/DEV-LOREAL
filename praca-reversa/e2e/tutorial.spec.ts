@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { mostrarListaPaletesNoMapa } from '../apps/web/src/features/mapa/configuracao';
 import { aguardarMapa, ehCelular, entrar } from './apoio';
 import type { Credenciais } from './credenciais';
 
@@ -11,13 +12,25 @@ import type { Credenciais } from './credenciais';
  */
 
 async function balaoNaoCobre(page: Page): Promise<void> {
-  const balao = await page.getByTestId('tutorial').boundingBox();
-  const destaque = await page.getByTestId('tutorial-destaque').boundingBox();
-  if (!balao || !destaque) throw new Error('Balão ou destaque ausente.');
-  // O destaque tem 6 px de folga em volta do elemento real.
-  const alvo = { x: destaque.x + 6, y: destaque.y + 6, width: destaque.width - 12, height: destaque.height - 12 };
-  const cruza = balao.x < alvo.x + alvo.width && alvo.x < balao.x + balao.width && balao.y < alvo.y + alvo.height && alvo.y < balao.y + balao.height;
-  expect(cruza, `balão ${JSON.stringify(balao)} cobre o alvo ${JSON.stringify(alvo)}`).toBe(false);
+  // O balão acompanha o elemento (medição a cada 250 ms): espera assentar depois de o alvo mudar de tamanho.
+  let ultimo = '';
+  await expect
+    .poll(
+      async () => {
+        const balao = await page.getByTestId('tutorial').boundingBox();
+        const destaque = await page.getByTestId('tutorial-destaque').boundingBox();
+        if (!balao || !destaque) throw new Error('Balão ou destaque ausente.');
+        // O destaque tem 6 px de folga em volta do elemento real.
+        const alvo = { x: destaque.x + 6, y: destaque.y + 6, width: destaque.width - 12, height: destaque.height - 12 };
+        ultimo = `balão ${JSON.stringify(balao)} cobre o alvo ${JSON.stringify(alvo)}`;
+        return balao.x < alvo.x + alvo.width && alvo.x < balao.x + balao.width && balao.y < alvo.y + alvo.height && alvo.y < balao.y + balao.height;
+      },
+      { message: 'o balão não deve cobrir o elemento apontado', timeout: 3000 },
+    )
+    .toBe(false)
+    .catch((erro: unknown) => {
+      throw new Error(`${ultimo} (${String(erro)})`);
+    });
 }
 
 async function aguardarPasso(page: Page, passo: number, apontando = true): Promise<Locator> {
@@ -69,8 +82,8 @@ test.describe('Tutorial de primeiro uso', () => {
     balao = await aguardarPasso(page, 2);
     await expect(page.getByTestId('tutorial-exemplo')).toContainText('DEMO-101');
     await balaoNaoCobre(page);
+    // Computador: a caixa de pesquisa já está no topo do mapa; celular: aba Busca.
     if (celular) await page.getByRole('button', { name: 'Busca', exact: true }).click();
-    else await page.getByTestId('painel-busca-botao').click();
     await expect(balao).toContainText('Digite DEMO-101 no campo "Buscar"');
     await expect(page.getByTestId('tutorial-estado')).toHaveAttribute('data-feito', 'nao');
     await page.getByTestId('campo-busca').fill('DEMO-101');
@@ -88,22 +101,17 @@ test.describe('Tutorial de primeiro uso', () => {
     await expect(page.getByTestId('tutorial-estado')).toHaveAttribute('data-feito', 'sim');
     await balao.getByRole('button', { name: 'Próximo' }).click();
 
-    // 4. Palete: ID permanente e endereço (no celular, primeiro "Ver conteúdo").
+    // 4. Palete: a escolha abre a janela; o balão aponta número e endereço (ID permanente nos detalhes completos).
     balao = await aguardarPasso(page, 4);
-    if (celular) {
-      await expect(balao).toContainText('Toque em "Ver conteúdo"');
-      await balaoNaoCobre(page);
-      await page.getByRole('button', { name: 'Ver conteúdo' }).click();
-      await expect(balao).toContainText('ID permanente');
-    }
-    await expect(balao).toContainText('ID identifica o palete. Endereço mostra onde ele está agora');
-    await expect(page.getByTestId('detalhe')).toContainText('PAL-DEMO-001');
+    await expect(balao).toContainText('Confira o número do palete');
+    await expect(balao).toContainText('ID permanente');
+    await expect(page.getByTestId('janela-palete')).toContainText('PAL-DEMO-001');
     await balaoNaoCobre(page);
     await balao.getByRole('button', { name: 'Próximo' }).click();
 
     // 5. Quantidades e pendências: aponta a seção "Conteúdo".
     balao = await aguardarPasso(page, 5);
-    await expect(balao).toContainText('Declarado veio do documento; observado veio da contagem; saldo validado foi conferido e aprovado');
+    await expect(balao).toContainText('Cada linha é um documento');
     await expect(balao).toContainText('não que o palete está vazio');
     await balao.getByRole('button', { name: 'Anterior' }).click();
     await aguardarPasso(page, 4);
@@ -217,12 +225,18 @@ test.describe('Ajuda por tarefa', () => {
   test('ajuda curta na própria tela: mapa e aplicativo', async ({ page }, testInfo) => {
     await entrar(page, 'operadorDemo');
     await aguardarMapa(page);
-    // No celular a ajuda do mapa fica na aba "Lista" (o mapa ocupa a tela).
-    if (ehCelular(testInfo)) await page.getByRole('button', { name: /^Lista/ }).click();
-    const ajudaMapa = page.getByTestId('ajuda-consultar').first();
-    await ajudaMapa.locator('summary').click();
-    await expect(ajudaMapa).toContainText('Toque em "Buscar conteúdo"');
-    await expect(ajudaMapa).toContainText('ID identifica o palete');
+    if (ehCelular(testInfo) || mostrarListaPaletesNoMapa) {
+      // No celular a ajuda do mapa fica na aba "Lista" (o mapa ocupa a tela).
+      if (ehCelular(testInfo)) await page.getByRole('button', { name: /^Lista/ }).click();
+      const ajudaMapa = page.getByTestId('ajuda-consultar').first();
+      await ajudaMapa.locator('summary').click();
+      await expect(ajudaMapa).toContainText('Toque em "Buscar conteúdo"');
+      await expect(ajudaMapa).toContainText('ID identifica o palete');
+    } else {
+      // Computador sem a coluna da lista (D254): a ajuda fica na ação compacta "Ajuda" do cabeçalho.
+      await page.getByTestId('botao-ajuda').click();
+      await expect(page.getByText('Consultar palete ou produto').first()).toBeVisible();
+    }
     await page.goto('/aplicativo');
     const ajudaCamera = page.getByTestId('ajuda-camera');
     await ajudaCamera.locator('summary').click();

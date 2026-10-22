@@ -13,6 +13,7 @@
 import type { Banco } from '../../db/cliente.js';
 import { identidadeDocumento, lerMarcadoresFull } from '../importacao/identidade.js';
 import { ordemEndereco } from '../importacao/carga-lote.js';
+import { LINHA_VIGENTE } from '../importacao/linhas-vigentes.js';
 
 export interface LinhaInventarioPlanilha {
   endereco: string;
@@ -113,6 +114,11 @@ export const ACOES_MOVIMENTACAO: Readonly<Record<string, string>> = {
   NOTA_CAIXA_DESCRITA: 'Descrição de caixa',
   NOTA_CAIXA_RETIRADA: 'Descrição de caixa retirada',
   INVENTARIO_IMPORTADO: 'Inventário importado',
+  BIPAGEM_IMPORTADA: 'Notas da bipagem importadas',
+  POSICAO_LIVRE_CONFIRMADA: 'Posição confirmada livre',
+  CONTEUDO_REGISTRADO: 'Conteúdo registrado',
+  CONTEUDO_ALTERADO: 'Identificação do conteúdo completada',
+  CONTAGEM_VOLUMES_REGISTRADA: 'Contagem de volumes',
   MATERIAL_LIBERADO: 'Material liberado',
   MATERIAL_LIBERACAO_REVOGADA: 'Liberação revogada',
   MATERIAL_BLOQUEADO: 'Material bloqueado',
@@ -154,6 +160,34 @@ function descreverEvento(acao: string, d: Detalhes): Pick<EventoPlanilha, 'nfd' 
       return { ...base, descricao: `${texto(d, 'grupo') ?? 'Caixa'}: ${texto(d, 'descricao') ?? ''}` };
     case 'NOTA_CAIXA_RETIRADA':
       return { ...base, descricao: `${texto(d, 'grupo') ?? 'Caixa'} retirada: ${motivo ?? ''}` };
+    case 'POSICAO_LIVRE_CONFIRMADA':
+      return { ...base, palete: null, origem: texto(d, 'endereco') ?? texto(d, 'posicao'), descricao: `Palete livre confirmado no local${texto(d, 'observacao') ? `: ${texto(d, 'observacao') ?? ''}` : '.'}` };
+    case 'CONTEUDO_REGISTRADO':
+    case 'CONTEUDO_ALTERADO': {
+      const doc = texto(d, 'numero');
+      const tipo = texto(d, 'tipo');
+      const delivery = texto(d, 'delivery');
+      return {
+        ...base,
+        nfd: tipo === 'NFD' ? doc : null,
+        descricao: `${texto(d, 'remetente') ?? ''} · ${doc ? `${tipo ?? 'Documento'} ${doc}` : 'Documento não informado'} · ${delivery ? `Delivery ${delivery}` : 'Delivery não informado'}`,
+      };
+    }
+    case 'CONTAGEM_VOLUMES_REGISTRADA':
+      return {
+        ...base,
+        descricao: `${texto(d, 'contados') ?? '?'} volume(s) ${texto(d, 'origem') === 'CONTAGEM_FISICA' ? 'contados no aplicativo' : texto(d, 'origem') === 'BIPAGEM' ? 'lidos na bipagem' : 'de contagem já feita'}${texto(d, 'previstos') ? ` · previsto ${texto(d, 'previstos') ?? ''}` : ' · previsto não informado'}${texto(d, 'referencia') ? ` (${texto(d, 'referencia') ?? ''})` : ''}.`,
+      };
+    case 'BIPAGEM_IMPORTADA':
+      // Bipagem real (19 out. 2026): registros, leituras, volumes e o que mudou no palete; eventos anteriores mantêm o texto antigo.
+      if (texto(d, 'registros') !== null) {
+        return {
+          ...base,
+          palete: texto(d, 'palete'),
+          descricao: `Bipagem (arquivo ${texto(d, 'arquivo') ?? ''}): ${texto(d, 'registros') ?? '0'} registro(s), ${texto(d, 'comLeitura') ?? '0'} com volumes lidos, ${texto(d, 'volumes') ?? '0'} volume(s); ${texto(d, 'conteudosNovos') ?? '0'} conteúdo(s) novo(s), ${texto(d, 'contagens') ?? '0'} contagem(ns) registrada(s).`,
+        };
+      }
+      return { ...base, palete: texto(d, 'palete'), descricao: `${texto(d, 'codigo') ?? 'Bipagem'}:${texto(d, 'notas') ?? '0'} nota(s), ${texto(d, 'vinculos') ?? '0'} vínculo(s)${texto(d, 'encerrados') && texto(d, 'encerrados') !== '0' ? `, ${texto(d, 'encerrados') ?? ''} substituído(s)` : ''} (arquivo ${texto(d, 'arquivo') ?? ''}).` };
     case 'INVENTARIO_IMPORTADO':
       return { ...base, palete: null, descricao: `${texto(d, 'codigo') ?? 'Inventário'}: ${texto(d, 'vinculos') ?? '0'} vínculos, ${texto(d, 'paletesCriados') ?? '0'} paletes cadastrados.` };
     case 'PRODUTO_CRIADO':
@@ -183,6 +217,7 @@ export async function lerSnapshot(db: Banco, escopoId: string, limiteEventos: nu
       const vinculos = await tx.vinculoDocumentoPalete.findMany({
         where: { escopoId, situacao: 'ATIVO', palete: { arquivadoEm: null } },
         select: {
+          id: true,
           paleteId: true,
           tipoDocumento: true,
           numeroDocumento: true,
@@ -208,7 +243,7 @@ export async function lerSnapshot(db: Banco, escopoId: string, limiteEventos: nu
           await tx.$queryRaw<{ palete_id: string; endereco: string }[]>`
             SELECT DISTINCT ON (li.palete_id) li.palete_id::text, li.endereco_canonico AS endereco
               FROM linha_inventario li JOIN inventario_referencia i ON i.id = li.inventario_id
-             WHERE li.escopo_id = ${escopoId}::uuid AND li.aplicada AND NOT li.endereco_livre AND li.endereco_canonico IS NOT NULL AND i.situacao = 'ATIVO'
+             WHERE li.escopo_id = ${escopoId}::uuid AND li.endereco_canonico IS NOT NULL AND ${LINHA_VIGENTE}
              ORDER BY li.palete_id, li.criado_em DESC, li.linha_arquivo`
         ).map((l) => [l.palete_id, l.endereco]),
       );
@@ -232,6 +267,15 @@ export async function lerSnapshot(db: Banco, escopoId: string, limiteEventos: nu
         }),
       ]);
       const cidadePor = new Map(cidades.map((c) => [c.identidadeDocumento, c.cidadeDestino]));
+      // Conferência de volumes: contagem vigente (a mais recente) de cada conteúdo registrado ou vínculo importado.
+      const contagemVigente = new Map(
+        (
+          await tx.$queryRaw<{ alvo: string; volumes: number; origem: string }[]>`
+            SELECT DISTINCT ON (coalesce(conteudo_id, vinculo_id)) coalesce(conteudo_id, vinculo_id)::text AS alvo, volumes_contados AS volumes, origem
+              FROM contagem_volumes WHERE escopo_id = ${escopoId}::uuid
+             ORDER BY coalesce(conteudo_id, vinculo_id), registrada_em DESC, id DESC`
+        ).map((c) => [c.alvo, c]),
+      );
       const produtoPor = new Map(
         conteudos.map((c) => [`${c.paleteId}|${c.identidadeDocumento}`, [c.produtoNaCaixa, ...c.descricoes.map((d) => `${d.grupo}: ${d.descricao}`)].filter((x) => x.trim() !== '').join('; ')]),
       );
@@ -281,11 +325,11 @@ export async function lerSnapshot(db: Banco, escopoId: string, limiteEventos: nu
           nfd: v.tipoDocumento === 'NFD' ? v.numeroDocumento : null,
           remetente: v.linhaInventario.remetente,
           cidade: naoVazio(cidadePor.get(id)),
-          volumes: v.volumes === null ? null : v.volumes.toFixed(),
+          volumes: contagemVigente.has(v.id) ? String(contagemVigente.get(v.id)?.volumes) : v.volumes === null ? null : v.volumes.toFixed(),
           paleteFull: fullDe(v.paleteId),
           maisDeUmPalete: maisDeUm(id),
           produto: naoVazio(produtoPor.get(`${v.paleteId}|${id}`)),
-          situacao: [outro, ROTULO_CONFERENCIA[p.estadoConferencia] ?? p.estadoConferencia, alocacao, v.volumes === null ? 'volumes pendentes' : null].filter((x) => x !== null).join(' · '),
+          situacao: [outro, ROTULO_CONFERENCIA[p.estadoConferencia] ?? p.estadoConferencia, alocacao, v.volumes === null && !contagemVigente.has(v.id) ? 'volumes pendentes' : null].filter((x) => x !== null).join(' · '),
           delivery: v.delivery,
           semAlocacao: false,
           semNota: false,
@@ -294,7 +338,7 @@ export async function lerSnapshot(db: Banco, escopoId: string, limiteEventos: nu
       });
       // Paletes da praça sem nota: uma linha por conteúdo sem número do inventário (ou uma linha "sem nota").
       const semNotas = await tx.palete.findMany({
-        where: { escopoId, arquivadoEm: null, documentos: { none: { situacao: 'ATIVO' } } },
+        where: { escopoId, arquivadoEm: null, documentos: { none: { situacao: 'ATIVO' } }, conteudos: { none: { situacao: 'ATIVO' } } },
         select: {
           id: true,
           codigo: true,
@@ -336,6 +380,52 @@ export async function lerSnapshot(db: Banco, escopoId: string, limiteEventos: nu
             identidade: null,
           });
         }
+      }
+      // Conteúdo registrado (cadastro de conteúdo): uma linha por registro; identificação ausente aparece como não informada.
+      const registrados = await tx.conteudoPalete.findMany({
+        where: { escopoId, situacao: 'ATIVO', palete: { arquivadoEm: null } },
+        orderBy: [{ criadoEm: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true,
+          remetente: true,
+          tipoDocumento: true,
+          numeroDocumento: true,
+          delivery: true,
+          descricao: true,
+          paleteId: true,
+          palete: { select: { codigo: true, estadoConferencia: true, estadoFluxo: true, posicao: { select: { codigo: true, endereco: { select: { endereco: true, situacao: true } } } } } },
+        },
+      });
+      for (const r of registrados) {
+        const p = r.palete;
+        const real = p.posicao?.endereco?.situacao === 'CONFIRMADO' ? p.posicao.endereco.endereco : null;
+        const expedido = p.estadoFluxo === 'EXPEDIDO';
+        const endereco = expedido ? 'Fora da praça (expedido)' : (real ?? informados.get(r.paleteId) ?? 'Localização pendente');
+        const alocacao = expedido ? 'Expedido (saiu da praça)' : p.posicao ? `Posição ${p.posicao.codigo}` : informados.has(r.paleteId) ? 'Posição no mapa pendente' : 'Localização pendente';
+        const contagem = contagemVigente.get(r.id);
+        inventario.push({
+          endereco,
+          palete: p.codigo,
+          nfd: r.tipoDocumento === 'NFD' ? r.numeroDocumento : null,
+          remetente: r.remetente,
+          cidade: null,
+          volumes: contagem === undefined ? null : String(contagem.volumes),
+          paleteFull: 'Não informado',
+          maisDeUmPalete: 'Não',
+          produto: r.descricao,
+          situacao: [
+            r.numeroDocumento === null ? 'Conteúdo registrado: documento não informado' : `Conteúdo registrado: ${r.tipoDocumento ?? 'documento de tipo não informado'} ${r.numeroDocumento}`,
+            r.delivery === null ? 'Delivery não informado' : null,
+            contagem === undefined ? 'Aguardando conferência' : contagem.origem === 'CONTAGEM_FISICA' ? 'Volumes contados no aplicativo' : contagem.origem === 'BIPAGEM' ? 'Volumes lidos na bipagem' : 'Volumes de contagem já feita',
+            alocacao,
+          ]
+            .filter((x) => x !== null)
+            .join(' · '),
+          delivery: r.delivery,
+          semAlocacao: false,
+          semNota: r.numeroDocumento === null,
+          identidade: null,
+        });
       }
       for (const l of livres) {
         const id = identidadeLivre(l);

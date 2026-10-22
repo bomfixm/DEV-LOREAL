@@ -14,6 +14,8 @@
     "db:semear-demo": "tsx src/cli/semear-demo.ts",
     "admin:criar": "tsx src/cli/criar-admin.ts",
     "inventario:carregar": "tsx src/cli/carregar-inventario.ts",
+    "paletes:numeracao": "tsx src/cli/numeracao-paletes.ts",
+    "paletes:corrigir": "tsx src/cli/corrigir-paletes.ts",
     "planilha:exemplo": "tsx src/cli/exemplo-planilha.ts"
   },
   "dependencies": {

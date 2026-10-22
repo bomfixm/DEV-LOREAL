@@ -21,6 +21,11 @@ import { EscopoConferenciaSchema, SituacaoConferenciaSchema } from './conferenci
  * - INVENTARIO: vínculo documental NF/documento × palete informado no
  *   inventário conferido (fonte e linha do arquivo); volumes como informados,
  *   sem quantidade de produto nem saldo.
+ * - CONTEUDO: conteúdo registrado no palete (remetente e, quando houver, nota
+ *   e Delivery), com a contagem de volumes vigente; sem produto nem saldo.
+ * - ORIGEM_INVENTARIO: linha de origem do inventário ativo que ficou sem
+ *   alocação (sem RUA, ou endereço em conflito com o registro atual): sem
+ *   palete nem posição presumidos; volumes como informados.
  *
  * Identificadores (SKU, código de barras, lote, referências) são comparados
  * como texto, sem diferenciar maiúsculas, por igualdade ou início; a descrição
@@ -30,12 +35,12 @@ export const CampoBuscaSchema = z.enum(['TUDO', 'PALETE', 'ENDERECO', 'SKU', 'CO
 export type CampoBusca = z.infer<typeof CampoBuscaSchema>;
 export const CAMPOS_BUSCA = CampoBuscaSchema.options;
 
-export const BaseResultadoSchema = z.enum(['PALETE', 'SALDO_VALIDADO', 'OBSERVADO', 'DECLARADO_PALETE', 'DOCUMENTO', 'INVENTARIO']);
+export const BaseResultadoSchema = z.enum(['PALETE', 'SALDO_VALIDADO', 'OBSERVADO', 'DECLARADO_PALETE', 'DOCUMENTO', 'INVENTARIO', 'CONTEUDO', 'ORIGEM_INVENTARIO']);
 export type BaseResultado = z.infer<typeof BaseResultadoSchema>;
 /** Bases com produto (pistas dos claims, resumo por produto). */
 export const BASES_CONTEUDO = ['SALDO_VALIDADO', 'OBSERVADO', 'DECLARADO_PALETE', 'DOCUMENTO'] as const satisfies readonly BaseResultado[];
 /** Bases que a tela oferece como filtro (conteúdo + vínculos documentais do inventário). */
-export const BASES_FILTRO_BUSCA = [...BASES_CONTEUDO, 'INVENTARIO'] as const satisfies readonly BaseResultado[];
+export const BASES_FILTRO_BUSCA = [...BASES_CONTEUDO, 'INVENTARIO', 'CONTEUDO', 'ORIGEM_INVENTARIO'] as const satisfies readonly BaseResultado[];
 
 /** Como o texto correspondeu ao resultado. Prefixo e descrição não comprovam identificação. */
 export const CorrespondenciaSchema = z.enum([
@@ -211,6 +216,42 @@ export const ResultadoBuscaSchema = z
       })
       .nullable()
       .default(null),
+    /** CONTEUDO: conteúdo registrado no palete; nota e Delivery podem faltar; volumes = contagem vigente. */
+    contentLink: z
+      .object({
+        id: z.uuid(),
+        sender: z.string().min(1),
+        documentType: z.string().nullable(),
+        documentNumber: z.string().nullable(),
+        delivery: z.string().nullable(),
+        description: z.string().nullable(),
+        counted: QuantidadeSchema.nullable(),
+        expected: QuantidadeSchema.nullable(),
+      })
+      .nullable()
+      .default(null),
+    /**
+     * ORIGEM_INVENTARIO: linha de origem sem alocação (palete e posição não
+     * presumidos). `informedAddress` nulo = endereço não informado (sem RUA).
+     */
+    inventoryOrigin: z
+      .object({
+        lineId: z.uuid(),
+        inventoryId: z.uuid(),
+        inventoryCode: z.string().min(1),
+        row: z.number().int().positive(),
+        documentType: z.string().nullable(),
+        documentNumber: z.string().nullable(),
+        delivery: z.string().nullable(),
+        sender: z.string().nullable(),
+        volumes: QuantidadeSchema.nullable(),
+        volumesRead: z.string().nullable(),
+        informedAddress: z.string().nullable(),
+        palletNumber: z.string().nullable(),
+        reason: z.string().nullable(),
+      })
+      .nullable()
+      .default(null),
   })
   .superRefine((r, ctx) => {
     const erro = (m: string) => {
@@ -219,7 +260,11 @@ export const ResultadoBuscaSchema = z
     if (r.base === 'DOCUMENTO' && (r.pallet !== null || r.document === null)) erro('Documento importado não tem palete presumido');
     if (r.base === 'INVENTARIO' && (r.documentLink === null || r.quantity !== null)) erro('Vínculo do inventário sem quantidade de produto presumida');
     if (r.base !== 'INVENTARIO' && r.documentLink !== null) erro('Vínculo documental só na base do inventário');
-    if (r.base !== 'DOCUMENTO' && r.pallet === null) erro('Resultado físico sem palete');
+    if (r.base === 'CONTEUDO' && (r.contentLink === null || r.quantity !== null)) erro('Conteúdo registrado sem quantidade de produto presumida');
+    if (r.base !== 'CONTEUDO' && r.contentLink !== null) erro('Conteúdo registrado só na base própria');
+    if (r.base === 'ORIGEM_INVENTARIO' && (r.inventoryOrigin === null || r.pallet !== null || r.quantity !== null)) erro('Origem sem alocação não tem palete nem quantidade presumidos');
+    if (r.base !== 'ORIGEM_INVENTARIO' && r.inventoryOrigin !== null) erro('Origem sem alocação só na base própria');
+    if (r.base !== 'DOCUMENTO' && r.base !== 'ORIGEM_INVENTARIO' && r.pallet === null) erro('Resultado físico sem palete');
     if (r.base === 'PALETE' && r.quantity !== null) erro('Resultado de palete sem quantidade presumida');
     if (r.base === 'OBSERVADO' && r.session === null) erro('Observação sem sessão');
     if (r.base === 'SALDO_VALIDADO' && (r.reserved === null || r.available === null)) erro('Saldo sem reservado/disponível');

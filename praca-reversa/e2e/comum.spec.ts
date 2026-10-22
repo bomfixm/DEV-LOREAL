@@ -56,13 +56,16 @@ test.describe('acesso e demonstração', () => {
 
     const idsMapa = await page.locator('path[data-palete-id]').evaluateAll((els) => els.map((e) => e.getAttribute('data-palete-id') ?? ''));
     expect(idsMapa.sort()).toEqual(comPosicao);
-    const idsLista = await page.locator('.item-palete').evaluateAll((els) => els.map((e) => e.getAttribute('data-id') ?? ''));
-    expect(idsLista.sort()).toEqual(praca.pallets.map((p) => p.id).sort());
+    // Lista: aba do celular ou coluna do computador (desativada por configuração, D254).
+    if ((await page.locator('.painel-lista').count()) > 0) {
+      const idsLista = await page.locator('.item-palete').evaluateAll((els) => els.map((e) => e.getAttribute('data-id') ?? ''));
+      expect(idsLista.sort()).toEqual(praca.pallets.map((p) => p.id).sort());
 
-    // No celular a lista fica oculta até a aba ser aberta; por isso a busca é por texto, não por papel acessível.
-    const pendentes = page.locator('section.grupo-lista', { has: page.locator('h3', { hasText: 'Localização pendente' }) });
-    const codigos = await pendentes.locator('.item-palete').evaluateAll((els) => els.map((e) => e.getAttribute('data-codigo') ?? ''));
-    expect(codigos.sort()).toEqual(semPosicao);
+      // No celular a lista fica oculta até a aba ser aberta; por isso a busca é por texto, não por papel acessível.
+      const pendentes = page.locator('section.grupo-lista', { has: page.locator('h3', { hasText: 'Localização pendente' }) });
+      const codigos = await pendentes.locator('.item-palete').evaluateAll((els) => els.map((e) => e.getAttribute('data-codigo') ?? ''));
+      expect(codigos.sort()).toEqual(semPosicao);
+    }
   });
 
   test('erro da API ao carregar a praça é informado e pode ser repetido', async ({ page }) => {

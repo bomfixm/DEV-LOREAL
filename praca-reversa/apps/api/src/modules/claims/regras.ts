@@ -112,7 +112,7 @@ export function verificarMaterial(
     bloqueios.push('Produto do registro não identificado.');
   } else if (linha.produtoId === null) {
     produto = 'PENDENTE';
-    bloqueios.push(`SKU ${linha.sku} da linha não está no cadastro: cadastre o produto antes de validar.`);
+    bloqueios.push(`SKU ${linha.sku} da linha não está no cadastro de produtos: inclua-o pela importação "Cadastro de produtos" antes de validar.`);
   } else if (m.produtoId === linha.produtoId) {
     produto = 'COMPATIVEL';
     pistas.push(`Mesmo SKU (${linha.sku}).`);

@@ -1,9 +1,10 @@
 import { ESTADOS_CONFERENCIA, type EstadoConferencia } from '@praca-reversa/contracts';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { IconeImprimir } from '../../components/Icones';
-import { SeloConferencia } from '../../components/Selos';
+import { SeloConferenciaExibida } from '../../components/Selos';
 import { ROTULOS_CONFERENCIA } from './estados';
 import { filtroAtivo, FILTRO_VAZIO, type Filtro, type GrupoPaletes } from './filtro';
+import { SeloReconferencia } from './PrazoReconferencia';
 
 /** Situação da consulta do filtro no servidor. */
 export type EstadoFiltro =
@@ -138,6 +139,18 @@ export function ListaPaletes({
             ))}
           </select>
         </label>
+        <label className="opcao" data-testid="filtro-reconferencia">
+          <input
+            type="checkbox"
+            checked={filtro.reconferencia === true}
+            onChange={(e) => {
+              aoMudarFiltro({ ...filtro, reconferencia: e.target.checked });
+            }}
+          />
+          <span>
+            <span aria-hidden="true">⟳</span> Precisam de reconferência
+          </span>
+        </label>
         <div className="filtro-resumo">
           <p aria-live="polite" data-testid="contagem-lista">
             {estadoFiltro.estado === 'filtrando'
@@ -216,10 +229,17 @@ export function ListaPaletes({
                         <span className="item-endereco">{palete.positionCode ?? (palete.informedAddress ? `${palete.informedAddress} · mapa pendente` : 'Sem posição')}</span>
                       </span>
                       <span className="item-linha">
-                        <SeloConferencia estado={palete.countState} curto />
+                        <SeloConferenciaExibida palete={palete} curto />
                         {palete.activeCountId !== null && <span className="item-alerta item-alerta--conferencia">✎ Em conferência</span>}
                         {palete.releaseState === 'BLOQUEADO' && <span className="item-alerta">Bloqueado</span>}
+                        {palete.reconference?.due === true && <SeloReconferencia r={palete.reconference} />}
                       </span>
+                      {palete.reconference && (
+                        <span className="item-linha item-prazo" data-testid="item-prazo-reconferencia">
+                          {String(palete.reconference.daysWithoutMovement)} {palete.reconference.daysWithoutMovement === 1 ? 'dia' : 'dias'} sem movimentação
+                          {palete.reconference.due ? '' : ` · reconferência em ${String(palete.reconference.daysUntilDue)} ${palete.reconference.daysUntilDue === 1 ? 'dia' : 'dias'}`}
+                        </span>
+                      )}
                     </button>
                   </li>
                 ))}

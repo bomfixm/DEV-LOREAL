@@ -38,7 +38,7 @@ export function registrarRotasPaletes(app: FastifyInstance, deps: Dependencias, 
       deps.db,
       deps.config.appSegredo,
       { escopoId: escopo.id, usuarioId: autor.usuarioId, operacao: 'palete.cadastrar', chave, payload: { corpo: request.body } },
-      async (tx) => ({ status: 201, corpo: await cadastrarPalete(tx, escopo, dados, autor) }),
+      async (tx) => ({ status: 201, corpo: await cadastrarPalete(tx, escopo, dados, autor, deps.agora()) }),
     );
     return responder(reply, resultado);
   });

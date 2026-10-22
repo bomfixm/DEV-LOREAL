@@ -1,0 +1,127 @@
+/* Correção de conteúdos, validação sem endereço e aviso de resultado (21 out. 2026). */
+
+.cartao-validacao {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 2px solid var(--vermelho);
+  border-radius: var(--raio, 8px);
+  background: #fde8e9;
+  color: #7a0610;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cartao-validacao:hover,
+.cartao-validacao:focus-visible {
+  background: #fbd3d6;
+}
+
+.cartao-validacao-valor {
+  min-width: 2ch;
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.cartao-validacao-texto {
+  display: grid;
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+
+.cartao-validacao--compacto {
+  display: flex;
+  width: calc(100% - 16px);
+  margin: 6px 8px 0;
+}
+
+.aviso-resultado {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 1300;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: min(680px, calc(100vw - 32px));
+  padding: 12px 14px;
+  transform: translateX(-50%);
+  border: 1px solid var(--st-livre-borda, #0f5c2a);
+  border-left-width: 6px;
+  border-radius: 10px;
+  background: var(--superficie, #fff);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+
+.aviso-resultado p {
+  flex: 1;
+  margin: 0;
+}
+
+.acoes-conteudo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  background: var(--superficie-2, #f6f7f8);
+}
+
+.acoes-conteudo-titulo {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.acoes-conteudo-painel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.janela-selecao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 6px 0;
+}
+
+.validacao-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.validacao-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--borda);
+  border-left: 5px solid var(--vermelho);
+  border-radius: 8px;
+  background: var(--superficie);
+}
+
+.validacao-item p {
+  margin: 0;
+}
+
+.validacao-historico {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 0.88rem;
+}
+
+.validacao-tecnico {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.8rem;
+}

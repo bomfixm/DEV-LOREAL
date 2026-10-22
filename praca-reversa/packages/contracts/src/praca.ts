@@ -51,6 +51,10 @@ export const FileiraSchema = RetanguloSchema.extend({
 export type Fileira = z.infer<typeof FileiraSchema>;
 
 /** Posição endereçável. O `id` é permanente; `code` é o texto legível. */
+/** Como a desocupação da posição foi confirmada. */
+export const OrigemPosicaoLivreSchema = z.enum(['CONFIRMACAO', 'MOVIMENTO', 'EXPEDICAO', 'RETIRADA_VAZIO']);
+export type OrigemPosicaoLivre = z.infer<typeof OrigemPosicaoLivreSchema>;
+
 export const PosicaoSchema = RetanguloSchema.extend({
   id: z.uuid(),
   code: z.string().min(1),
@@ -67,8 +71,27 @@ export const PosicaoSchema = RetanguloSchema.extend({
   deactivated: z.boolean().default(false),
   /** Endereço real da tabela de correspondência (proposto ou confirmado); nulo = pendente. */
   address: z.object({ text: z.string().min(1), state: SituacaoEnderecoSchema }).nullable().default(null),
+  /**
+   * "Palete livre": desocupação confirmada (no local, ou por movimento, saída ou
+   * retirada registrados). Sem palete registrado não basta: nulo = não confirmada.
+   */
+  freeConfirmed: z.object({ at: z.iso.datetime(), origin: OrigemPosicaoLivreSchema }).nullable().default(null),
 });
 export type Posicao = z.infer<typeof PosicaoSchema>;
+
+/** POST /posicoes/:id/livre — quem registra declara ter conferido no local que a posição está vazia. */
+export const ConfirmarPosicaoLivreSchema = z.object({
+  confirmedEmpty: z.literal(true),
+  note: z.string().trim().max(300).regex(/^[^\p{Cc}]*$/u, 'Caracteres inválidos.').nullable().default(null),
+});
+export type ConfirmarPosicaoLivre = z.input<typeof ConfirmarPosicaoLivreSchema>;
+
+export const ResultadoPosicaoLivreSchema = z.object({
+  positionId: z.uuid(),
+  code: z.string().min(1),
+  freeConfirmed: z.object({ at: z.iso.datetime(), origin: OrigemPosicaoLivreSchema }),
+});
+export type ResultadoPosicaoLivre = z.infer<typeof ResultadoPosicaoLivreSchema>;
 
 const LayoutBaseSchema = z.object({
   id: z.uuid(),

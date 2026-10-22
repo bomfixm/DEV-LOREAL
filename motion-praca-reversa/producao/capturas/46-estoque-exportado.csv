@@ -1,0 +1,13 @@
+﻿"Estoque consultado em 19/10/2026, 23:03 (America/Sao_Paulo)"
+"Tipo do documento";"Número";"Delivery";"Remetente";"Volumes";"Base dos volumes";"Palete";"Full/misto";"Endereço";"Rua";"Etapa na janela"
+"MI";"4410";;"Comercial Exemplo S.A.";"1";"Contado";"PAL-DEMO-001";"Misto";"11 - A1";"Fileira 11";
+"MI";"4411";;"Distribuidora Demonstração Ltda";"1";"Contado";"PAL-DEMO-001";"Misto";"11 - A1";"Fileira 11";
+"NF";"900123";;"Distribuidora Demonstração Ltda";"2";"Contado";"PAL-DEMO-001";"Misto";"11 - A1";"Fileira 11";
+"NF";"900124";;"Distribuidora Demonstração Ltda";"3";"Contado";"PAL-DEMO-001";"Misto";"11 - A1";"Fileira 11";
+"NF";"900126";;"Comercial Exemplo S.A.";"2";"Contado";"PAL-DEMO-001";"Misto";"11 - A1";"Fileira 11";
+"NF";"900127";;"Distribuidora Demonstração Ltda";"4";"Contado";"PAL-DEMO-001";"Misto";"11 - A1";"Fileira 11";
+;"Não informado";;;"Não informado";;"PAL-DEMO-002";"Não informado";"11 - A2";"Fileira 11";
+;"Não informado";;;"Não informado";;"PAL-DEMO-003";"Não informado";"11 - A3";"Fileira 11";
+;"Não informado";;;"Não informado";;"PAL-DEMO-005";"Não informado";"11 - A5";"Fileira 11";
+;"Não informado";;;"Não informado";;"PAL-DEMO-004";"Não informado";"Localização em atualização";;
+;"Não informado";;;"Não informado";;"PAL-DEMO-006";"Não informado";"Localização em atualização";;

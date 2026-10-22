@@ -50,7 +50,7 @@ async function gerarCodigo(tx: Transacao, escopo: Escopo): Promise<string> {
   await tx.$executeRaw`
     INSERT INTO sequencia_palete (escopo_id, prefixo, digitos, proximo)
     SELECT ${escopo.id}::uuid, ${prefixo}, ${digitos},
-           COALESCE(MAX(substring(codigo FROM ${padrao})::integer), 0) + 1
+           COALESCE(MAX(greatest(substring(codigo FROM ${padrao})::integer, substring(codigo_legado FROM ${padrao})::integer)), 0) + 1
       FROM palete
      WHERE escopo_id = ${escopo.id}::uuid
     ON CONFLICT (escopo_id) DO NOTHING`;
@@ -63,12 +63,22 @@ async function gerarCodigo(tx: Transacao, escopo: Escopo): Promise<string> {
     const codigo = `${seq.prefixo}${String(seq.numero).padStart(seq.digitos, '0')}`;
     const chave = chaveDeCodigo(codigo);
     const usado = await tx.palete.findFirst({ where: { escopoId: escopo.id, codigoBusca: chave }, select: { id: true } });
-    if (!usado && (await codigoDePosicao(tx, escopo.id, chave)) === null) return codigo;
+    if (!usado && (await codigoLegadoDe(tx, escopo.id, chave)) === null && (await codigoDePosicao(tx, escopo.id, chave)) === null) return codigo;
   }
   throw new ErroHttp(409, 'CONFLITO', 'Não foi possível gerar um código livre. Informe a identificação existente do palete.');
 }
 
-/** Código informado: único no escopo (inclusive arquivados) e diferente de código de posição. */
+/** Palete cujo identificador legado (ex.: PR-000001, antes do número operacional) equivale à chave: nunca reutilizado. */
+async function codigoLegadoDe(tx: Transacao, escopoId: string, chave: string): Promise<string | null> {
+  const linhas = await tx.$queryRaw<{ codigo: string }[]>`
+    SELECT codigo FROM palete
+     WHERE escopo_id = ${escopoId}::uuid AND codigo_legado IS NOT NULL
+       AND regexp_replace(upper(codigo_legado), '[^A-Z0-9]', '', 'g') = ${chave}
+     LIMIT 1`;
+  return linhas[0]?.codigo ?? null;
+}
+
+/** Código informado: único no escopo (inclusive arquivados e identificadores legados) e diferente de código de posição. */
 async function conferirCodigoInformado(tx: Transacao, escopo: Escopo, codigo: string): Promise<void> {
   const chave = chaveDeCodigo(codigo);
   const existente = await tx.palete.findFirst({
@@ -81,6 +91,8 @@ async function conferirCodigoInformado(tx: Transacao, escopo: Escopo, codigo: st
   if (existente) {
     throw new ErroHttp(409, 'CONFLITO', `Já existe o palete ${existente.codigo} com este código (ou equivalente) neste escopo.`);
   }
+  const legado = await codigoLegadoDe(tx, escopo.id, chave);
+  if (legado !== null) throw new ErroHttp(409, 'CONFLITO', `${codigo} foi o identificador do palete ${legado} e não pode ser reutilizado.`);
   const posicao = await codigoDePosicao(tx, escopo.id, chave);
   if (posicao !== null) {
     throw new ErroHttp(
@@ -145,7 +157,7 @@ async function prepararLinhas(tx: Transacao, escopo: Escopo, linhas: DadosCadast
     const produto = porSku.get(l.sku);
     if (!produto) {
       throw requisicaoInvalida(
-        `Linha ${String(indice + 1)}: o SKU ${l.sku} não está cadastrado (ou está inativo) neste escopo. Cadastre o produto ou deixe o SKU em branco para registrá-lo como pendente.`,
+        `Linha ${String(indice + 1)}: o SKU ${l.sku} não está cadastrado (ou está inativo) neste escopo. Deixe o SKU em branco para registrá-lo como pendente, com a descrição do documento.`,
       );
     }
     const unidades = new Set([produto.unidadeCanonica, ...produto.codigosBarras.map((c) => c.embalagem)]);
@@ -169,7 +181,9 @@ function traduzirConflito(erro: unknown): never {
   throw erro;
 }
 
-export async function cadastrarPalete(tx: Transacao, escopo: Escopo, dados: DadosCadastro, autor: Autor): Promise<PaleteDetalhe> {
+/** `agora`: entrada do palete no sistema (início da contagem de reconferência); sem ele, o horário do banco. */
+/** `codigoDaNumeracao`: o código informado veio da numeração operacional do sistema (série do piso), não de uma etiqueta existente. */
+export async function cadastrarPalete(tx: Transacao, escopo: Escopo, dados: DadosCadastro, autor: Autor, agora?: Date, opcoes: { codigoDaNumeracao?: boolean } = {}): Promise<PaleteDetalhe> {
   let codigo: string;
   if (dados.code.mode === 'INFORMAR') {
     codigo = dados.code.value;
@@ -188,7 +202,7 @@ export async function cadastrarPalete(tx: Transacao, escopo: Escopo, dados: Dado
         escopoId: escopo.id,
         codigo,
         codigoBusca: chaveDeCodigo(codigo),
-        origemCodigo: dados.code.mode === 'INFORMAR' ? 'EXISTENTE' : 'GERADO',
+        origemCodigo: dados.code.mode === 'INFORMAR' && opcoes.codigoDaNumeracao !== true ? 'EXISTENTE' : 'GERADO',
         posicaoId: dados.positionId,
         // Palete novo: conteúdo desconhecido até a conferência (etapa 04).
         estadoConferencia: 'NAO_CONFERIDO',
@@ -198,6 +212,7 @@ export async function cadastrarPalete(tx: Transacao, escopo: Escopo, dados: Dado
           dados.positionId === null ? 'Localização pendente; conteúdo desconhecido até a conferência' : 'Conteúdo desconhecido até a conferência',
         observacoes: dados.notes,
         criadoPorId: autor.usuarioId,
+        ...(agora === undefined ? {} : { criadoEm: agora, relogioInicioEm: agora, relogioInicioOrigem: 'CADASTRO' }),
       },
     });
   } catch (erro) {
@@ -223,7 +238,7 @@ export async function cadastrarPalete(tx: Transacao, escopo: Escopo, dados: Dado
     },
     requestId: autor.requestId,
   });
-  const detalhe = await consultarPalete(tx, escopo, id);
+  const detalhe = await consultarPalete(tx, escopo, id, agora);
   if (!detalhe) throw new Error('Palete recém-cadastrado não encontrado.');
   return detalhe;
 }

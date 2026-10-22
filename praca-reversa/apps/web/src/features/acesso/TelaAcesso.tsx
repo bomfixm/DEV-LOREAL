@@ -4,6 +4,7 @@ import {
   ListaUsuariosSchema,
   PERFIS,
   PERFIS_APROVACAO_FINANCEIRA,
+  PERFIS_SELECAO_TESTE,
   UsuarioAdminSchema,
   type Perfil,
   type Sessao,
@@ -89,13 +90,13 @@ export function TelaAcesso({ sessao, aoVoltar }: Props) {
     if (ok) setNovo({ login: '', name: '', initialPassword: '', role: 'CONSULTA' });
   }
 
-  function alterarVinculo(u: UsuarioAdmin, role: Perfil, active: boolean, financialApproval?: boolean) {
-    const corpo = financialApproval === undefined ? { role, active } : { role, active, financialApproval };
+  function alterarVinculo(u: UsuarioAdmin, role: Perfil, active: boolean, financialApproval?: boolean, clientSelectionTest?: boolean) {
+    const corpo = { role, active, ...(financialApproval === undefined ? {} : { financialApproval }), ...(clientSelectionTest === undefined ? {} : { clientSelectionTest }) };
     void executar(
       `vinculo:${u.id}:${JSON.stringify(corpo)}`,
       (chave) => enviarJson('PUT', `${URL_USUARIOS}/${u.id}/vinculo`, UsuarioAdminSchema, { corpo, idempotencia: chave }),
       (r) =>
-        `Vínculo de ${r.login} atualizado: ${ROTULOS_PERFIL[r.role]}, ${r.membershipActive ? 'ativo' : 'inativo'}${r.financialApproval ? ', com aprovação financeira de claims' : ''}.`,
+        `Vínculo de ${r.login} atualizado: ${ROTULOS_PERFIL[r.role]}, ${r.membershipActive ? 'ativo' : 'inativo'}${r.financialApproval ? ', com aprovação financeira de claims' : ''}${r.clientSelectionTest ? ', com acesso à Seleção cliente — teste' : ''}.`,
     );
   }
 
@@ -213,6 +214,7 @@ export function TelaAcesso({ sessao, aoVoltar }: Props) {
                       <span className="usuario-situacao">
                         Conta {u.accountActive ? 'ativa' : 'desativada'} · vínculo {u.membershipActive ? 'ativo' : 'inativo'}
                         {u.financialApproval ? ' · aprova resultados de claims' : ''}
+                        {u.clientSelectionTest ? ' · Seleção cliente — teste' : ''}
                         {proprio ? ' · você' : ''}
                       </span>
                     </div>
@@ -255,6 +257,20 @@ export function TelaAcesso({ sessao, aoVoltar }: Props) {
                           data-testid="alternar-aprovacao-financeira"
                         >
                           {u.financialApproval ? 'Retirar aprovação financeira de claims' : 'Conceder aprovação financeira de claims'}
+                        </button>
+                      )}
+                      {/* Concessão explícita ao responsável interno (pode ser a própria conta do administrador). */}
+                      {PERFIS_SELECAO_TESTE.includes(u.role) && (
+                        <button
+                          type="button"
+                          className="botao-secundario"
+                          disabled={ocupado !== null}
+                          onClick={() => {
+                            alterarVinculo(u, u.role, u.membershipActive, undefined, !u.clientSelectionTest);
+                          }}
+                          data-testid="alternar-selecao-teste"
+                        >
+                          {u.clientSelectionTest ? 'Retirar acesso à Seleção cliente — teste' : 'Liberar Seleção cliente — teste'}
                         </button>
                       )}
                       <button

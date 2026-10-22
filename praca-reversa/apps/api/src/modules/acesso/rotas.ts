@@ -59,7 +59,7 @@ export function registrarRotasLogin(app: FastifyInstance, deps: Dependencias): v
 
     const escopos = await escoposDoUsuario(deps.db, usuario.id);
     const { token, sessao } = await deps.sessoes.criar(usuario.id, escopos[0]?.id ?? null);
-    const contexto = await montarContexto(deps.db, sessao, token);
+    const contexto = await montarContexto(deps.db, sessao, token, deps.selecaoClienteTeste);
     reply.setCookie(nomeCookie(deps.config), token, opcoesCookie(deps.config));
     await registrarEvento(deps.db, {
       acao: 'LOGIN_SUCESSO',
@@ -115,7 +115,7 @@ export function registrarRotasSessao(app: FastifyInstance, deps: Dependencias): 
       detalhes: { escopoAnterior: contexto.escopoAtivo?.id ?? null },
       requestId: request.id,
     });
-    const atualizado = await montarContexto(deps.db, { ...contexto.sessao, escopoAtivoId: destino.id }, contexto.token);
+    const atualizado = await montarContexto(deps.db, { ...contexto.sessao, escopoAtivoId: destino.id }, contexto.token, deps.selecaoClienteTeste);
     return corpoSessao(atualizado, deps.config);
   });
 }

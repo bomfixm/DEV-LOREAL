@@ -2,6 +2,29 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "praca-api-dev-3100",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "--watch",
+        "--import",
+        "tsx",
+        "apps/api/src/server.ts",
+        "--sem-interface",
+        "--porta=3100"
+      ],
+      "port": 3100
+    },
+    {
+      "name": "praca-web-dev-5173",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set API_DESTINO=http://127.0.0.1:3100&& npm run dev -w @praca-reversa/web"
+      ],
+      "port": 5173,
+      "url": "http://127.0.0.1:5173"
+    },
+    {
       "name": "praca-reversa",
       "runtimeExecutable": "node",
       "runtimeArgs": [
@@ -26,6 +49,15 @@
         "--porta=3100"
       ],
       "port": 3100
+    },
+    {
+      "name": "praca-reversa-congelada",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "C:/Users/Administrator/Documents/PROJETOS/LR LOREAL/praca-reversa/.dados/versao-teste-congelada/apps/api/dist/server.js",
+        "--porta=3200"
+      ],
+      "port": 3200
     }
   ]
 }

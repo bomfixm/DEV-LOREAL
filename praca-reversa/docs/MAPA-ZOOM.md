@@ -6,7 +6,8 @@ Requisito incluído em 1 de outubro de 2026: navegar por uma praça grande com z
 
 - Ampliar e reduzir pelos botões, roda do mouse e pinça nos dispositivos de toque compatíveis.
 - Arrastar o fundo ou começar o gesto sobre um palete para navegar pela visão. Um gesto de arraste não executa seleção nem movimento de estoque.
-- Visão geral enquadra a praça; centralizar enquadra o palete selecionado em nível legível.
+- **Vista inicial (20 out. 2026, D264–D266)**: ao abrir, o mapa enquadra a área principal (L'Oréal) — as zonas com posições em uso, incluindo as vazias; no desenho aprovado, a zona de baixo — no maior zoom em que ela cabe inteira no espaço livre entre os controles sobrepostos (medidos na hora; zoom calculado, sem nível fixo). O enquadramento é aplicado quando o layout e o tamanho do mapa existem e só uma vez: abrir/fechar a janela do palete ou recolher o menu mantém zoom e centro. "Focar L'Oréal" (e a tecla Home) volta a ele; "Ver praça completa" mostra também as posições superiores; centralizar enquadra o palete selecionado em nível legível, onde ele estiver (link, QR ou busca não forçam a volta à área principal).
+- **Rótulos por largura da posição na tela**: menos de 30 px, nenhum; 30–60 px, endereço curto ("A120"; a rua está no título do bloco); 60–112 px, endereço completo ("15 - A120"; código só no palete selecionado); a partir de 112 px, também o código do palete, a situação e o estado das posições vazias.
 - Clique, toque ou seleção pela lista abre o conteúdo do palete correto.
 - Busca de ID/endereço centraliza o resultado. Busca de SKU mantém os candidatos em lista para escolha; presença documental não comprova presença física.
 - Retornar do detalhe preserva seleção, zona e visão. Redimensionamento mantém contexto e posições.

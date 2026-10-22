@@ -1,0 +1,162 @@
+{
+  "rects": {
+    "buscaCampo": {
+      "x": 341.40625,
+      "y": 11.65625,
+      "w": 556,
+      "h": 38
+    },
+    "buscaResultado": {
+      "x": 107,
+      "y": 390.359375,
+      "w": 374,
+      "h": 236.46875
+    },
+    "buscaPainel": {
+      "x": 94,
+      "y": 127.859375,
+      "w": 400,
+      "h": 687.96875
+    }
+  },
+  "numeros": {
+    "semEnderecoAntes": "3",
+    "mensagemExpedicao": "Expedição de 3 volume(s) confirmada.",
+    "janela": {
+      "solicitado": "20",
+      "separado": "2",
+      "expedido": "3",
+      "faltaExpedir": "17"
+    },
+    "painel": {
+      "paletes": "6",
+      "volumes": "13",
+      "semEndereco": "2",
+      "precisaConferir": "1"
+    }
+  },
+  "correcao": {
+    "palete": "PAL-DEMO-005",
+    "de": "F02-P02",
+    "para": "11 - A5 (F01-P05)"
+  },
+  "reconferencia": {
+    "palete": "PAL-DEMO-003",
+    "preparado": "relógio iniciado há 25 dias (banco de teste)",
+    "aviso": "Precisa conferir",
+    "registro": {
+      "texto": "Reconferência completa do palete Reconferência em 20 dias 25 dias sem movimentação Última movimentação relevante Nenhuma desde a entrada (24/09/2026, 23:03) Última conferência completa 19/10/2026, 23:04 · Supervisor demonstração E2E Reconferência prevista 08/11/2026, 23:04 Registre quando o palete inteiro foi conferido (conteúdos e volumes acima). Conferido sem diferença também vale. Conferir só u",
+      "precisaConferirDepois": "0"
+    }
+  },
+  "exportacao": {
+    "arquivo": "estoque-2026-10-200203.csv"
+  },
+  "painelFinal": {
+    "claro": {
+      "card-paletes": {
+        "x": 106,
+        "y": 58,
+        "w": 402.5,
+        "h": 94.1875
+      },
+      "card-volumes": {
+        "x": 518.5,
+        "y": 58,
+        "w": 402.5,
+        "h": 94.1875
+      },
+      "card-sem-endereco": {
+        "x": 931,
+        "y": 58,
+        "w": 402.5,
+        "h": 94.1875
+      },
+      "card-reconferencia": {
+        "x": 1343.5,
+        "y": 58,
+        "w": 402.5,
+        "h": 94.1875
+      },
+      "painel-janela": {
+        "x": 106,
+        "y": 162.1875,
+        "w": 964.6875,
+        "h": 333.390625
+      },
+      "painel-situacao": {
+        "x": 1080.6875,
+        "y": 162.1875,
+        "w": 665.296875,
+        "h": 333.390625
+      },
+      "painel-ruas": {
+        "x": 106,
+        "y": 505.578125,
+        "w": 964.6875,
+        "h": 500.109375
+      },
+      "painel-prioridades": {
+        "x": 1080.6875,
+        "y": 505.578125,
+        "w": 665.296875,
+        "h": 500.109375
+      }
+    },
+    "valores": {
+      "precisaConferir": "0",
+      "semEndereco": "2",
+      "volumes": "13"
+    },
+    "escuro": {
+      "card-paletes": {
+        "x": 106,
+        "y": 58,
+        "w": 402.5,
+        "h": 94.1875
+      },
+      "card-volumes": {
+        "x": 518.5,
+        "y": 58,
+        "w": 402.5,
+        "h": 94.1875
+      },
+      "card-sem-endereco": {
+        "x": 931,
+        "y": 58,
+        "w": 402.5,
+        "h": 94.1875
+      },
+      "card-reconferencia": {
+        "x": 1343.5,
+        "y": 58,
+        "w": 402.5,
+        "h": 94.1875
+      },
+      "painel-janela": {
+        "x": 106,
+        "y": 162.1875,
+        "w": 964.6875,
+        "h": 333.390625
+      },
+      "painel-situacao": {
+        "x": 1080.6875,
+        "y": 162.1875,
+        "w": 665.296875,
+        "h": 333.390625
+      },
+      "painel-ruas": {
+        "x": 106,
+        "y": 505.578125,
+        "w": 964.6875,
+        "h": 500.109375
+      },
+      "painel-prioridades": {
+        "x": 1080.6875,
+        "y": 505.578125,
+        "w": 665.296875,
+        "h": 500.109375
+      }
+    }
+  }
+}

@@ -2,6 +2,15 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "praca-api-dev-3100",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd praca-reversa&& node --watch --import tsx apps/api/src/server.ts --sem-interface --porta=3100"
+      ],
+      "port": 3100
+    },
+    {
       "name": "praca-reversa-teste",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
@@ -31,6 +40,44 @@
       ],
       "port": 3100,
       "url": "http://127.0.0.1:3100"
+    },
+    {
+      "name": "praca-reversa-congelada",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "C:/Users/Administrator/Documents/PROJETOS/LR LOREAL/praca-reversa/.dados/versao-teste-congelada/apps/api/dist/server.js",
+        "--porta=3200"
+      ],
+      "port": 3200
+    },
+    {
+      "name": "praca-api-fonte-3100",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd praca-reversa\\apps\\api&& node --import tsx src/server.ts --sem-interface --porta=3100"
+      ],
+      "port": 3100
+    },
+    {
+      "name": "praca-web-dev-5173",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd praca-reversa\\apps\\web&& set API_DESTINO=http://127.0.0.1:3100&& npx vite"
+      ],
+      "port": 5173,
+      "url": "http://127.0.0.1:5173"
+    },
+    {
+      "name": "praca-motion-4330",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd praca-reversa&& node .dados/servidor-motion.tmp.mjs"
+      ],
+      "port": 4330,
+      "url": "http://127.0.0.1:4330"
     }
   ]
 }

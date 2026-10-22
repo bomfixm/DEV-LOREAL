@@ -303,7 +303,7 @@ async function estoque(tx: Transacao, escopoId: string, periodo: Periodo): Promi
   };
 }
 
-async function claims(tx: Transacao, escopoId: string, periodo: Periodo): Promise<IndicadoresClaims> {
+export async function claims(tx: Transacao, escopoId: string, periodo: Periodo): Promise<IndicadoresClaims> {
   const situacoes = await tx.$queryRaw<{ situacao: IndicadoresClaims['byState'][number]['state']; n: bigint }[]>`
     SELECT c.situacao::text AS situacao, count(*) AS n FROM claim c WHERE c.escopo_id = ${escopoId}::uuid GROUP BY 1 ORDER BY 1`;
   const motivos = await tx.$queryRaw<{ motivo: IndicadoresClaims['byReason'][number]['reason']; n: bigint }[]>`
@@ -344,7 +344,7 @@ async function claims(tx: Transacao, escopoId: string, periodo: Periodo): Promis
   };
 }
 
-async function valores(tx: Transacao, escopoId: string, periodo: Periodo): Promise<IndicadoresValores> {
+export async function valores(tx: Transacao, escopoId: string, periodo: Periodo): Promise<IndicadoresValores> {
   // Estimativa (mesma definição do resumo de claims), só de casos ainda não finalizados.
   const estimado = await tx.$queryRaw<{ moeda: string; valor: string; casos: bigint; parciais: bigint }[]>`
     SELECT e.moeda, sum(e.valor)::text AS valor, count(*) AS casos, count(*) FILTER (WHERE e.parcial) AS parciais

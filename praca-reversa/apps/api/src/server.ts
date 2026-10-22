@@ -20,6 +20,7 @@ const app = await criarApp({
   exportacaoMaxLinhas: config.exportacaoMaxLinhas,
   claims: config.claims,
   planilha: config.planilha,
+  selecaoClienteTeste: config.selecaoClienteTeste,
   aplicativo: { versao: config.versao, caminhoBase: config.caminhoBase, persistenciaLocal: config.persistenciaLocal },
   logger: {
     level: config.logLevel,

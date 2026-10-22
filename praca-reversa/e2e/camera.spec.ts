@@ -1,6 +1,7 @@
 import { expect, test, type APIResponse, type Page, type TestInfo } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { entrar, obterPraca, type PracaApi } from './apoio';
+import { mostrarListaPaletesNoMapa } from '../apps/web/src/features/mapa/configuracao';
+import { abrirPalete, entrar, obterPraca, type PracaApi } from './apoio';
 import { configurarCamera, estadoCamera, imagemDoCodigo, instalarCameraFalsa, mostrarNaCamera } from './camera-falsa';
 
 /**
@@ -142,7 +143,8 @@ test.describe('leitura por câmera', () => {
     await expect(page.getByTestId('falha-camera')).toHaveAttribute('data-falha', 'permissao-negada');
     await page.getByRole('button', { name: 'Fechar e digitar o código' }).click();
     await expect(page.getByTestId('leitor-camera')).toHaveCount(0);
-    await expect(page.getByLabel('Código, posição ou link do QR')).toBeEnabled();
+    // Alternativa manual: o filtro da lista (ou, com a lista desativada no computador, a pesquisa do cabeçalho).
+    await expect(mostrarListaPaletesNoMapa ? page.getByLabel('Código, posição ou link do QR') : page.getByTestId('campo-busca')).toBeEnabled();
 
     // Câmera ocupada: tentar de novo depois de liberada.
     await configurarCamera(page, { erro: 'NotReadableError' });
@@ -187,7 +189,7 @@ test.describe('leitura por câmera', () => {
     await instalarCameraFalsa(page);
     await entrar(page, 'supervisor');
     const { sku, codigos, palete } = await prepararCenario(page, testInfo, 'K');
-    await page.goto(`/paletes/${palete.id}`);
+    await abrirPalete(page, palete.id);
     await page.getByTestId('iniciar-conferencia').click();
     await page.getByRole('radio', { name: /^Completa/ }).check();
     await page.getByTestId('confirmar-inicio').click();

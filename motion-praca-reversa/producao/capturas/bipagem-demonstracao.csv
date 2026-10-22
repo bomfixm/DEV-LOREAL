@@ -1,0 +1,9 @@
+﻿Status;Baixa indevida;Tipo;Número;Série;Leituras;Lidos;Destino;Última Leitura;CNPJ Remetente;Remetente;Posicao;Area
+1;N;NF-e;900123;1;1;5;LOU;19/10/2026 09:12;11.111.111/0001-11;Distribuidora Demonstração Ltda;;
+1;N;NF-e;900124;1;1;3;LOU;19/10/2026 09:13;11.111.111/0001-11;Distribuidora Demonstração Ltda;;
+1;N;Minuta;4410;219;1;1;LOU;19/10/2026 09:15;22.222.222/0001-22;Comercial Exemplo S.A.;;
+3;N;NF-e;900125;1;0;0;LOU;;22.222.222/0001-22;Comercial Exemplo S.A.;;
+1;N;NF-e;900126;1;1;2;LOU;19/10/2026 09:18;22.222.222/0001-22;Comercial Exemplo S.A.;;
+3;N;Minuta;4411;219;0;0;LOU;;11.111.111/0001-11;Distribuidora Demonstração Ltda;;
+1;S;Minuta;4411;219;0.1;1;LOU;19/10/2026 09:21;11.111.111/0001-11;Distribuidora Demonstração Ltda;;
+1;N;NF-e;900127;1;1;4;LOU;19/10/2026 09:24;11.111.111/0001-11;Distribuidora Demonstração Ltda;;

@@ -1,4 +1,4 @@
-import { LadoFaixaSchema, type LadoFaixa, type Layout } from '@praca-reversa/contracts';
+import { LadoFaixaSchema, OrigemPosicaoLivreSchema, type LadoFaixa, type Layout } from '@praca-reversa/contracts';
 import type { Banco, Transacao } from '../../db/cliente.js';
 
 const ladoDe = (lado: string | null): LadoFaixa | null => {
@@ -86,6 +86,10 @@ export async function lerLayoutAtivo(db: Banco | Transacao, escopoId: string): P
       occupancySurveyed: p.ocupacaoLevantada,
       deactivated: p.desativada,
       address: p.endereco ? { text: p.endereco.endereco, state: p.endereco.situacao } : null,
+      freeConfirmed:
+        p.livreConfirmadaEm !== null && OrigemPosicaoLivreSchema.safeParse(p.livreOrigem).success
+          ? { at: p.livreConfirmadaEm.toISOString(), origin: OrigemPosicaoLivreSchema.parse(p.livreOrigem) }
+          : null,
     })),
   };
 }

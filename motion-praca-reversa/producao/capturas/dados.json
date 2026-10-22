@@ -1,0 +1,308 @@
+{
+  "base": "http://127.0.0.1:4330",
+  "escala": 2,
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "rects": {
+    "bipagemPrevia": {
+      "x": 436,
+      "y": 315.1875,
+      "w": 1116,
+      "h": 524.75
+    },
+    "bipagemLinha": {
+      "x": 458,
+      "y": 602.9375,
+      "w": 1072,
+      "h": 27
+    },
+    "bipagemCampos": {
+      "x": 457,
+      "y": 481.0625,
+      "w": 1074,
+      "h": 18
+    },
+    "mapa": {
+      "x": 85,
+      "y": 118.859375,
+      "w": 1818,
+      "h": 944.140625
+    },
+    "mapaPalete": {
+      "x": 345,
+      "y": 240.859375,
+      "w": 64,
+      "h": 35
+    },
+    "mapaFileiraPalete": {
+      "x": 879,
+      "y": 170.859375,
+      "w": 69,
+      "h": 39
+    },
+    "janela": {
+      "x": 530,
+      "y": 272.421875,
+      "w": 860,
+      "h": 535.15625
+    },
+    "janelaLinha": {
+      "x": 552,
+      "y": 503.890625,
+      "w": 816,
+      "h": 32.796875
+    },
+    "janelaResumo": {
+      "x": 551,
+      "y": 357.234375,
+      "w": 818,
+      "h": 39.375
+    },
+    "card-paletes": {
+      "x": 174,
+      "y": 120.3125,
+      "w": 402.5,
+      "h": 94.1875
+    },
+    "card-volumes": {
+      "x": 586.5,
+      "y": 120.3125,
+      "w": 402.5,
+      "h": 94.1875
+    },
+    "card-sem-endereco": {
+      "x": 999,
+      "y": 120.3125,
+      "w": 402.5,
+      "h": 94.1875
+    },
+    "card-reconferencia": {
+      "x": 1411.5,
+      "y": 120.3125,
+      "w": 402.5,
+      "h": 94.1875
+    },
+    "painel-janela": {
+      "x": 174,
+      "y": 224.5,
+      "w": 964.6875,
+      "h": 333.390625
+    },
+    "painel-situacao": {
+      "x": 1148.6875,
+      "y": 224.5,
+      "w": 665.296875,
+      "h": 333.390625
+    },
+    "painel-ruas": {
+      "x": 174,
+      "y": 567.890625,
+      "w": 964.6875,
+      "h": 500.109375
+    },
+    "painel-prioridades": {
+      "x": 1148.6875,
+      "y": 567.890625,
+      "w": 665.296875,
+      "h": 500.109375
+    },
+    "barra-preparacao": {
+      "x": 191,
+      "y": 382.390625,
+      "w": 930.6875,
+      "h": 19.5
+    },
+    "janela-separado": {
+      "x": 389.734375,
+      "y": 339.390625,
+      "w": 157.734375,
+      "h": 24
+    },
+    "janela-solicitado": {
+      "x": 202,
+      "y": 339.390625,
+      "w": 157.734375,
+      "h": 24
+    }
+  },
+  "planilha": {
+    "cabecalho": [
+      "Status",
+      "Baixa indevida",
+      "Tipo",
+      "Número",
+      "Série",
+      "Leituras",
+      "Lidos",
+      "Destino",
+      "Última Leitura",
+      "CNPJ Remetente",
+      "Remetente",
+      "Posicao",
+      "Area"
+    ],
+    "linhas": [
+      [
+        1,
+        "N",
+        "NF-e",
+        "900123",
+        "1",
+        1,
+        5,
+        "LOU",
+        "19/10/2026 09:12",
+        "11.111.111/0001-11",
+        "Distribuidora Demonstração Ltda",
+        null,
+        null
+      ],
+      [
+        1,
+        "N",
+        "NF-e",
+        "900124",
+        "1",
+        1,
+        3,
+        "LOU",
+        "19/10/2026 09:13",
+        "11.111.111/0001-11",
+        "Distribuidora Demonstração Ltda",
+        null,
+        null
+      ],
+      [
+        1,
+        "N",
+        "Minuta",
+        "4410",
+        "219",
+        1,
+        1,
+        "LOU",
+        "19/10/2026 09:15",
+        "22.222.222/0001-22",
+        "Comercial Exemplo S.A.",
+        null,
+        null
+      ],
+      [
+        3,
+        "N",
+        "NF-e",
+        "900125",
+        "1",
+        0,
+        0,
+        "LOU",
+        null,
+        "22.222.222/0001-22",
+        "Comercial Exemplo S.A.",
+        null,
+        null
+      ],
+      [
+        1,
+        "N",
+        "NF-e",
+        "900126",
+        "1",
+        1,
+        2,
+        "LOU",
+        "19/10/2026 09:18",
+        "22.222.222/0001-22",
+        "Comercial Exemplo S.A.",
+        null,
+        null
+      ],
+      [
+        3,
+        "N",
+        "Minuta",
+        "4411",
+        "219",
+        0,
+        0,
+        "LOU",
+        null,
+        "11.111.111/0001-11",
+        "Distribuidora Demonstração Ltda",
+        null,
+        null
+      ],
+      [
+        1,
+        "S",
+        "Minuta",
+        "4411",
+        "219",
+        0.1,
+        1,
+        "LOU",
+        "19/10/2026 09:21",
+        "11.111.111/0001-11",
+        "Distribuidora Demonstração Ltda",
+        null,
+        null
+      ],
+      [
+        1,
+        "N",
+        "NF-e",
+        "900127",
+        "1",
+        1,
+        4,
+        "LOU",
+        "19/10/2026 09:24",
+        "11.111.111/0001-11",
+        "Distribuidora Demonstração Ltda",
+        null,
+        null
+      ]
+    ],
+    "nf": "900123"
+  },
+  "palete": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "codigo": "PAL-DEMO-001",
+    "endereco": "11 - A1",
+    "posicao": "F01-P01"
+  },
+  "contadores": {
+    "comLeitura": "6\ncom volumes lidos",
+    "semLeitura": "2\nsem volumes lidos",
+    "volumes": "16\nvolumes"
+  },
+  "resultado": "Importado para o palete PAL-DEMO-001\n\n6 conteúdos novos, 6 contagens registradas. 16 volumes lidos no arquivo; 2 registros sem leitura ficaram só no lote.\n\nGravado em 19/10/2026, 22:35 por Supervisor demonstração E2E. Delivery, SKU e validade podem ser completados depois, no conteúdo do palete.\n\nVer o conteúdo do palete\nConferência de volumes\nImportar outro arquivo",
+  "conteudo": {
+    "total": 6,
+    "nf": {
+      "id": "a967f7a3-5404-4e44-bb34-5c9026e30e75",
+      "tipo": "NF-e",
+      "contado": "5",
+      "origem": "BIPAGEM",
+      "remetente": "Distribuidora Demonstração Ltda"
+    }
+  },
+  "janela": {
+    "titulo": "Palete PAL-DEMO-001",
+    "volumes": "16 · lidos na bipagem"
+  },
+  "janelaSaida": {
+    "id": "776d1d9f-6931-4b8a-9346-3dd4bec08970",
+    "codigo": "JAN-000001",
+    "nome": "Janela de demonstração · outubro"
+  },
+  "painel": {
+    "solicitado": "20",
+    "separado": "5",
+    "faltaSeparar": "15",
+    "preparacao": "Preparação\n25,00%",
+    "volumesRegistrados": "16"
+  }
+}

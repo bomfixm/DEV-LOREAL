@@ -55,6 +55,31 @@ export async function obterPraca(page: Page): Promise<PracaApi> {
   return (await resposta.json()) as PracaApi;
 }
 
+/**
+ * Etapa 3 (19 out. 2026): escolher o palete abre a janela dele. Abre também
+ * "Detalhes completos e outras ações" e devolve a janela, que contém as ações
+ * (conferir volumes, bipagem, etiqueta…) e o detalhe completo existente.
+ */
+export async function verMais(page: Page): Promise<Locator> {
+  const janela = page.getByTestId('janela-palete');
+  await expect(janela).toBeVisible();
+  const completos = janela.getByTestId('janela-detalhes-completos');
+  if ((await completos.getAttribute('open')) === null) await completos.locator('summary').click();
+  await expect(janela.getByTestId('detalhe')).toBeVisible();
+  return janela;
+}
+
+/** Abre o palete pela rota (link/QR abre a janela) e os detalhes completos. */
+export async function abrirPalete(page: Page, id: string): Promise<Locator> {
+  await page.goto(`/paletes/${id}`);
+  return verMais(page);
+}
+
+/** Janela do palete selecionado (resumo curto, tabela e ações). */
+export function resumo(page: Page): Locator {
+  return page.getByTestId('janela-palete');
+}
+
 export function mapa(page: Page): Locator {
   return page.getByTestId('mapa');
 }

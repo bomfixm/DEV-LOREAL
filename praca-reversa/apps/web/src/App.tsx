@@ -1,10 +1,13 @@
-import { API_PREFIXO, PracaSchema, tiposImportacaoPermitidos, type Permissao, type Praca, type Sessao } from '@praca-reversa/contracts';
+import { API_PREFIXO, PracaSchema, TIPOS_IMPORTACAO_GERAL, tiposImportacaoPermitidos, type Permissao, type Praca, type Sessao } from '@praca-reversa/contracts';
 import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useConexao } from './api/conexao';
 import { definirContexto } from './api/incertas';
 import { useRecurso } from './api/use-recurso';
 import { useVersao } from './api/versao';
-import { AvisoConexao, AvisoDemo, Cabecalho, EstadoTela, SemPermissao } from './components/Moldura';
+import { AvisoConexao, Cabecalho, EstadoTela, SemPermissao } from './components/Moldura';
+import { IconeCaixa } from './components/Icones';
+import { NavegacaoPrincipal } from './components/Navegacao';
+import { secaoDaRota } from './components/paginas';
 import { ContextoAjudaReact, carregarPreferencia, encerrarTutorial, iniciarTutorial, useTutorial, type ContextoAjuda } from './features/ajuda/estado';
 import { OfertaTutorial } from './features/ajuda/OfertaTutorial';
 import { ROTULOS_PERFIL } from './sessao/perfis';
@@ -21,7 +24,8 @@ const TelaAcesso = lazy(() => import('./features/acesso/TelaAcesso').then((m) =>
 const TelaNovoPalete = lazy(() => import('./features/cadastro/TelaNovoPalete').then((m) => ({ default: m.TelaNovoPalete })));
 const TelaEtiquetas = lazy(() => import('./features/etiquetas/TelaEtiquetas').then((m) => ({ default: m.TelaEtiquetas })));
 const TelaLayout = lazy(() => import('./features/layout/TelaLayout').then((m) => ({ default: m.TelaLayout })));
-const TelaProdutos = lazy(() => import('./features/produtos/TelaProdutos').then((m) => ({ default: m.TelaProdutos })));
+const TelaRegistrarConteudo = lazy(() => import('./features/conteudos/TelaRegistrarConteudo').then((m) => ({ default: m.TelaRegistrarConteudo })));
+const TelaConferenciaVolumes = lazy(() => import('./features/conteudos/TelaConferenciaVolumes').then((m) => ({ default: m.TelaConferenciaVolumes })));
 const TelaConferencia = lazy(() => import('./features/conferencia/TelaConferencia').then((m) => ({ default: m.TelaConferencia })));
 const TelaMover = lazy(() => import('./features/movimentos/TelaMover').then((m) => ({ default: m.TelaMover })));
 const TelaTransferir = lazy(() => import('./features/movimentos/TelaTransferir').then((m) => ({ default: m.TelaTransferir })));
@@ -45,11 +49,22 @@ const TelaIndicadores = lazy(() => import('./features/indicadores/TelaIndicadore
 const TelaPlanilha = lazy(() => import('./features/planilha/TelaPlanilha').then((m) => ({ default: m.TelaPlanilha })));
 const TelaRelatorios = lazy(() => import('./features/indicadores/TelaRelatorios').then((m) => ({ default: m.TelaRelatorios })));
 const TelaRetirarVazio = lazy(() => import('./features/movimentos/TelaRetirarVazio').then((m) => ({ default: m.TelaRetirarVazio })));
+const TelaBipagem = lazy(() => import('./features/paletes/TelaBipagem').then((m) => ({ default: m.TelaBipagem })));
 // Complemento: seleção do cliente, conciliação e inventários de referência.
 const TelaSelecoes = lazy(() => import('./features/selecao/TelaSelecoes').then((m) => ({ default: m.TelaSelecoes })));
 const TelaSelecao = lazy(() => import('./features/selecao/TelaSelecao').then((m) => ({ default: m.TelaSelecao })));
+const TelaValidacao = lazy(() => import('./features/conteudos/TelaValidacao').then((m) => ({ default: m.TelaValidacao })));
 const TelaInventarios = lazy(() => import('./features/selecao/TelaInventarios').then((m) => ({ default: m.TelaInventarios })));
 const TelaInventario = lazy(() => import('./features/selecao/TelaInventario').then((m) => ({ default: m.TelaInventario })));
+// Painéis: operação DHL (interno), volumes da janela e painel do cliente (projeção permitida).
+const TelaPainelOperacao = lazy(() => import('./features/paineis/TelaPainelOperacao').then((m) => ({ default: m.TelaPainelOperacao })));
+const TelaPainelEstoque = lazy(() => import('./features/paineis/TelaPainelEstoque').then((m) => ({ default: m.TelaPainelEstoque })));
+const TelaVolumesJanela = lazy(() => import('./features/paineis/TelaVolumesJanela').then((m) => ({ default: m.TelaVolumesJanela })));
+const TelaPainelCliente = lazy(() => import('./features/paineis/TelaPainelCliente').then((m) => ({ default: m.TelaPainelCliente })));
+// "Seleção cliente — teste": carregada só por quem tem a concessão.
+const TelaSelecaoTeste = lazy(() => import('./features/selecao-teste/TelaSelecaoTeste').then((m) => ({ default: m.TelaSelecaoTeste })));
+const TelaSolicitacoesTeste = lazy(() => import('./features/selecao-teste/TelaSolicitacoesTeste').then((m) => ({ default: m.TelaSolicitacoesTeste })));
+const TelaSolicitacaoTeste = lazy(() => import('./features/selecao-teste/TelaSolicitacaoTeste').then((m) => ({ default: m.TelaSolicitacaoTeste })));
 
 const URL_PRACA = `${API_PREFIXO}/praca`;
 
@@ -101,7 +116,9 @@ function estabilizar(anterior: Praca | null, nova: Praca): Praca {
   const a = anterior?.layout ?? null;
   const n = nova.layout;
   if (a === null || n === null) return nova;
-  return a.id === n.id && a.revision === n.revision ? { ...nova, layout: a } : nova;
+  // "Palete livre" muda sem nova revisão do layout: com outra marcação, o layout novo segue (o mapa atualiza as posições sem se recriar).
+  const livres = (l: NonNullable<Praca['layout']>) => l.positions.map((p) => `${p.id}:${p.freeConfirmed?.at ?? ''}`).join(',');
+  return a.id === n.id && a.revision === n.revision && livres(a) === livres(n) ? { ...nova, layout: a } : nova;
 }
 
 interface PropsPraca {
@@ -116,6 +133,21 @@ interface PropsPraca {
 function ConteudoPraca({ compacto, versao, paleteRota, sessao, aoNavegar, aoTrocarEscopo }: PropsPraca) {
   const { carga, recarregar } = useRecurso(URL_PRACA, PracaSchema, versao);
   const [ultima, setUltima] = useState<{ fonte: Praca; praca: Praca } | null>(null);
+  // Prazo de reconferência (20 dias, calculado no servidor): consulta de novo a cada minuto com a tela visível,
+  // ao voltar à aba e ao focar a janela, para o palete mudar de cor quando o prazo vence (sem recarregar a página).
+  useEffect(() => {
+    const atualizar = () => {
+      if (document.visibilityState === 'visible') recarregar();
+    };
+    const relogio = window.setInterval(atualizar, 60_000);
+    document.addEventListener('visibilitychange', atualizar);
+    window.addEventListener('focus', atualizar);
+    return () => {
+      window.clearInterval(relogio);
+      document.removeEventListener('visibilitychange', atualizar);
+      window.removeEventListener('focus', atualizar);
+    };
+  }, [recarregar]);
   if (carga?.estado === 'pronto' && carga.dados !== ultima?.fonte) {
     setUltima({ fonte: carga.dados, praca: estabilizar(ultima?.praca ?? null, carga.dados) });
   }
@@ -159,6 +191,11 @@ function AreaAutenticada({
     setVersaoDados((v) => v + 1);
   }, []);
   const pode = (p: Permissao) => sessao.permissions.includes(p);
+  // Redesign: menu lateral no computador; no celular a navegação continua no menu da conta.
+  const barraLateral = !compacto && sessao.activeScope !== null;
+  // Acesso do cliente (só o painel do cliente): a página inicial é o painel, não o mapa.
+  const soCliente = !pode('praca.consultar') && pode('painel.cliente');
+  const naPraca = (rota.tipo === 'praca' || rota.tipo === 'palete') && !soCliente;
   const voltarAoMapa = () => {
     navegar({ tipo: 'praca' });
   };
@@ -194,7 +231,8 @@ function AreaAutenticada({
     navegar({ tipo: 'praca' });
   };
   const importacaoConsulta = tiposImportacaoPermitidos(sessao.permissions, 'consultar').length > 0;
-  const importacaoExecucao = tiposImportacaoPermitidos(sessao.permissions, 'executar').length > 0;
+  // A bipagem começa pelo palete (não pela tela genérica de nova importação).
+  const importacaoExecucao = tiposImportacaoPermitidos(sessao.permissions, 'executar').some((t) => TIPOS_IMPORTACAO_GERAL.includes(t));
 
   let conteudo;
   if (sessao.activeScope === null) {
@@ -229,6 +267,14 @@ function AreaAutenticada({
       );
   } else if (rota.tipo === 'planilha') {
     conteudo = pode('praca.consultar') ? <TelaPlanilha aoVoltar={voltarAoMapa} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
+  } else if (rota.tipo === 'bipagem-escolher') {
+    conteudo = pode('palete.cadastrar') ? <TelaBipagem key="mapa" paleteId={null} sessao={sessao} aoNavegar={navegar} aoGravar={dadosAlterados} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
+  } else if (rota.tipo === 'bipagem') {
+    conteudo = pode('palete.cadastrar') ? (
+      <TelaBipagem key={rota.id} paleteId={rota.id} sessao={sessao} aoNavegar={navegar} aoGravar={dadosAlterados} />
+    ) : (
+      <SemPermissao aoVoltar={voltarAoMapa} />
+    );
   } else if (rota.tipo === 'retirar') {
     conteudo = pode('movimento.registrar') ? (
       <TelaRetirarVazio key={rota.id} id={rota.id} sessao={sessao} aoNavegar={navegar} aoGravar={dadosAlterados} />
@@ -239,13 +285,20 @@ function AreaAutenticada({
     conteudo = pode('acesso.administrar') ? <TelaAcesso sessao={sessao} aoVoltar={voltarAoMapa} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
   } else if (rota.tipo === 'novo-palete') {
     conteudo = pode('palete.cadastrar') ? (
-      <TelaNovoPalete sessao={sessao} aoNavegar={navegar} aoGravar={dadosAlterados} />
+      <TelaNovoPalete key={rota.posicao ?? ''} sessao={sessao} posicaoInicial={rota.posicao ?? null} aoNavegar={navegar} aoGravar={dadosAlterados} />
     ) : (
       <SemPermissao aoVoltar={voltarAoMapa} />
     );
-  } else if (rota.tipo === 'produtos') {
-    conteudo = pode('produto.consultar') ? (
-      <TelaProdutos podeEditar={pode('produto.cadastrar')} aoVoltar={voltarAoMapa} aoGravar={dadosAlterados} />
+  } else if (rota.tipo === 'novo-conteudo') {
+    // Cadastro de conteúdo (out. 2026): substitui o "Novo produto" e o catálogo de SKU (endereços antigos levam para cá).
+    conteudo = pode('palete.cadastrar') ? (
+      <TelaRegistrarConteudo key={rota.palete ?? ''} sessao={sessao} paleteInicial={rota.palete ?? null} aoNavegar={navegar} aoGravar={dadosAlterados} />
+    ) : (
+      <SemPermissao aoVoltar={voltarAoMapa} />
+    );
+  } else if (rota.tipo === 'volumes') {
+    conteudo = pode('palete.consultar') ? (
+      <TelaConferenciaVolumes key={rota.id} id={rota.id} permissoes={sessao.permissions} aoNavegar={navegar} aoGravar={dadosAlterados} />
     ) : (
       <SemPermissao aoVoltar={voltarAoMapa} />
     );
@@ -265,6 +318,8 @@ function AreaAutenticada({
     ) : (
       <SemPermissao aoVoltar={voltarAoMapa} />
     );
+  } else if (rota.tipo === 'validacao') {
+    conteudo = pode('validacao.consultar') ? <TelaValidacao podeResolver={pode('conteudo.corrigir')} aoNavegar={navegar} aoGravar={dadosAlterados} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
   } else if (rota.tipo === 'inventarios') {
     conteudo =
       pode('selecao.consultar') || pode('importacao.consultar') ? <TelaInventarios permissoes={sessao.permissions} aoNavegar={navegar} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
@@ -350,6 +405,33 @@ function AreaAutenticada({
     ) : (
       <SemPermissao aoVoltar={voltarAoMapa} />
     );
+  } else if (rota.tipo === 'painel') {
+    conteudo = pode('painel.operacao') ? <TelaPainelOperacao parametros={rota.parametros} permissoes={sessao.permissions} aoNavegar={navegar} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
+  } else if (rota.tipo === 'painel-estoque') {
+    conteudo = pode('painel.operacao') ? <TelaPainelEstoque parametros={rota.parametros} aoNavegar={navegar} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
+  } else if (rota.tipo === 'painel-janela') {
+    conteudo = pode('painel.operacao') ? (
+      <TelaVolumesJanela key={rota.id} id={rota.id} permissoes={sessao.permissions} aoNavegar={navegar} aoGravar={dadosAlterados} />
+    ) : (
+      <SemPermissao aoVoltar={voltarAoMapa} />
+    );
+  } else if (rota.tipo === 'painel-cliente' || (soCliente && (rota.tipo === 'praca' || rota.tipo === 'palete' || rota.tipo === 'desconhecida'))) {
+    conteudo = pode('painel.cliente') ? (
+      <TelaPainelCliente parametros={rota.tipo === 'painel-cliente' ? rota.parametros : ''} aoNavegar={navegar} />
+    ) : (
+      <SemPermissao aoVoltar={voltarAoMapa} />
+    );
+  } else if (rota.tipo === 'selecao-teste') {
+    conteudo = pode('selecao_teste.solicitar') ? (
+      <TelaSelecaoTeste solicitacaoId={rota.solicitacao} podeVerMapa={pode('praca.consultar')} aoNavegar={navegar} />
+    ) : (
+      <SemPermissao aoVoltar={voltarAoMapa} />
+    );
+  } else if (rota.tipo === 'selecao-teste-solicitacoes') {
+    conteudo = pode('selecao_teste.solicitar') || pode('selecao_teste.responder') ? <TelaSolicitacoesTeste aoNavegar={navegar} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
+  } else if (rota.tipo === 'selecao-teste-solicitacao') {
+    conteudo =
+      pode('selecao_teste.solicitar') || pode('selecao_teste.responder') ? <TelaSolicitacaoTeste key={rota.id} id={rota.id} aoNavegar={navegar} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
   } else if (rota.tipo === 'etiquetas') {
     conteudo = pode('etiqueta.imprimir') ? <TelaEtiquetas ids={rota.ids} aoVoltar={voltarAoMapa} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
   } else {
@@ -367,9 +449,29 @@ function AreaAutenticada({
 
   return (
     <ContextoAjudaReact value={contextoAjuda}>
+      {barraLateral && <NavegacaoPrincipal sessao={sessao} rota={rota} aoNavegar={navegar} />}
+      <div className="app-coluna">
       <Cabecalho
         sessao={sessao}
         rota={rota}
+        barraLateral={barraLateral}
+        secao={sessao.activeScope === null ? null : secaoDaRota(soCliente && (rota.tipo === 'praca' || rota.tipo === 'palete') ? { tipo: 'painel-cliente', parametros: '' } : rota)}
+        pesquisa={!compacto && naPraca}
+        acaoPrincipal={
+          naPraca && pode('palete.cadastrar') ? (
+            <button
+              type="button"
+              className="botao-primario topo-acao"
+              onClick={() => {
+                navegar({ tipo: 'novo-palete' });
+              }}
+              data-testid="acao-receber-palete"
+            >
+              <IconeCaixa />
+              Receber palete
+            </button>
+          ) : null
+        }
         aoNavegar={navegar}
         aoTrocarEscopo={acoes.trocarEscopo}
         aoSair={() => {
@@ -377,8 +479,7 @@ function AreaAutenticada({
           void acoes.sair();
         }}
       />
-      {sessao.activeScope?.demo && <AvisoDemo />}
-      {sessao.activeScope !== null && (rota.tipo === 'praca' || rota.tipo === 'palete') && <OfertaTutorial usuarioId={usuarioId} aoComecar={comecarTutorial} />}
+      {sessao.activeScope !== null && naPraca && <OfertaTutorial usuarioId={usuarioId} aoComecar={comecarTutorial} />}
       <AvisoConexao />
       <AvisosAplicativo autenticado />
       {retornoClaim !== null && (rota.tipo === 'palete' || rota.tipo === 'praca') && (
@@ -432,6 +533,7 @@ function AreaAutenticada({
       <FalhaDeCarregamento chave={caminhoDe(rota)}>
         <Suspense fallback={<EstadoTela carga={{ estado: 'carregando' }} titulo="" aoTentarNovamente={voltarAoMapa} />}>{conteudo}</Suspense>
       </FalhaDeCarregamento>
+      </div>
       {tutorial.ativo && tutorial.usuarioId === usuarioId && sessao.activeScope !== null && (
         <Suspense fallback={null}>
           <Tutorial

@@ -1,4 +1,12 @@
-import { API_PREFIXO, CorrigirLocalizacaoSchema, CorrigirTransferenciaSchema, MoverPaleteSchema, RetirarPaleteVazioSchema, TransferirSchema } from '@praca-reversa/contracts';
+import {
+  API_PREFIXO,
+  ConfirmarPosicaoLivreSchema,
+  CorrigirLocalizacaoSchema,
+  CorrigirTransferenciaSchema,
+  MoverPaleteSchema,
+  RetirarPaleteVazioSchema,
+  TransferirSchema,
+} from '@praca-reversa/contracts';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Transacao } from '../../db/cliente.js';
@@ -8,6 +16,7 @@ import { registrarEvento } from '../auditoria/registrar.js';
 import { executarIdempotente, type Resposta } from '../idempotencia/executar.js';
 import { chaveIdempotencia, responder, validar } from '../idempotencia/http.js';
 import { historicoPalete } from './historico.js';
+import { confirmarPosicaoLivre } from './posicao-livre.js';
 import { corrigirMovimento, corrigirTransferencia, moverPalete, retirarPaleteVazio, transferir, type Autor } from './servico.js';
 
 const IdSchema = z.object({ id: z.uuid() });
@@ -55,6 +64,18 @@ export function registrarRotasMovimentos(app: FastifyInstance, deps: Dependencia
     const resultado = await mutar(request, 'movimento.retirar_vazio', { id, corpo: request.body }, async (tx, autor) => ({
       status: 200,
       corpo: await retirarPaleteVazio(tx, escopo, id, dados, autor, deps.agora()),
+    }));
+    return responder(reply, resultado);
+  });
+
+  // Ajustes 08/10: posição com desocupação conferida no local vira "palete livre" (histórico na auditoria).
+  app.post(`${API_PREFIXO}/posicoes/:id/livre`, { preHandler: auth.exigirPermissao('movimento.registrar') }, async (request, reply) => {
+    const escopo = escopoAtivoDe(request);
+    const { id } = validar(IdSchema, request.params, 'Identificador de posição inválido.');
+    const dados = validar(ConfirmarPosicaoLivreSchema, request.body, 'Confirme que a posição foi conferida vazia no local.');
+    const resultado = await mutar(request, 'posicao.livre', { id, corpo: request.body }, async (tx, autor) => ({
+      status: 200,
+      corpo: await confirmarPosicaoLivre(tx, escopo, id, dados, autor, deps.agora()),
     }));
     return responder(reply, resultado);
   });

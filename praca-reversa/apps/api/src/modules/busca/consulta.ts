@@ -35,6 +35,7 @@ import {
 } from '@praca-reversa/contracts';
 import type { Banco } from '../../db/cliente.js';
 import { Prisma } from '../../generated/prisma/client.js';
+import { LINHA_ATUAL_DO_VINCULO } from '../importacao/linhas-vigentes.js';
 
 type Sql = Prisma.Sql;
 const { sql, join, empty, raw } = Prisma;
@@ -173,13 +174,15 @@ function uniao(escopoId: string, f: FiltroBusca): Sql | null {
     const id = t === null ? null : extrairIdPalete(t.texto);
     const chave = t === null ? '' : chaveDeCodigo(t.texto);
     const posicao = sql`regexp_replace(upper(coalesce(pos.codigo, '')), '[^A-Z0-9]', '', 'g')`;
+    // Identificador legado (PR-000001) continua achando o palete depois do número operacional.
+    const legado = sql`regexp_replace(upper(coalesce(p.codigo_legado, '')), '[^A-Z0-9]', '', 'g')`;
     let caso: Sql;
     if (t === null) caso = sql`'FILTRO'`;
     else if (id !== null) caso = sql`CASE WHEN p.id = ${id}::uuid THEN 'ID_PALETE' END`;
     else if (chave === '') caso = sql`NULL::text`;
-    else if (f.campo === 'TUDO') caso = sql`CASE WHEN p.codigo_busca = ${chave} THEN 'CODIGO_PALETE' WHEN ${posicao} = ${chave} THEN 'ENDERECO' END`;
+    else if (f.campo === 'TUDO') caso = sql`CASE WHEN p.codigo_busca = ${chave} OR ${legado} = ${chave} THEN 'CODIGO_PALETE' WHEN ${posicao} = ${chave} THEN 'ENDERECO' END`;
     else if (f.campo === 'PALETE') {
-      caso = sql`CASE WHEN p.codigo_busca = ${chave} THEN 'CODIGO_PALETE' WHEN p.codigo_busca LIKE ${`%${chave}%`} THEN 'CODIGO_PALETE_PARCIAL' END`;
+      caso = sql`CASE WHEN p.codigo_busca = ${chave} OR ${legado} = ${chave} THEN 'CODIGO_PALETE' WHEN p.codigo_busca LIKE ${`%${chave}%`} THEN 'CODIGO_PALETE_PARCIAL' END`;
     } else caso = sql`CASE WHEN ${posicao} = ${chave} THEN 'ENDERECO' WHEN ${posicao} LIKE ${`%${chave}%`} THEN 'ENDERECO_PARCIAL' END`;
     partes.push(sql`
       SELECT 'PALETE' AS base, 'p:' || p.id::text AS chave, ${caso} AS correspondencia, ${COLUNAS_PALETE},
@@ -291,22 +294,100 @@ function uniao(escopoId: string, f: FiltroBusca): Sql | null {
              NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text, NULL::uuid,
              jsonb_build_object(
                'id', v.id, 'tipo', v.tipo_documento, 'numero', v.numero_documento, 'delivery', v.delivery,
-               'volumes', v.volumes::text, 'unidade', v.unidade_volumes, 'documentacao', v.documentacao, 'palletFull', v.pallet_full,
-               'conferido', v.conferido_externamente, 'enderecoInformado', coalesce(li.endereco_canonico, li.endereco_lido),
-               'inventarioId', i.id, 'inventarioCodigo', i.codigo, 'referenciaConferencia', i.referencia_conferencia, 'linha', li.linha_arquivo)
+               'volumes', coalesce(kv.volumes_contados::text, v.volumes::text), 'unidade', v.unidade_volumes, 'documentacao', v.documentacao, 'palletFull', v.pallet_full,
+               'conferido', v.conferido_externamente, 'remetente', coalesce(la.remetente, li.remetente),
+               'enderecoInformado', coalesce(la.endereco_canonico, la.endereco_lido, li.endereco_canonico, li.endereco_lido),
+               'inventarioId', coalesce(la.inventario_id, i.id), 'inventarioCodigo', coalesce(la.inventario_codigo, i.codigo),
+               'referenciaConferencia', coalesce(la.referencia_conferencia, i.referencia_conferencia), 'linha', coalesce(la.linha_arquivo, li.linha_arquivo))
         FROM vinculo_documento_palete v
         JOIN palete p ON p.id = v.palete_id
         JOIN inventario_referencia i ON i.id = v.inventario_id
         JOIN linha_inventario li ON li.id = v.linha_inventario_id
+        ${LINHA_ATUAL_DO_VINCULO}
+        -- Quantidade atual: a contagem mais recente da ocorrência (recontagem prevalece sobre o inventário).
+        LEFT JOIN LATERAL (
+          SELECT k.volumes_contados FROM contagem_volumes k
+           WHERE k.escopo_id = v.escopo_id AND k.vinculo_id = v.id ORDER BY k.registrada_em DESC, k.id DESC LIMIT 1) kv ON true
         LEFT JOIN posicao pos ON pos.id = p.posicao_id
        WHERE v.escopo_id = ${escopoId}::uuid AND v.situacao = 'ATIVO' AND ${filtrosPalete(f)}`);
+  }
+
+  // Conteúdo registrado no palete (cadastro de conteúdo): remetente, nota e Delivery; nada presumido quando faltam.
+  if (incluiBase(f, 'CONTEUDO') && f.condicao === undefined) {
+    partes.push(sql`
+      SELECT 'CONTEUDO', 'c:' || c.id::text, ${correspondenciaConteudo(f.campo, t)}, ${COLUNAS_PALETE},
+             NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text,
+             NULL::text, NULL::text, NULL::text, ${SEM_SESSAO},
+             NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text, NULL::uuid,
+             jsonb_build_object(
+               'id', c.id, 'remetente', c.remetente, 'tipo', c.tipo_documento, 'numero', c.numero_documento, 'delivery', c.delivery,
+               'descricao', c.descricao, 'contados', cv.volumes_contados, 'previstos', cv.volumes_previstos)
+        FROM conteudo_palete c
+        JOIN palete p ON p.id = c.palete_id
+        LEFT JOIN posicao pos ON pos.id = p.posicao_id
+        LEFT JOIN LATERAL (
+          SELECT k.volumes_contados, k.volumes_previstos FROM contagem_volumes k
+           WHERE k.conteudo_id = c.id ORDER BY k.registrada_em DESC, k.id DESC LIMIT 1) cv ON true
+       WHERE c.escopo_id = ${escopoId}::uuid AND c.situacao = 'ATIVO' AND ${filtrosPalete(f)}`);
+  }
+
+  // Origem do inventário ativo sem alocação (sem RUA ou em conflito): sem palete; filtros de palete ou de condição a excluem.
+  if (incluiBase(f, 'ORIGEM_INVENTARIO') && !temFiltroPalete(f) && f.condicao === undefined) {
+    partes.push(sql`
+      SELECT 'ORIGEM_INVENTARIO', 'li:' || li.id::text, ${correspondenciaOrigem(f.campo, t)}, ${SEM_PALETE},
+             NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text,
+             NULL::text, NULL::text, NULL::text, ${SEM_SESSAO},
+             NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text, NULL::text, NULL::uuid,
+             jsonb_build_object(
+               'id', li.id, 'tipo', li.tipo_documento, 'numero', li.numero_documento, 'delivery', li.delivery, 'remetente', li.remetente,
+               'volumes', li.volumes::text, 'volumesLido', li.volumes_lido, 'enderecoInformado', coalesce(li.endereco_canonico, li.endereco_lido),
+               'numeroPalete', li.numero_palete, 'inventarioId', i.id, 'inventarioCodigo', i.codigo, 'linha', li.linha_arquivo,
+               -- Linha em revisão: a causa específica (REVISAO_*) em vez do aviso genérico.
+               'motivo', coalesce('Em revisão — ' || (SELECT m ->> 'message' FROM jsonb_array_elements(li.motivos) m WHERE m ->> 'code' LIKE 'REVISAO_%' LIMIT 1), li.motivos -> 0 ->> 'message'))
+        FROM linha_inventario li
+        JOIN inventario_referencia i ON i.id = li.inventario_id
+       WHERE li.escopo_id = ${escopoId}::uuid AND i.situacao = 'ATIVO' AND li.palete_id IS NULL AND li.acao = 'REQUER_RESOLUCAO'`);
   }
   return partes.length === 0 ? null : join(partes, ' UNION ALL ');
 }
 
+/** Origem sem alocação: número (NF), número/Delivery/remetente (documento), por igualdade ou início. */
+function correspondenciaOrigem(campo: FiltroBusca['campo'], t: Termo | null): Sql {
+  if (t === null) return sql`'FILTRO'`;
+  const quer = (alvo: FiltroBusca['campo']) => campo === 'TUDO' || campo === alvo;
+  const igual = (col: Sql) => sql`upper(${col}) = upper(${t.texto})`;
+  const comeca = (col: Sql) => sql`upper(${col}) LIKE upper(${t.prefixo})`;
+  const ramos: Sql[] = [];
+  if (quer('NF')) ramos.push(sql`WHEN ${igual(sql`li.numero_documento`)} THEN 'NF'`);
+  if (quer('DOCUMENTO')) ramos.push(sql`WHEN ${igual(sql`li.numero_documento`)} OR ${igual(sql`li.delivery`)} OR ${igual(sql`li.remetente`)} THEN 'DOCUMENTO'`);
+  if (t.parcial) {
+    if (quer('NF')) ramos.push(sql`WHEN ${comeca(sql`li.numero_documento`)} THEN 'NF_PREFIXO'`);
+    if (quer('DOCUMENTO')) ramos.push(sql`WHEN ${comeca(sql`li.numero_documento`)} OR ${comeca(sql`li.delivery`)} OR ${comeca(sql`li.remetente`)} THEN 'DOCUMENTO_PREFIXO'`);
+  }
+  if (ramos.length === 0) return sql`NULL::text`;
+  return sql`CASE ${join(ramos, ' ')} ELSE NULL END`;
+}
+
+/** Conteúdo registrado: número da nota (NF), nota/Delivery/remetente (documento), por igualdade ou início. */
+function correspondenciaConteudo(campo: FiltroBusca['campo'], t: Termo | null): Sql {
+  if (t === null) return sql`'FILTRO'`;
+  const quer = (alvo: FiltroBusca['campo']) => campo === 'TUDO' || campo === alvo;
+  const igual = (col: Sql) => sql`upper(${col}) = upper(${t.texto})`;
+  const comeca = (col: Sql) => sql`upper(${col}) LIKE upper(${t.prefixo})`;
+  const ramos: Sql[] = [];
+  if (quer('NF')) ramos.push(sql`WHEN ${igual(sql`c.numero_documento`)} THEN 'NF'`);
+  if (quer('DOCUMENTO')) ramos.push(sql`WHEN ${igual(sql`c.numero_documento`)} OR ${igual(sql`c.delivery`)} OR ${igual(sql`c.remetente`)} THEN 'DOCUMENTO'`);
+  if (t.parcial) {
+    if (quer('NF')) ramos.push(sql`WHEN ${comeca(sql`c.numero_documento`)} THEN 'NF_PREFIXO'`);
+    if (quer('DOCUMENTO')) ramos.push(sql`WHEN ${comeca(sql`c.numero_documento`)} OR ${comeca(sql`c.delivery`)} OR ${comeca(sql`c.remetente`)} THEN 'DOCUMENTO_PREFIXO'`);
+  }
+  if (ramos.length === 0) return sql`NULL::text`;
+  return sql`CASE ${join(ramos, ' ')} ELSE NULL END`;
+}
+
 /**
- * Correspondência do vínculo do inventário: número do documento (NF) e
- * DELIVERY, como texto, por igualdade ou início. Número isolado não resolve
+ * Correspondência do vínculo do inventário: número do documento (NF),
+ * DELIVERY e remetente da linha de origem, como texto, por igualdade ou início. Número isolado não resolve
  * o contexto documental: o tipo vem junto no resultado.
  */
 function correspondenciaInventario(campo: FiltroBusca['campo'], t: Termo | null): Sql {
@@ -316,10 +397,10 @@ function correspondenciaInventario(campo: FiltroBusca['campo'], t: Termo | null)
   const comeca = (col: Sql) => sql`upper(${col}) LIKE upper(${t.prefixo})`;
   const ramos: Sql[] = [];
   if (quer('NF')) ramos.push(sql`WHEN ${igual(sql`v.numero_documento`)} THEN 'NF'`);
-  if (quer('DOCUMENTO')) ramos.push(sql`WHEN ${igual(sql`v.numero_documento`)} OR ${igual(sql`v.delivery`)} THEN 'DOCUMENTO'`);
+  if (quer('DOCUMENTO')) ramos.push(sql`WHEN ${igual(sql`v.numero_documento`)} OR ${igual(sql`v.delivery`)} OR ${igual(sql`coalesce(la.remetente, li.remetente)`)} THEN 'DOCUMENTO'`);
   if (t.parcial) {
     if (quer('NF')) ramos.push(sql`WHEN ${comeca(sql`v.numero_documento`)} THEN 'NF_PREFIXO'`);
-    if (quer('DOCUMENTO')) ramos.push(sql`WHEN ${comeca(sql`v.numero_documento`)} OR ${comeca(sql`v.delivery`)} THEN 'DOCUMENTO_PREFIXO'`);
+    if (quer('DOCUMENTO')) ramos.push(sql`WHEN ${comeca(sql`v.numero_documento`)} OR ${comeca(sql`v.delivery`)} OR ${comeca(sql`coalesce(la.remetente, li.remetente)`)} THEN 'DOCUMENTO_PREFIXO'`);
   }
   if (ramos.length === 0) return sql`NULL::text`;
   return sql`CASE ${join(ramos, ' ')} ELSE NULL END`;
@@ -328,7 +409,7 @@ function correspondenciaInventario(campo: FiltroBusca['campo'], t: Termo | null)
 const ORDEM = sql`
   CASE WHEN r.correspondencia IN ('FILTRO', 'ID_PALETE', 'CODIGO_PALETE', 'ENDERECO', 'SKU', 'CODIGO_BARRAS', 'LOTE', 'DOCUMENTO', 'NF') THEN 0
        WHEN r.correspondencia = 'DESCRICAO_APROXIMADA' THEN 2 ELSE 1 END,
-  CASE r.base WHEN 'PALETE' THEN 0 WHEN 'SALDO_VALIDADO' THEN 1 WHEN 'OBSERVADO' THEN 2 WHEN 'DECLARADO_PALETE' THEN 3 WHEN 'INVENTARIO' THEN 4 ELSE 5 END,
+  CASE r.base WHEN 'PALETE' THEN 0 WHEN 'SALDO_VALIDADO' THEN 1 WHEN 'OBSERVADO' THEN 2 WHEN 'DECLARADO_PALETE' THEN 3 WHEN 'INVENTARIO' THEN 4 WHEN 'CONTEUDO' THEN 4 ELSE 5 END,
   r.sku NULLS LAST, r.palete_codigo NULLS LAST, r.origem_referencia NULLS LAST, r.documento_linha NULLS LAST, r.chave`;
 
 interface LinhaResultado {
@@ -370,8 +451,25 @@ interface LinhaResultado {
   unidade_declarada: string | null;
   fator: string | null;
   lote_importacao_id: string | null;
-  vinculo: VinculoLido | null;
+  /** INVENTARIO: vínculo; CONTEUDO: conteúdo registrado; ORIGEM_INVENTARIO: linha sem alocação (mesma coluna jsonb). */
+  vinculo: (VinculoLido & ConteudoLido & OrigemLida) | null;
   total: bigint;
+}
+
+/** Conteúdo registrado (jsonb_build_object da base CONTEUDO). */
+interface ConteudoLido {
+  remetente: string;
+  numero: string | null;
+  descricao: string | null;
+  contados: number | null;
+  previstos: number | null;
+}
+
+/** Linha de origem sem alocação (jsonb_build_object da base ORIGEM_INVENTARIO). */
+interface OrigemLida {
+  volumesLido: string | null;
+  numeroPalete: string | null;
+  motivo: string | null;
 }
 
 /** Vínculo do inventário (jsonb_build_object da base INVENTARIO). */
@@ -451,8 +549,39 @@ function resultado(l: LinhaResultado): ResultadoBusca {
             factor: normalizarQuantidade(l.fator),
             batchId: l.lote_importacao_id,
           },
+    contentLink:
+      l.base !== 'CONTEUDO' || l.vinculo === null
+        ? null
+        : {
+            id: l.vinculo.id,
+            sender: l.vinculo.remetente,
+            documentType: l.vinculo.tipo,
+            documentNumber: l.vinculo.numero,
+            delivery: l.vinculo.delivery,
+            description: l.vinculo.descricao,
+            counted: l.vinculo.contados === null ? null : String(l.vinculo.contados),
+            expected: l.vinculo.previstos === null ? null : String(l.vinculo.previstos),
+          },
+    inventoryOrigin:
+      l.base !== 'ORIGEM_INVENTARIO' || l.vinculo === null
+        ? null
+        : {
+            lineId: l.vinculo.id,
+            inventoryId: l.vinculo.inventarioId,
+            inventoryCode: l.vinculo.inventarioCodigo,
+            row: l.vinculo.linha,
+            documentType: l.vinculo.tipo,
+            documentNumber: l.vinculo.numero,
+            delivery: l.vinculo.delivery,
+            sender: l.vinculo.remetente,
+            volumes: q(l.vinculo.volumes),
+            volumesRead: l.vinculo.volumesLido,
+            informedAddress: l.vinculo.enderecoInformado,
+            palletNumber: l.vinculo.numeroPalete,
+            reason: l.vinculo.motivo,
+          },
     documentLink:
-      l.vinculo === null
+      l.base === 'CONTEUDO' || l.base === 'ORIGEM_INVENTARIO' || l.vinculo === null
         ? null
         : {
             id: l.vinculo.id,
@@ -503,7 +632,7 @@ async function resumir(db: Banco, cte: Sql): Promise<{ grupos: GrupoResumo[]; tr
            count(*) AS registros, count(DISTINCT r.palete_id) AS paletes,
            GROUPING(r.lote, r.origem_tipo, r.origem_referencia, r.condicao) = 0 AS detalhe
       FROM r
-     WHERE r.correspondencia IS NOT NULL AND r.base NOT IN ('PALETE', 'INVENTARIO')
+     WHERE r.correspondencia IS NOT NULL AND r.base NOT IN ('PALETE', 'INVENTARIO', 'CONTEUDO', 'ORIGEM_INVENTARIO')
      GROUP BY GROUPING SETS ((r.base, r.produto_id, r.sku, coalesce(r.descricao, r.descricao_pendente, 'Produto pendente'), r.unidade,
                               r.lote, r.origem_tipo, r.origem_referencia, r.condicao),
                              (r.base, r.produto_id, r.sku, coalesce(r.descricao, r.descricao_pendente, 'Produto pendente'), r.unidade))

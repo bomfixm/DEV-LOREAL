@@ -49,6 +49,8 @@ export interface Credenciais {
   tutorialCelular: Credencial;
   /** Consulta na praça informada que responde "Agora não" ao convite. */
   tutorialAdiar: Credencial;
+  /** Acesso de consulta do cliente (CLIENTE_CONSULTA) na praça informada (demonstração). */
+  clienteDemo: Credencial;
 }
 
 export function credenciais(): Credenciais {

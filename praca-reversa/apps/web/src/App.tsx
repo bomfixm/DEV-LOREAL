@@ -1,4 +1,4 @@
-import { API_PREFIXO, PracaSchema, TIPOS_IMPORTACAO_GERAL, tiposImportacaoPermitidos, type Permissao, type Praca, type Sessao } from '@praca-reversa/contracts';
+import { API_PREFIXO, PracaSchema, SituacaoDocumentosSchema, TIPOS_IMPORTACAO_GERAL, tiposImportacaoPermitidos, type Permissao, type Praca, type Sessao } from '@praca-reversa/contracts';
 import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useConexao } from './api/conexao';
 import { definirContexto } from './api/incertas';
@@ -46,6 +46,9 @@ const TelaExpedicao = lazy(() => import('./features/janelas/TelaExpedicao').then
 const TelaAjuda = lazy(() => import('./features/ajuda/TelaAjuda').then((m) => ({ default: m.TelaAjuda })));
 const Tutorial = lazy(() => import('./features/ajuda/Tutorial').then((m) => ({ default: m.Tutorial })));
 const TelaIndicadores = lazy(() => import('./features/indicadores/TelaIndicadores').then((m) => ({ default: m.TelaIndicadores })));
+const TelaDocumentoPublico = lazy(() => import('./features/documentos/TelaDocumentoPublico').then((m) => ({ default: m.TelaDocumentoPublico })));
+const TelaDocumentos = lazy(() => import('./features/documentos/TelaDocumentos').then((m) => ({ default: m.TelaDocumentos })));
+const AceiteTermos = lazy(() => import('./features/documentos/AceiteTermos').then((m) => ({ default: m.AceiteTermos })));
 const TelaPlanilha = lazy(() => import('./features/planilha/TelaPlanilha').then((m) => ({ default: m.TelaPlanilha })));
 const TelaRelatorios = lazy(() => import('./features/indicadores/TelaRelatorios').then((m) => ({ default: m.TelaRelatorios })));
 const TelaRetirarVazio = lazy(() => import('./features/movimentos/TelaRetirarVazio').then((m) => ({ default: m.TelaRetirarVazio })));
@@ -191,6 +194,9 @@ function AreaAutenticada({
     setVersaoDados((v) => v + 1);
   }, []);
   const pode = (p: Permissao) => sessao.permissions.includes(p);
+  // Termos de uso: só bloqueia quando a instalação exige o aceite e há versão publicada não aceita.
+  const { carga: documentos, recarregar: recarregarDocumentos } = useRecurso(`${API_PREFIXO}/documentos/situacao`, SituacaoDocumentosSchema);
+  const aceitePendente = documentos?.estado === 'pronto' && documentos.dados.pending ? documentos.dados : null;
   // Redesign: menu lateral no computador; no celular a navegação continua no menu da conta.
   const barraLateral = !compacto && sessao.activeScope !== null;
   // Acesso do cliente (só o painel do cliente): a página inicial é o painel, não o mapa.
@@ -235,7 +241,11 @@ function AreaAutenticada({
   const importacaoExecucao = tiposImportacaoPermitidos(sessao.permissions, 'executar').some((t) => TIPOS_IMPORTACAO_GERAL.includes(t));
 
   let conteudo;
-  if (sessao.activeScope === null) {
+  if (aceitePendente !== null && rota.tipo !== 'documento') {
+    conteudo = <AceiteTermos situacao={aceitePendente} aoAceitar={recarregarDocumentos} aoSair={() => void acoes.sair()} />;
+  } else if (rota.tipo === 'documento') {
+    conteudo = <TelaDocumentoPublico documento={rota.documento} aoVoltar={voltarAoMapa} rotuloVoltar="Voltar" />;
+  } else if (sessao.activeScope === null) {
     conteudo = (
       <main className="principal principal--estado">
         <div className="estado-vazio estado-tela" data-testid="sem-escopo">
@@ -265,6 +275,8 @@ function AreaAutenticada({
       ) : (
         <SemPermissao aoVoltar={voltarAoMapa} />
       );
+  } else if (rota.tipo === 'documentos') {
+    conteudo = pode('documentos.administrar') ? <TelaDocumentos aoVoltar={voltarAoMapa} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
   } else if (rota.tipo === 'planilha') {
     conteudo = pode('praca.consultar') ? <TelaPlanilha aoVoltar={voltarAoMapa} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
   } else if (rota.tipo === 'bipagem-escolher') {
@@ -558,7 +570,7 @@ function redirecionamento(estado: ReturnType<typeof useSessao>[0], rota: Rota): 
   // Depois do login, /entrar leva ao destino pedido, validado.
   if (estado.estado === 'autenticado' && rota.tipo === 'entrar') return destinoSeguro(rota.retorno);
   // Sem sessão, páginas privadas viram /entrar?retorno=<caminho>, sem expor dados.
-  if (estado.estado === 'anonimo' && rota.tipo !== 'entrar' && rota.tipo !== 'praca' && rota.tipo !== 'desconhecida' && rota.tipo !== 'aplicativo') {
+  if (estado.estado === 'anonimo' && rota.tipo !== 'entrar' && rota.tipo !== 'praca' && rota.tipo !== 'desconhecida' && rota.tipo !== 'aplicativo' && rota.tipo !== 'documento') {
     return caminhoDe({ tipo: 'entrar', retorno: caminhoDe(rota) });
   }
   return null;
@@ -616,7 +628,17 @@ export function App() {
       />
       <AvisoConexao />
       <AvisosAplicativo autenticado={false} />
-      {rota.tipo === 'aplicativo' && estado.estado !== 'verificando' ? (
+      {rota.tipo === 'documento' ? (
+        <Suspense fallback={<EstadoTela carga={{ estado: 'carregando' }} titulo="" aoTentarNovamente={acoes.verificar} />}>
+          <TelaDocumentoPublico
+            documento={rota.documento}
+            rotuloVoltar="Voltar para entrar"
+            aoVoltar={() => {
+              navegar({ tipo: 'entrar', retorno: null });
+            }}
+          />
+        </Suspense>
+      ) : rota.tipo === 'aplicativo' && estado.estado !== 'verificando' ? (
         <Suspense fallback={<EstadoTela carga={{ estado: 'carregando' }} titulo="" aoTentarNovamente={acoes.verificar} />}>
           <TelaAplicativo
             aoVoltar={() => {

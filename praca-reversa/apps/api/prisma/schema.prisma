@@ -505,8 +505,59 @@ model Usuario {
   geracoesPlanilha         GeracaoPlanilha[]         @relation("GeracaoPlanilhaSolicitadaPor")
   numeracoesPalete        NumeracaoPalete[]         @relation("NumeracaoPaleteAtualizadaPor")
   preferencia              PreferenciaUsuario?
+  documentosCriados        DocumentoPublico[]        @relation("DocumentoCriadoPor")
+  documentosAprovados      DocumentoPublico[]        @relation("DocumentoAprovadoPor")
+  documentosPublicados     DocumentoPublico[]        @relation("DocumentoPublicadoPor")
+  aceitesDocumento         AceiteDocumento[]
 
   @@map("usuario")
+}
+
+/// Termos de uso e aviso de privacidade (27 out. 2026): cada texto é uma
+/// versão imutável (hash SHA-256 do conteúdo, conferido no banco). MINUTA →
+/// APROVADO (referência da aprovação humana) → PUBLICADO (um por tipo) →
+/// SUBSTITUIDO. Gatilho impede mudar texto, voltar situação ou apagar.
+model DocumentoPublico {
+  id                   String    @id @default(uuid()) @db.Uuid
+  tipo                 String
+  versao               Int
+  titulo               String
+  conteudo             String
+  hash                 String
+  situacao             String
+  criadoPorId          String    @map("criado_por_id") @db.Uuid
+  criadoEm             DateTime  @default(now()) @map("criado_em") @db.Timestamptz(3)
+  aprovacaoReferencia  String?   @map("aprovacao_referencia")
+  aprovacaoResponsavel String?   @map("aprovacao_responsavel")
+  aprovadoPorId        String?   @map("aprovado_por_id") @db.Uuid
+  aprovadoEm           DateTime? @map("aprovado_em") @db.Timestamptz(3)
+  publicadoPorId       String?   @map("publicado_por_id") @db.Uuid
+  publicadoEm          DateTime? @map("publicado_em") @db.Timestamptz(3)
+  substituidoEm        DateTime? @map("substituido_em") @db.Timestamptz(3)
+
+  criadoPor    Usuario           @relation("DocumentoCriadoPor", fields: [criadoPorId], references: [id])
+  aprovadoPor  Usuario?          @relation("DocumentoAprovadoPor", fields: [aprovadoPorId], references: [id])
+  publicadoPor Usuario?          @relation("DocumentoPublicadoPor", fields: [publicadoPorId], references: [id])
+  aceites      AceiteDocumento[]
+
+  @@unique([tipo, versao])
+  @@map("documento_publico")
+}
+
+/// Aceite de uma versão exata dos termos de uso publicados: usuário e horário
+/// vêm do servidor; um por usuário e versão; não muda nem é apagado.
+model AceiteDocumento {
+  id          String   @id @default(uuid()) @db.Uuid
+  documentoId String   @map("documento_id") @db.Uuid
+  usuarioId   String   @map("usuario_id") @db.Uuid
+  hash        String
+  aceitoEm    DateTime @default(now()) @map("aceito_em") @db.Timestamptz(3)
+
+  documento DocumentoPublico @relation(fields: [documentoId], references: [id])
+  usuario   Usuario          @relation(fields: [usuarioId], references: [id])
+
+  @@unique([documentoId, usuarioId])
+  @@map("aceite_documento")
 }
 
 /// Preferência de uso por usuário (etapa 10): só a situação do tutorial e o

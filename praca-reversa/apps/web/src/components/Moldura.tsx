@@ -13,6 +13,7 @@ import { IconeAtualizar } from './Icones';
 import { SeletorTema } from './SeletorTema';
 import { AjudaTarefa } from '../features/ajuda/AjudaTarefa';
 import { useContextoAjuda } from '../features/ajuda/estado';
+import { LinksDocumentos } from './LinksDocumentos';
 import type { IdTarefa } from '../features/ajuda/tarefas';
 
 export function Marca() {
@@ -224,6 +225,12 @@ export function Cabecalho({ sessao, rota, barraLateral = false, secao = null, pe
             >
               Sair
             </button>
+            <LinksDocumentos
+              aoAbrir={(documento) => {
+                fecharMenu();
+                aoNavegar({ tipo: 'documento', documento });
+              }}
+            />
           </div>
         </details>
       )}

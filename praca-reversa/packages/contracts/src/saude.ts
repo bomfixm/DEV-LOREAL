@@ -87,6 +87,16 @@ export const CodigoErroSchema = z.enum([
   'DADOS_ALTERADOS',
   /** Seleção cliente — teste: solicitação enviada não é editada (só com pedido de alteração aprovado). */
   'SOLICITACAO_BLOQUEADA',
+  /** Termos/privacidade: ainda não há versão aprovada e publicada deste documento. */
+  'NAO_PUBLICADO',
+  /** Termos/privacidade: a instalação exige o aceite da versão publicada dos termos de uso antes de continuar. */
+  'ACEITE_PENDENTE',
+  /** Termos/privacidade: a versão não está na situação que a ação exige (minuta, aprovada, publicada). */
+  'SITUACAO_INVALIDA',
+  /** Termos/privacidade: o mesmo texto já existe como versão deste documento. */
+  'MINUTA_REPETIDA',
+  /** Termos/privacidade: tabelas ainda não instaladas (migração pendente na instalação). */
+  'NAO_INSTALADO',
   'BANCO_INDISPONIVEL',
   'ERRO_INTERNO',
 ]);

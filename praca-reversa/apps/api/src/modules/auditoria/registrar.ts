@@ -122,7 +122,11 @@ export type AcaoAuditoria =
   | 'SEPARACAO_VOLUMES_REGISTRADA'
   | 'EXPEDICAO_VOLUMES_CONFIRMADA'
   | 'VOLUMES_ESTORNADOS'
-  | 'PAINEL_CLIENTE_EXPORTADO';
+  | 'PAINEL_CLIENTE_EXPORTADO'
+  | 'DOCUMENTO_MINUTA_CRIADA'
+  | 'DOCUMENTO_APROVACAO_REGISTRADA'
+  | 'DOCUMENTO_PUBLICADO'
+  | 'DOCUMENTO_ACEITO';
 
 /** Detalhes só aceitam valores simples: evita registrar objetos com dados sensíveis por engano. */
 export type DetalhesAuditoria = Record<string, string | number | boolean | null>;

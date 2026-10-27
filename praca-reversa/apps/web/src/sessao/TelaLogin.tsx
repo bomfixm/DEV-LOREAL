@@ -1,4 +1,5 @@
 import { useState, type SubmitEvent } from 'react';
+import { LinksDocumentos } from '../components/LinksDocumentos';
 
 interface Props {
   aviso: string | null;
@@ -99,6 +100,7 @@ export function TelaLogin({ aviso, retorno, aoEntrar, aoAbrirAplicativo }: Props
         <button type="button" className="botao-link" onClick={aoAbrirAplicativo} data-testid="abrir-aplicativo">
           Instalar o aplicativo e ver este aparelho
         </button>
+        <LinksDocumentos />
       </form>
     </main>
   );

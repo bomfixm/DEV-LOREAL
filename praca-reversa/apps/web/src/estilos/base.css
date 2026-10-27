@@ -5992,3 +5992,18 @@ main[data-testid='tela-expedicao'] .pagina-conteudo {
   border-width: 2.5px;
   border-style: dotted;
 }
+
+/* Termos de uso e privacidade: links discretos no login e no menu da conta (27 out. 2026). */
+.links-documentos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+}
+
+.links-documentos a {
+  display: inline-block;
+  min-height: 24px;
+  padding: 2px 0;
+}

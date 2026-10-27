@@ -36,8 +36,47 @@ Atualizado em 27 de outubro de 2026.
 | Planilha automática e proteção dos dados (pedido de 23 out. 2026) | **Implementada e ativa no desenvolvimento local** (26 out. 2026): revisão por escopo, geração validada automática (≈12–15 s), backup diário automático e teste de restauração com dados reais aprovado; **destino independente não configurado** (falta o armazenamento autorizado e as credenciais) — ver seção abaixo |
 | Palete × posição, validação sem endereço e conferência em tabela (pedido de 21 out. 2026) | **Implementado no desenvolvimento local** (21 out. 2026): número operacional, fila de validação interna, mover/validar/cancelar em lote, conferência do palete inteiro numa tabela (130 → 126 grava 126), estado e cor atualizados; migração aplicada com backup; correção dos dados reais simulada e aplicada — ver seção abaixo |
 | Tema escuro + novo visual dos painéis | **Implementado no desenvolvimento local** (19 out. 2026): seletor Claro/Escuro (menu lateral e menu da conta), escuro DHL em todas as telas só na tela (impressão/etiquetas brancas); painéis com cartões grandes (apresentação substituída pela etapa 4, D259–D263), destaque amarelo, anel de ocupação, colunas por rua e anéis da janela — ver seção abaixo |
+| Termos, privacidade e segurança (pedido de 27 out. 2026) | **Implementado no código, testado em bancos isolados; migração não aplicada no banco em uso** (27 out. 2026): versões imutáveis dos termos e do aviso (minuta → referência da aprovação → publicação), páginas públicas /termos e /privacidade, aceite pronto e desligado, auditoria só acrescentada no banco, diagnóstico, mapa de dados, decisões humanas e seis minutas em docs/conformidade — ver seção abaixo |
 | Validação urgente: "Colocar no mapa" + atualização do aplicativo em uso (pedido de 26 out. 2026) | **Implementado e entregue na porta 3000** (26 out. 2026): barra presa ao rodapé ao marcar a primeira nota, janela "Colocar N notas no mapa" com a escolha de destino existente, conflito nomeia as notas e mantém o resto; versão nova entra sozinha na abertura quando nada está pendente — ver seção abaixo |
 | Dashboard de Indicadores (pedido de 22 out. 2026, `prompts/dashboard-indicadores/`) | **Integrado ao `main` e entregue na porta 3000 em 26 out. 2026** (merge `7529cff` do commit `5035ead`, branch `claude/great-ptolemy-qje7dw`). Implementado na sessão na nuvem (22 out. 2026), verificado com bancos de teste/E2E e escopo de demonstração (dados fictícios): rota `/indicadores` na largura toda ao lado do menu, cabeçalho compacto, quatro indicadores, módulos de posições/conferência/movimentação, estoque e atenção, abas com todos os números anteriores, "Sobre os números" e impressão completa; API e cálculos inalterados — ver seção abaixo. Telas não conferidas uma a uma com o banco real |
+
+## Termos, privacidade e segurança — o que existe de fato (27 out. 2026)
+
+Pedido `PROMPT-CLAUDE-PRACA-REVERSA-TERMOS-PRIVACIDADE-E-SEGURANCA.txt`. Decisões D317–D324. Documentos em `docs/conformidade/`:
+- `DIAGNOSTICO.md`, `MAPA-DE-DADOS.md`, `DECISOES-HUMANAS.md`;
+- `MATRIZ-DE-PERMISSOES.md` e `DEPENDENCIAS-E-LICENCAS.md` (gerados do código);
+- `PROCEDIMENTO-DE-INCIDENTES.md`, `IMPLANTACAO-E-PUBLICACAO.md`, `RELATORIO-DE-VERIFICACAO.md`;
+- `minutas/` (seis, todas marcadas "MINUTA PARA REVISÃO").
+
+**Implementado**
+- **API** (`modules/documentos`): versões imutáveis com hash SHA-256 conferido no banco. Minuta → referência da aprovação humana → publicação, com uma publicada por tipo e a anterior marcada como substituída. Permissão nova `documentos.administrar` (ADMINISTRADOR). Rota pública `GET /documentos-publicos/termos|privacidade`, que mostra só a versão publicada. Aceite da versão exata dos termos, idempotente e sem retroativo. Exigência `DOCUMENTOS_EXIGIR_ACEITE` **desligada por padrão**; ligada, a API responde `428 ACEITE_PENDENTE` fora da sessão e dos documentos.
+- **Banco** (migração aditiva `20261027100000_documentos_publicos`): tabelas `documento_publico` e `aceite_documento`, com gatilhos de imutabilidade. A auditoria (`evento_auditoria`) passa a ser só acrescentada.
+- **Interface**:
+  - links discretos "Termos de uso · Privacidade" no login e no menu da conta;
+  - páginas `/termos` e `/privacidade`, que abrem sem entrar e são renderizadas como texto puro;
+  - tela "Termos e privacidade" no menu lateral do administrador (minuta, prévia, referência da aprovação, publicação com confirmação);
+  - tela de aceite com caixa sem marcação prévia, que só aparece com a exigência ligada.
+
+**Não feito (depende de decisão humana ou fica como próxima tarefa)**
+- Textos finais aprovados, canal de privacidade, prazos de retenção, destino externo e acesso do cliente: ver `DECISOES-HUMANAS.md`.
+- Fila de solicitações de titulares e banner de cookies: não se aplicam sem canal e sem cookies não essenciais.
+- Atualização dirigida de zod e fastify (avisos do `npm audit`), com regressão completa.
+- **Migração no banco da instalação em uso**: não aplicada, aguardando autorização (decisão 11). Sem ela, o código servido na porta 3000 fica inerte: as páginas dizem "não publicado" e a tela do administrador avisa "não instalado".
+
+### Verificações (27 out. 2026, computador local, bancos de teste/E2E com dados fictícios)
+
+| Comando / verificação | Resultado |
+| --- | --- |
+| Typecheck (API e web) e `eslint` nos arquivos alterados | Aprovados |
+| `vitest --project unidade` | 39 arquivos, 293 testes aprovados |
+| `vitest --project banco`: `documentos` (novo, 8 testes) + `permissoes-e-praca`, `sessao`, `admin-idempotencia`, `paineis`, `correcao-conteudos` | 6 arquivos, 72 aprovados |
+| `vitest --project banco` depois do gatilho da auditoria: `documentos`, `recuperacao-backup`, `recuperacao-operacoes`, `planilha`, `admin-idempotencia` | 5 arquivos, 44 aprovados (inclui UPDATE/DELETE na auditoria recusados e backup/restauração com o gatilho novo) |
+| `npm run build` | Aprovado; porta 3000 reiniciada com o build novo (código inerte sem a migração) |
+| E2E `documentos.spec.ts` (novo) + `acesso`, `comum`, `pwa`, `paineis`, `caminho-base`, `palete-confirmar-enter`, `redesign` | 1ª rodada: 45 aprovados e 3 falhas, todas do teste novo. Causas: `/termos` sem login redirecionava para a tela de entrar, e a lista do administrador sumia ao recarregar, apagando o que foi digitado. Ambas corrigidas. |
+| E2E `documentos.spec.ts` + `acesso` + `validacao-urgente` depois das correções | 17 aprovados, 0 falhas (13 pulados por projeto computador/celular) |
+| `npm audit --omit=dev` | 7 avisos (zod alto; fastify baixo; fast-uri moderado; CLI do Prisma) — ver `DIAGNOSTICO.md` |
+
+**Limites**: nada foi testado no banco da instalação em uso. A acessibilidade foi conferida só nos fluxos tocados (teclado, rótulos, 320 px), sem auditoria WCAG completa. As minutas não são documentos aprovados.
 
 ## Validação urgente: "Colocar no mapa" e atualização do aplicativo em uso — o que existe de fato (26 out. 2026)
 

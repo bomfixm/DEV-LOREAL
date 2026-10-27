@@ -94,6 +94,8 @@ export const PermissaoSchema = z.enum([
   'conteudo.corrigir',
   /** Fila interna "Validação urgente — sem endereço" (nunca do cliente). */
   'validacao.consultar',
+  /** Termos de uso e aviso de privacidade: criar minuta, registrar a referência da aprovação humana e publicar (27 out. 2026). */
+  'documentos.administrar',
 ]);
 export type Permissao = z.infer<typeof PermissaoSchema>;
 
@@ -140,6 +142,7 @@ export const PERMISSOES_IMPLEMENTADAS: ReadonlySet<Permissao> = new Set([
   'selecao_teste.responder',
   'conteudo.corrigir',
   'validacao.consultar',
+  'documentos.administrar',
 ]);
 
 /**
@@ -244,6 +247,7 @@ export const PERMISSOES_POR_PERFIL: Readonly<Record<Perfil, readonly Permissao[]
     'painel.operacao',
     'conteudo.corrigir',
     'validacao.consultar',
+    'documentos.administrar',
   ],
   CLIENTE_CONSULTA: ['painel.cliente'],
 };

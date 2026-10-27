@@ -64,6 +64,8 @@ export const ITENS_MENU: readonly ItemMenu[] = [
   { rotulo: 'Planilha e proteção', rota: { tipo: 'planilha' }, permissoes: ['praca.consultar'], ativo: (r) => r.tipo === 'planilha' },
   { rotulo: 'Layout da praça', rota: { tipo: 'layout' }, permissoes: ['praca.consultar'], ativo: (r) => r.tipo === 'layout' },
   { rotulo: 'Administração de acesso', rota: { tipo: 'acesso' }, permissoes: ['acesso.administrar'], ativo: (r) => r.tipo === 'acesso' },
+  // Termos e privacidade: minutas, referência da aprovação humana e publicação (27 out. 2026).
+  { rotulo: 'Termos e privacidade', rota: { tipo: 'documentos' }, permissoes: ['documentos.administrar'], ativo: (r) => r.tipo === 'documentos' },
   // Sem dados da operação: disponível para todos (etapa 09).
   { rotulo: 'Aplicativo e aparelho', rota: { tipo: 'aplicativo' }, permissoes: [], ativo: (r) => r.tipo === 'aplicativo' },
   // Etapa 10: tutorial e guias por tarefa.

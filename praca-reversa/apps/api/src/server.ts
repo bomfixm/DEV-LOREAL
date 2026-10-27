@@ -21,6 +21,7 @@ const app = await criarApp({
   claims: config.claims,
   planilha: config.planilha,
   selecaoClienteTeste: config.selecaoClienteTeste,
+  documentosExigirAceite: config.documentosExigirAceite,
   aplicativo: { versao: config.versao, caminhoBase: config.caminhoBase, persistenciaLocal: config.persistenciaLocal },
   logger: {
     level: config.logLevel,

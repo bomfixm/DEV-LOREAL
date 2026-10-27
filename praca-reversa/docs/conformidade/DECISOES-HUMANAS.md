@@ -1,0 +1,22 @@
+# Decisões humanas pendentes
+
+Itens que o sistema não pode decidir. Cada um bloqueia **somente** a publicação, a ativação ou a regra que depende dele; o restante já está implementado. Responsável sugerido **por função**, sem nomes presumidos.
+
+| # | Decisão | Responsável sugerido | Efeito enquanto falta | Parte técnica pronta |
+| --- | --- | --- | --- | --- |
+| 1 | Entidade jurídica que oferece o sistema; razão social, CNPJ e contatos oficiais | Diretoria/jurídico da empresa responsável pela operação | Termos e aviso não podem ser aprovados nem publicados; minutas ficam com `[A DEFINIR]` | Minutas A e B; tela "Termos e privacidade" (minuta → referência da aprovação → publicação) |
+| 2 | Papéis no tratamento de dados (controlador/operador) por finalidade: contas e auditoria; dados documentais da L'Oréal; solicitações do cliente | Privacidade/jurídico das empresas envolvidas (avaliação conjunta, contrato existente) | Aviso de privacidade e acordo de dados incompletos. O empregado que atua pela empresa não é, por isso, controlador nem operador independente | Mapa de dados por finalidade (`MAPA-DE-DADOS.md`); minuta E |
+| 3 | Bases legais (LGPD art. 7) e prazos de retenção de: contas, auditoria, histórico operacional, documentos, anexos, arquivos importados, logs técnicos, planilhas e backups | Privacidade/jurídico + responsável da operação | Nenhum expurgo é ativado; o sistema guarda tudo (só planilhas e backups automáticos já têm a retenção pedida em 23/10) | Retenção atual documentada; campos necessários listados em `DIAGNOSTICO.md` (seção Retenção) |
+| 4 | Hospedagem definitiva, região, fornecedores e destino de backup aprovados; análise de transferência internacional se houver servidor fora do Brasil | TI corporativa + privacidade | Cópia externa continua "não configurada"; nenhum dado sai do servidor | Conectores S3 e pasta de rede prontos e testados com destino isolado; verificação e teste de restauração por comando |
+| 5 | Pessoas e grupos autorizados (DHL) e eventual acesso do cliente (L'Oréal) | Gestão da operação + segurança da informação | Contas seguem como estão; "Seleção cliente — teste" continua interna | Perfis, vínculos por escopo, concessões explícitas, revogação de sessão, matriz de permissões |
+| 6 | Aprovação do piloto: responsáveis, datas, critérios, custos e uso de dados reais | Gestão da operação DHL; contato da L'Oréal quando aplicável | O uso atual continua como desenvolvimento local; não declarar piloto aprovado | Minuta C; roteiro do piloto (`docs/ROTEIRO-DO-PILOTO.md`) |
+| 7 | Direitos de uso, evolução e comercialização do software; reconhecimento, função e remuneração | Pessoa que desenvolveu + empresa (RH/jurídico), com assessoria própria se desejar | Nenhuma cessão, licença ou percentual é registrado; o projeto não declara licença | Minuta D com o histórico factual do repositório |
+| 8 | Canal de privacidade (encarregado ou contato), suporte e procedimento corporativo de incidentes | Privacidade/segurança da informação | Página de privacidade não mostra contato; nenhum alerta externo é enviado | Procedimento curto (`PROCEDIMENTO-DE-INCIDENTES.md`); campo para o contato no texto do aviso |
+| 9 | Níveis de serviço e objetivos de recuperação (disponibilidade, RPO, RTO) | Gestão da operação + TI | Minuta F com metas `[A DEFINIR]`; nada é prometido | Backup diário, teste de restauração aprovado em 26/10 (tempo observado registrado), situação real na tela "Planilha e proteção" |
+| 10 | Ligar a exigência de aceite dos termos (`DOCUMENTOS_EXIGIR_ACEITE=ativada`) | Responsável pela decisão 1, depois da publicação | Ninguém é bloqueado; termos publicados ficam só para leitura | Aceite por versão exata, idempotente, sem retroativo, testado com dados fictícios |
+| 11 | Autorização para aplicar a migração `20261027100000_documentos_publicos` no banco da instalação em uso | Responsável pelo ambiente (porta 3000) | A tela de administração dos documentos responde "não instalado"; páginas públicas dizem "não publicado" | Migração aditiva testada nos bancos de teste e E2E; backup antes de migrar já é rotina (`npm run backup:rotina`) |
+
+## Como registrar uma decisão
+
+- Termos e aviso aprovados: em **Termos e privacidade**, criar a minuta com o texto aprovado, registrar a referência da aprovação (parecer, ata ou e-mail corporativo) e quem aprovou, e publicar. O registro documenta uma aprovação feita fora do sistema; não a substitui.
+- Demais decisões: registrar em `docs/DECISOES.md` (nova linha D…), com data e referência, e atualizar este quadro.

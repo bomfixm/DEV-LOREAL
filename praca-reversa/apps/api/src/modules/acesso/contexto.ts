@@ -15,6 +15,7 @@ import { ErroHttp, acessoNegado, naoAutenticado, sessaoExpirada } from '../../ht
 import { ehMutavel } from '../../http/seguranca.js';
 import { registrarEvento } from '../auditoria/registrar.js';
 import type { ConfigPlanilha } from '../protecao/configuracao.js';
+import { termosPendentes } from '../documentos/servico.js';
 import { escoposDoUsuario } from './escopos.js';
 import type { LimitadorTentativas } from './limitador.js';
 import type { ServicoSessoes, SessaoValida } from './sessoes.js';
@@ -60,6 +61,8 @@ export interface Dependencias {
   caminhoBase?: string;
   /** "Seleção cliente — teste" ligada na instalação (padrão: ligada; acesso só por concessão). */
   selecaoClienteTeste: boolean;
+  /** Termos de uso publicados precisam de aceite antes do uso (DOCUMENTOS_EXIGIR_ACEITE). */
+  documentosExigirAceite: boolean;
   /** Planilha automática e proteção (destino, tempos, retenção, backup). */
   planilha: ConfigPlanilha;
 }
@@ -139,6 +142,9 @@ export async function montarContexto(db: Banco, sessao: SessaoValida, token: str
  * Autentica a requisição: sessão válida, usuário ativo, vínculos atuais e, em
  * métodos mutáveis, token anti-CSRF.
  */
+/** Rotas que funcionam com o aceite dos termos pendente (sessão, sair, documentos). */
+const LIVRES_DO_ACEITE = /\/api\/v1\/(?:sessao|documentos)(?:\/|$)/;
+
 export function criarAutenticacao(deps: Dependencias) {
   async function autenticar(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     // Rotas que autenticam antes de ler o corpo (envio de arquivo) não repetem a verificação.
@@ -155,6 +161,14 @@ export function criarAutenticacao(deps: Dependencias) {
       const enviado = request.headers['x-csrf-token'];
       if (typeof enviado !== 'string' || !iguaisEmTempoConstante(enviado, tokenCsrf(token))) {
         throw new ErroHttp(403, 'CSRF_INVALIDO', 'Token de segurança ausente ou inválido. Recarregue a página.');
+      }
+    }
+    // Termos de uso publicados e exigidos pela instalação: só sessão, leitura e
+    // aceite dos documentos funcionam até o aceite da versão atual.
+    if (deps.documentosExigirAceite && !LIVRES_DO_ACEITE.test(request.routeOptions.url ?? request.url)) {
+      const pendente = await termosPendentes(deps.db, resultado.sessao.usuario.id);
+      if (pendente !== null) {
+        throw new ErroHttp(428, 'ACEITE_PENDENTE', `Antes de continuar, leia e aceite os termos de uso (versão ${String(pendente.versao)}).`);
       }
     }
   }

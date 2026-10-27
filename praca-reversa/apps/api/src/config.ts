@@ -51,6 +51,8 @@ const AmbienteSchema = z.object({
   PLANILHA_AUTOMATICA: z.enum(['ativada', 'desativada']).default('ativada'),
   /** "Seleção cliente — teste": desativada = rotas e permissões da funcionalidade somem (o restante segue igual). */
   SELECAO_CLIENTE_TESTE: z.enum(['ativada', 'desativada']).default('ativada'),
+  /** Exigir o aceite da versão publicada dos termos de uso antes de usar o aplicativo (padrão: desativada até a aprovação humana; docs/conformidade). */
+  DOCUMENTOS_EXIGIR_ACEITE: z.enum(['ativada', 'desativada']).default('desativada'),
   /** Destino independente: "s3://<bucket>/<prefixo>" (PROTECAO_S3_*) ou "pasta:<compartilhamento de rede de outra máquina>". */
   PLANILHA_DESTINO: z.preprocess((v) => (v === '' ? undefined : v), z.string().trim().min(1).optional()),
   PLANILHA_DESTINO_DESCRICAO: z.string().trim().min(3).max(200).optional(),
@@ -176,6 +178,8 @@ export interface Configuracao {
   planilha: ConfigPlanilha;
   /** "Seleção cliente — teste" ligada na instalação (acesso continua só por concessão explícita). */
   selecaoClienteTeste: boolean;
+  /** Aceite dos termos de uso exigido (só vale quando há versão publicada). */
+  documentosExigirAceite: boolean;
 }
 
 export interface ConfigClaims {
@@ -260,6 +264,7 @@ export function lerConfiguracao(env: NodeJS.ProcessEnv, argv: readonly string[])
     claims: { ordemPadrao: ambiente.CLAIMS_ORDEM_PADRAO, anexoMaxBytes: ambiente.CLAIMS_ANEXO_MAX_MB * 1_048_576 },
     planilha: lerConfigPlanilha(ambiente),
     selecaoClienteTeste: ambiente.SELECAO_CLIENTE_TESTE === 'ativada',
+    documentosExigirAceite: ambiente.DOCUMENTOS_EXIGIR_ACEITE === 'ativada',
   };
 }
 

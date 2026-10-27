@@ -34,6 +34,7 @@ import { registrarRotasSaude } from './modules/saude/rotas.js';
 import { registrarRotasSelecao } from './modules/selecao/rotas.js';
 import { registrarRotasPlanilha } from './modules/planilha/rotas.js';
 import { registrarRotasSelecaoTeste } from './modules/selecao-teste/rotas.js';
+import { registrarRotasDocumentos, registrarRotasDocumentosPublicos } from './modules/documentos/rotas.js';
 import { PLANILHA_PADRAO, type ConfigPlanilha } from './modules/protecao/configuracao.js';
 
 export interface OpcoesApp {
@@ -58,6 +59,8 @@ export interface OpcoesApp {
   planilha?: ConfigPlanilha;
   /** "Seleção cliente — teste" (padrão: ligada; o acesso continua só por concessão explícita). */
   selecaoClienteTeste?: boolean;
+  /** Aceite dos termos de uso publicados exigido antes do uso (padrão: desligado). */
+  documentosExigirAceite?: boolean;
 }
 
 const QUINZE_MINUTOS = 15 * 60_000;
@@ -91,6 +94,7 @@ export async function criarApp(opcoes: OpcoesApp): Promise<FastifyInstance> {
     claims: { ordemPadrao: 'PRIORIDADE', anexoMaxBytes: 5 * 1_048_576, ...opcoes.claims },
     caminhoBase: opcoes.aplicativo?.caminhoBase ?? '/',
     selecaoClienteTeste: opcoes.selecaoClienteTeste ?? true,
+    documentosExigirAceite: opcoes.documentosExigirAceite ?? false,
     planilha: opcoes.planilha ?? PLANILHA_PADRAO,
   };
   void hashParaContaInexistente();
@@ -175,6 +179,7 @@ export async function criarApp(opcoes: OpcoesApp): Promise<FastifyInstance> {
       registrarRotasSaude(raiz, opcoes.db);
       registrarRotasVersao(raiz, deps, aplicativo);
       registrarRotasLogin(raiz, deps);
+      registrarRotasDocumentosPublicos(raiz, deps);
       await raiz.register((privado, _opcoes, pronto) => {
         privado.addHook('preHandler', auth.autenticar);
         registrarRotasSessao(privado, deps);
@@ -197,6 +202,7 @@ export async function criarApp(opcoes: OpcoesApp): Promise<FastifyInstance> {
         registrarRotasIndicadores(privado, deps, auth);
         registrarRotasPaineis(privado, deps, auth);
         registrarRotasPlanilha(privado, deps, auth, deps.planilha);
+        registrarRotasDocumentos(privado, deps, auth);
         // Desligada na instalação (SELECAO_CLIENTE_TESTE=desativada): as rotas não existem.
         if (deps.selecaoClienteTeste) registrarRotasSelecaoTeste(privado, deps, auth);
         pronto();

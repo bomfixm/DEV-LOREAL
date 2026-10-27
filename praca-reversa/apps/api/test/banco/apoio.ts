@@ -32,6 +32,8 @@ export function bancoDeTeste(): Banco {
 }
 
 const TABELAS = [
+  'aceite_documento',
+  'documento_publico',
   'item_conferencia_volumes',
   'conferencia_volumes',
   'historico_conteudo',

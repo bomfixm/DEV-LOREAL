@@ -64,6 +64,10 @@ export type Rota =
   | { tipo: 'indicadores'; inicio: string | null; fim: string | null; aba?: AbaIndicadores }
   | { tipo: 'relatorios'; parametros: string }
   | { tipo: 'planilha' }
+  /** Termos de uso e aviso de privacidade publicados (abrem também sem entrar). */
+  | { tipo: 'documento'; documento: 'termos' | 'privacidade' }
+  /** Administração das versões (minuta, aprovação, publicação). */
+  | { tipo: 'documentos' }
   | { tipo: 'selecoes' }
   | { tipo: 'selecao'; id: string; situacao: string | null }
   | { tipo: 'inventarios' }
@@ -238,6 +242,8 @@ export function lerRota(caminho: string, busca: string): Rota {
   }
   if (partes.length === 1 && primeira === 'relatorios') return { tipo: 'relatorios', parametros: parametrosRelatorio(parametros) };
   if (partes.length === 1 && primeira === 'planilha') return { tipo: 'planilha' };
+  if (partes.length === 1 && (primeira === 'termos' || primeira === 'privacidade')) return { tipo: 'documento', documento: primeira };
+  if (partes.length === 1 && primeira === 'documentos') return { tipo: 'documentos' };
   if (partes.length === 1 && primeira === 'painel') return { tipo: 'painel', parametros: parametrosPainel(parametros) };
   if (primeira === 'painel' && partes.length === 2 && segunda === 'estoque') return { tipo: 'painel-estoque', parametros: parametrosPainel(parametros) };
   if (primeira === 'painel' && partes.length === 2 && segunda === 'cliente') return { tipo: 'painel-cliente', parametros: parametrosPainel(parametros) };
@@ -346,6 +352,10 @@ export function caminhoDe(rota: Rota): string {
     }
     case 'planilha':
       return '/planilha';
+    case 'documento':
+      return `/${rota.documento}`;
+    case 'documentos':
+      return '/documentos';
     case 'painel':
     case 'painel-estoque':
     case 'painel-cliente': {

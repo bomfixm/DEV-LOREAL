@@ -35,3 +35,4 @@ export * from './paineis.js';
 export * from './selecao-teste.js';
 export * from './conferencia-volumes.js';
 export * from './correcoes.js';
+export * from './documentos.js';

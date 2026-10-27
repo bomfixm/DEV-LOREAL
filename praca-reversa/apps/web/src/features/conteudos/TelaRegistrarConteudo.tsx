@@ -9,7 +9,7 @@ import {
   type Sessao,
   type TipoDocumentoConteudo,
 } from '@praca-reversa/contracts';
-import { useId, useMemo, useState, type SubmitEvent } from 'react';
+import { useId, useMemo, useRef, useState, type SubmitEvent } from 'react';
 import { useChaves } from '../../api/chaves';
 import { enviarJson, mensagemDeFalha } from '../../api/cliente';
 import { useRecurso } from '../../api/use-recurso';
@@ -32,6 +32,15 @@ interface Form {
 const VAZIO: Form = { remetente: '', tipo: '', numero: '', delivery: '', descricao: '' };
 
 /**
+ * Escolha na lista de sugestões (datalist): o Chrome preenche o código inteiro
+ * com um "input" que não é InputEvent; Firefox e Safari usam
+ * "insertReplacementText". Digitar, colar e apagar nunca passam por aqui.
+ */
+function escolhaDaLista(evento: Event): boolean {
+  return !(evento instanceof InputEvent) || evento.inputType === 'insertReplacementText';
+}
+
+/**
  * Registrar conteúdo (out. 2026): o conteúdo recebido que fica no palete,
  * identificado pelo remetente e, quando houver, pela nota (NF, NFD ou MI) e
  * pelo Delivery. Nada de SKU, unidade, código de barras ou volumes aqui: a
@@ -45,6 +54,8 @@ export function TelaRegistrarConteudo({ sessao, paleteInicial, aoNavegar, aoGrav
   const praca = useRecurso(URL_PRACA, PracaSchema);
   const [paleteId, setPaleteId] = useState<string | null>(paleteInicial);
   const [paleteTexto, setPaleteTexto] = useState('');
+  const [paleteAviso, setPaleteAviso] = useState<{ tipo: 'carregando' | 'invalido'; texto: string } | null>(null);
+  const focarEntrada = useRef(false);
   const [form, setForm] = useState<Form>(VAZIO);
   const [enviando, setEnviando] = useState(false);
   const [mensagem, setMensagem] = useState<{ tipo: 'ok' | 'erro' | 'conflito'; texto: string } | null>(null);
@@ -52,8 +63,37 @@ export function TelaRegistrarConteudo({ sessao, paleteInicial, aoNavegar, aoGrav
 
   const dados = praca.carga?.estado === 'pronto' ? praca.carga.dados : null;
   const paletes = useMemo(() => dados?.pallets ?? [], [dados]);
-  const porCodigo = useMemo(() => new Map(paletes.map((p) => [normalizar(p.code), p])), [paletes]);
+  const porCodigo = useMemo(() => {
+    const mapa = new Map<string, typeof paletes>();
+    for (const p of paletes) mapa.set(normalizar(p.code), [...(mapa.get(normalizar(p.code)) ?? []), p]);
+    return mapa;
+  }, [paletes]);
   const palete = paleteId === null ? null : (paletes.find((p) => p.id === paleteId) ?? null);
+  // O aviso de carregamento some quando a lista chega; escolher continua exigindo um novo Enter.
+  const avisoPalete = paleteAviso?.tipo === 'carregando' && dados !== null ? null : paleteAviso;
+
+  /**
+   * Confirma o palete pelo número completo escrito agora (Enter no campo ou
+   * escolha na lista): só a correspondência exata e única. Nunca por prefixo,
+   * primeira sugestão, tempo ou digitação parcial; sem ela, avisa e o campo
+   * continua para correção.
+   */
+  function confirmarPalete(texto: string, origem: 'enter' | 'lista') {
+    const numero = texto.trim();
+    const achados = numero === '' ? [] : (porCodigo.get(normalizar(numero)) ?? []);
+    const exato = achados.length === 1 ? achados[0] : achados.find((p) => p.code === numero.toUpperCase());
+    if (exato) {
+      setPaleteAviso(null);
+      setPaleteId(exato.id);
+      return;
+    }
+    if (origem === 'lista') return;
+    if (numero === '') setPaleteAviso({ tipo: 'invalido', texto: 'Digite o número do palete e aperte Enter.' });
+    else if (praca.carga?.estado === 'erro') setPaleteAviso({ tipo: 'invalido', texto: `Não foi possível carregar os paletes: ${praca.carga.mensagem}` });
+    else if (dados === null) setPaleteAviso({ tipo: 'carregando', texto: 'Carregando os paletes… aperte Enter de novo em instantes.' });
+    else if (achados.length > 1) setPaleteAviso({ tipo: 'invalido', texto: `Mais de um palete corresponde a ${numero}: escolha o código exato na lista.` });
+    else setPaleteAviso({ tipo: 'invalido', texto: `Nenhum palete com o número ${numero} neste escopo. Confira o número.` });
+  }
   const enderecoDe = (posicaoId: string | null) => {
     const pos = posicaoId === null ? undefined : dados?.layout?.positions.find((p) => p.id === posicaoId);
     return pos?.address?.state === 'CONFIRMADO' ? `${pos.address.text} · posição ${pos.code}` : pos ? `Posição ${pos.code}` : 'Sem endereço registrado';
@@ -191,8 +231,10 @@ export function TelaRegistrarConteudo({ sessao, paleteInicial, aoNavegar, aoGrav
                 type="button"
                 className="botao-link"
                 onClick={() => {
+                  focarEntrada.current = true;
                   setPaleteId(null);
                   setPaleteTexto('');
+                  setPaleteAviso(null);
                 }}
               >
                 Trocar palete
@@ -207,16 +249,33 @@ export function TelaRegistrarConteudo({ sessao, paleteInicial, aoNavegar, aoGrav
           <label className="campo">
             <span className="campo-rotulo">Número do palete</span>
             <input
+              ref={(campo) => {
+                // "Trocar palete": o campo volta com o foco para digitar o novo número.
+                if (campo && focarEntrada.current) {
+                  focarEntrada.current = false;
+                  campo.focus();
+                }
+              }}
               value={paleteTexto}
               list={`${ids}-paletes`}
               autoComplete="off"
               autoCapitalize="characters"
               spellCheck={false}
+              enterKeyHint="go"
               placeholder="Ex.: PR-000248"
+              aria-invalid={avisoPalete?.tipo === 'invalido' || undefined}
+              aria-describedby={avisoPalete ? `${ids}-palete-aviso` : undefined}
               onChange={(e) => {
+                // Digitar só muda o texto; o palete é escolhido por Enter ou pela lista.
                 setPaleteTexto(e.target.value);
-                const achado = porCodigo.get(normalizar(e.target.value));
-                if (achado) setPaleteId(achado.id);
+                setPaleteAviso(null);
+                if (escolhaDaLista(e.nativeEvent)) confirmarPalete(e.target.value, 'lista');
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+                // Este Enter é só do campo do palete: não submete nada e não se repete ao segurar a tecla.
+                e.preventDefault();
+                if (!e.repeat) confirmarPalete(e.currentTarget.value, 'enter');
               }}
               data-testid="conteudo-palete-entrada"
             />
@@ -225,6 +284,13 @@ export function TelaRegistrarConteudo({ sessao, paleteInicial, aoNavegar, aoGrav
                 <option key={p.id} value={p.code} />
               ))}
             </datalist>
+            {avisoPalete ? (
+              <span id={`${ids}-palete-aviso`} className="campo-erro" role="alert" data-testid="conteudo-palete-aviso">
+                {avisoPalete.texto}
+              </span>
+            ) : (
+              <span className="campo-ajuda">Digite o número completo e aperte Enter, ou escolha na lista.</span>
+            )}
             <span className="campo-ajuda">
               Palete ainda não cadastrado?{' '}
               <button

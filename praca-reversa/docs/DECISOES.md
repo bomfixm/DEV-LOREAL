@@ -611,6 +611,16 @@ Pedido `PROMPT-CLAUDE-VALIDACAO-URGENTE-E-ATUALIZACAO-GITHUB.txt` (26/10).
 | D312 | **Versão nova entra sozinha na abertura** (altera em parte D151): versão encontrada nos primeiros 20 s depois de abrir o aplicativo, sem nada pendente nesta aba (confirmações, operações em confirmação, proteções) e sem outra aba aberta, é ativada e a página recarrega uma vez; caso contrário continua o aviso "Atualizar" de D151. Nenhum dado local é apagado. | Item 4: "o aplicativo normal apresenta a alteração depois de reabrir/recarregar". |
 | D313 | **Trabalho da nuvem integrado pelo Git**: o dashboard de 22/10 estava só no branch `claude/great-ptolemy-qje7dw` (commit `5035ead`), nunca integrado ao `main` nem puxado neste computador — causa de não aparecer na versão em uso. Integrado por merge (`7529cff`) depois de registrar o trabalho local (`ab6799e`); decisões da planilha renumeradas D304–D310. Entrega na versão em uso = `npm run build` (a tarefa do Windows reinicia a porta 3000 com o build novo). | Item 1 do pedido. |
 
+## Palete confirmado só com Enter — 27 out. 2026
+
+Pedido `PROMPT-CLAUDE-PALETE-CONFIRMAR-SOMENTE-COM-ENTER.txt` (27/10). Só interface (`TelaRegistrarConteudo.tsx`); API, dados e regras do conteúdo inalterados.
+
+| ID | Decisão | Motivo |
+| --- | --- | --- |
+| D314 | **Causa**: em "Registrar conteúdo" (etapa "Palete e destino" e "Trocar palete"), o `onChange` do campo do palete escolhia o palete a cada tecla quando o texto normalizado coincidia com algum código. Digitando 100, o "10" já batia com o palete 10 e a etapa Conteúdo abria; com um palete 1 cadastrado, bastava o "1". Não havia temporizador, busca assíncrona nem leitor global envolvido; o tempo de digitação não importava, só o prefixo existir como palete. | Reproduzido no E2E antes da correção (`e2e/palete-confirmar-enter.spec.ts`). |
+| D315 | **Texto digitado separado do palete escolhido; confirmação só explícita**: digitar, colar, apagar, Tab ou sair do campo só mudam o texto. Confirmam: **Enter no campo**, com o valor completo do próprio campo naquele momento e correspondência exata e única do código (normalizado como antes; nunca prefixo nem primeira sugestão), ou **escolha na lista de sugestões** (datalist: `input` sem InputEvent no Chrome, `insertReplacementText` no Firefox/Safari). Vazio, inexistente ou ambíguo: aviso no campo, que continua para correção. Lista dos paletes ainda carregando: aviso "Carregando…", e a chegada da lista não escolhe nada sem novo Enter. | Itens 1–6 do pedido. |
+| D316 | **Enter restrito ao campo do palete**: `preventDefault` só no keydown desse campo (fora do formulário do conteúdo), ignorado durante composição de texto (`isComposing`) e na repetição da tecla segurada. Não dispara "Salvar conteúdo", não confirma duas vezes e não bloqueia Enter no resto do aplicativo (Enter no remetente continua salvando). `enterKeyHint="go"` para o teclado do celular enviar Enter. Leitor-teclado que termina com Enter continua confirmando; sem Enter, espera a confirmação. "Trocar palete" devolve o foco ao campo. | "Correção" do pedido. |
+
 ## Registrar mudança
 
 Data; decisão alterada; nova decisão; motivo; origem da alteração; arquivos/módulos afetados; verificações; impacto no piloto. Quando uma decisão substituir outra, indicar explicitamente qual foi substituída. Evitar repetir a conversa inteira.

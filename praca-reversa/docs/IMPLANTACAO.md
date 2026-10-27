@@ -50,52 +50,53 @@ npm run backup:restaurar -- --backup=<pasta do backup> --destino=praca_reversa_r
 
 | Item | Situação |
 | --- | --- |
-| Frequência e janela do backup | **Pendente** (operação/infraestrutura). Nenhum agendamento foi ativado. |
+| Frequência e janela do backup | Diário automático pelo trabalhador da API e antes de cada substituição do inventário (26 out. 2026); janela de horário e destino externo **pendentes** (operação/infraestrutura). |
 | Retenção e destino (cópia fora do servidor, criptografia em repouso) | **Pendente**. |
 | Responsável pelo backup e pela restauração | **Pendente** (a definir com a operação). |
 | Meta de perda de dados (RPO) e de tempo de recuperação (RTO) | **Pendentes**; o ensaio só mede o tempo observado com volume de teste. |
 | Ferramentas cliente do PostgreSQL 17 no servidor (método `pg_dump`) | **Pendente**; método `pg_dump` implementado, não ensaiado neste computador. |
 | Ensaio de restauração no ambiente do piloto (volume real, aparelhos na rede HTTPS) | **Pendente**. |
 
-## Planilha única e proteção dos dados (6 out. 2026)
+## Planilha automática e proteção dos dados (26 out. 2026; substitui a versão de 6 out.)
 
-**Planilha** `Praca-Reversa-<unidade>-<cliente>.xlsx` (abas Inventário, Movimentações, Proteção e ajuda), por escopo, nunca misturando clientes. O PostgreSQL continua sendo a fonte oficial; a planilha é cópia para consulta (sem edição de volta).
+O aplicativo (PostgreSQL) é a fonte oficial; a planilha é **cópia de consulta**, atualizada só no sentido aplicativo → planilha. Editar o Excel não altera nada; importar dados é outro fluxo, com permissão e validação.
 
-- **Fila durável**: gatilhos por instrução gravam `alteracao_planilha` na mesma transação de cada alteração exportada (palete, vínculos, inventário, cidade/produto, endereços, conferência, localização, estoque e auditoria operacional). Transação desfeita = nenhuma marca; publicação com falha não desfaz o cadastro.
-- **Publicação** (`apps/api/src/modules/planilha`): agendador no processo da API (`npm start`) agrupa alterações próximas (`PLANILHA_AGRUPAR_S`), reconcilia periodicamente (`PLANILHA_RECONCILIAR_MIN`) e publica um escopo por vez com concessão no banco (`PLANILHA_CONCESSAO_MIN`; reinício retoma). Snapshot `REPEATABLE READ READ ONLY` → arquivo temporário → validação (o leitor de XLSX do projeto relê cabeçalhos, NFD/palete/Delivery linha a linha e IDs dos eventos) → publicação. Falha de leitura, tempo esgotado, arquivo defeituoso ou destino indisponível: nada é substituído, a falha fica registrada e a nova tentativa espera (30 s, dobrando até 30 min). Versão crescente por escopo; o destino recusa versão igual ou mais antiga (trabalho atrasado não sobrescreve).
-- **Destino independente** `PLANILHA_DESTINO=pasta:<caminho absoluto>`: pasta de uma biblioteca do **SharePoint/OneDrive sincronizada** no servidor pelo cliente OneDrive, ou compartilhamento de rede de outra máquina, com permissão só para quem pode ver o arquivo completo do escopo. Arquivo atual com nome estável + `versoes/<nome>-v000123-<instante>.xlsx` + `<nome>.versao.json`; retenção `PLANILHA_VERSOES_MANTER` (as mais novas; nunca todas). A API Microsoft Graph **não** foi implementada nesta etapa (exige registro de aplicativo e permissões; consultar a documentação oficial antes). Sem destino: só **geração local** em `PLANILHA_PASTA_LOCAL` (padrão `.dados/planilha/<escopo>/`), mostrada como "Não configurado" — não protege contra perda do servidor. Escopos de demonstração nunca vão para o destino.
-- **Tela** "Planilha e proteção" (menu da conta): estados `Atualizada`, `Atualização pendente`, `Falhou`, `Não configurado`, `Não testado`; atraso das alterações; versões recentes; **Tentar novamente agora** (`planilha.publicar`: supervisor e administrador); **Baixar a última planilha gerada** (`relatorio.exportar`, auditado).
-- **Exemplo fictício**: `npm run planilha:exemplo` → `examples/planilha/Praca-Reversa-EXEMPLO-FICTICIO.xlsx`.
+**Arquivo** (um por escopo, nunca misturando clientes): abas **Inventário** (as 13 primeiras colunas na ordem da planilha da operação — N° PALLET, DELIVERY, TIPO, NUMERO, VOLUMES, REMETENTE, MÊS AGENDA, JANELA, RUA, DOCUMENTAÇÃO, PALLET FULL, PF/CNPJ, INVENTÁRIO — e depois SITUAÇÃO, PENDÊNCIA, ORIGEM DOS VOLUMES, CONFERÊNCIA, FILEIRA, TIPO DO PALETE, PRODUTO NA CAIXA, ORIGEM DO REGISTRO, ID DO REGISTRO), **Movimentações** (auditoria operacional + histórico das ocorrências, contagens, troca de número do palete e volumes das janelas, com antes/depois; sem limite silencioso — acima de `PLANILHA_MOVIMENTOS_POR_ARQUIVO` as mais antigas vão para arquivos de apoio da mesma revisão) e **Proteção e ajuda** (escopo, revisão, lote ativo, instante da captura e da geração, fuso, última publicação comprovada, backup, teste de restauração, como recuperar; sem senha, token ou caminho do servidor).
 
-**Backup completo automático** (reaproveita `criar-backup.mjs`):
+- **Inventário = base ativa**: uma linha por registro — ocorrência ativa no palete (quantidade atual dos painéis: contagem mais recente ou informado, menos saídas), conteúdo sem documento, palete sem conteúdo registrado, ocorrência **em validação** (sem endereço, com motivo) e linha do **lote ativo pendente** (em revisão, repetida no arquivo ou sem registro ativo) sem endereço nem quantidade inventados. Linha do lote que sustenta uma ocorrência sai uma vez (na ocorrência, com a origem). VOLUMES: número só para quantidade conhecida do estoque; "Não informado" e pendências em texto, fora de qualquer soma. Saída total sai do Inventário (fica em Movimentações).
+- **Fila durável**: gatilhos por instrução gravam `alteracao_planilha` na mesma transação de cada alteração (palete, vínculos, inventário, conteúdos, contagens, conferências, históricos, volumes das janelas, endereços, localização, estoque e auditoria operacional). Transação desfeita = nenhuma marca.
+- **Revisão**: número crescente por escopo (`controle_planilha.revisao_dados`). Cada geração lê um snapshot `REPEATABLE READ READ ONLY`, monta, **valida relendo o XLSX** (abas, cabeçalhos, linha a linha N° PALLET/NUMERO/DELIVERY/RUA/ID, texto como texto, nenhuma fórmula, soma de VOLUMES, escopo e revisão, cada evento uma vez), grava na pasta local (temporário + troca atômica + releitura) e só então registra a revisão (`geracao_planilha`) e apaga as marcas que viu. Alteração confirmada depois do snapshot fica para a revisão seguinte.
+- **Envio** (registro separado, `envio_externo`): só a revisão mais recente; o manifesto do destino é lido antes (revisão igual = idempotente; mais nova lá = recusa, nunca sobrescreve) → versões em `versoes/` (nome com revisão, data e lote) → arquivo de nome estável → manifesto por último; cada arquivo relido e conferido pelo SHA-256 antes de "CONFIRMADO".
+- **Trabalhador** (`modules/protecao/trabalhador.ts`): no processo da API (`npm start`, mantido pela tarefa do Windows), a cada `PLANILHA_INTERVALO_S` (5 s) — gera depois de `PLANILHA_AGRUPAR_S` (10 s) sem novas alterações ou depois de `PLANILHA_ESPERA_MAXIMA_S` (60 s) com alterações contínuas; alvo `PLANILHA_ALVO_S` (30 s, não é garantia); "Atrasada" depois de `PLANILHA_ATRASO_S` (120 s). Concessão no banco por escopo (`PLANILHA_CONCESSAO_MIN`): reinício retoma, dois processos não trabalham o mesmo escopo. Falha: espera crescente (30 s, dobrando até 30 min), separada para geração e envio. Hospedagem sem processo contínuo: `npm run protecao:processar` (uma volta) pelo Agendador de Tarefas/cron/função agendada.
+- **Retenção** (pasta local e destino): últimas `PLANILHA_VERSOES_MANTER` (50), uma por dia por `PLANILHA_DIARIAS_DIAS` (30) e as anteriores a substituições por `PLANILHA_PRE_SUBSTITUICAO_DIAS` (30, mínimo 30); nunca a atual publicada nem a mais nova.
+- **Substituição do inventário** (tela de importação e `inventario:carregar --substitui`): antes da troca, revisão da base atual marcada "antes da substituição" (publicada se houver destino) e backup completo verificado (`PRE_SUBSTITUICAO`); sem as duas cópias verificadas a troca é recusada (`PROTECAO_PREVIA_FALHOU`). Falha só no envio externo não bloqueia (as cópias ficam no servidor e o trabalhador reenvia). A troca continua numa transação única: se for desfeita, a planilha atual continua a da base anterior.
 
-```bash
-npm run backup:rotina
-```
+**Destino independente** (`PLANILHA_DESTINO`; o dos backups é o mesmo, sob `backups/`, salvo `BACKUP_DESTINO_EXTERNO`):
 
-Cria o backup coerente, confere manifesto e hash de cada arquivo, aplica a retenção (`BACKUP_MANTER`, padrão 14) e registra em `registro_protecao` (VERIFICADO ou FALHOU, com tamanho, identificador e destino). O aplicativo mostra "Atualizada" só com backup verificado **fora do servidor** (`BACKUP_FORA_DO_SERVIDOR=sim`) dentro de `BACKUP_PRAZO_HORAS`; vencido → "Atualização pendente"; falha posterior → "Falhou"; sem registro ou no mesmo servidor → "Não configurado". Mensagens: o canal é a própria tela e a aba Proteção (nenhum e-mail ou mensagem externa é enviado); `BACKUP_RESPONSAVEL` identifica quem acompanha.
-
-```bash
-npm run backup:teste-restauracao
-```
-
-Cria dois bancos de ensaio **novos** (migrações + seed fictício), faz o backup do primeiro, restaura no segundo com comparação completa, registra TESTE_RESTAURACAO e apaga os bancos. Nunca toca o banco em uso. Exige `CREATEDB` e `SET session_replication_role` (pode não existir em PostgreSQL gerenciado: nesse caso, usar a recuperação oferecida pela infraestrutura e registrar o resultado verificado).
-
-**Agendar** (não foi criado neste computador; depende de autorização e de conta de serviço):
-
-```bash
-schtasks /Create /TN "Praca Reversa - backup diario" /SC DAILY /ST 02:00 /TR "cmd /c cd /d C:\caminho\praca-reversa && npm run backup:rotina >> .dados\backups\rotina.log 2>&1"
-```
-
-Em Linux: `0 2 * * * cd /srv/praca-reversa && npm run backup:rotina >> /var/log/praca-backup.log 2>&1`. Teste de restauração: mensal ou antes de cada ativação (`RESTAURACAO_PRAZO_DIAS`, padrão 90).
-
-| Item (6 out. 2026, computador de desenvolvimento) | Situação |
+| Valor | Uso |
 | --- | --- |
-| Geração local da planilha | **Funcionando** (agendador com `npm start`; ≈1 s para o escopo real local, 785 linhas) |
-| Cópia externa publicada (destino independente) | **Não configurado** — falta a pasta sincronizada/compartilhada e a descrição (`PLANILHA_DESTINO*`) |
-| Backup agendado | **Não configurado** — rotina executada manualmente 1× (VERIFICADO, destino no mesmo servidor) |
-| Teste de restauração | **Verificado** com dados fictícios em bancos de ensaio isolados (78 tabelas, 1.419 linhas iguais) |
-| Atraso da planilha no ambiente real | **Não medido** (só com destino configurado no ambiente do piloto) |
+| `s3://<bucket>/<prefixo>` | Armazenamento S3 compatível (AWS S3, Cloudflare R2, Backblaze B2, MinIO de outra máquina…). `PROTECAO_S3_ENDPOINT` (https), `PROTECAO_S3_REGIAO`, `PROTECAO_S3_ESTILO` (`caminho`/`virtual`), `PROTECAO_S3_CHAVE_ACESSO`, `PROTECAO_S3_SEGREDO` — só no `.env` do servidor (nunca no front, no repositório, no log ou no backup). Assinatura AWS SigV4 própria (sem dependência nova), conferida com os exemplos da AWS. |
+| `pasta:\\servidor\compartilhamento\...` | Compartilhamento de rede de **outra máquina**. Pasta no disco deste servidor (inclusive a sincronizada pelo OneDrive) e serviço em localhost são aceitos, mas aparecem como **não independentes** (a subida não é comprovável pelo aplicativo). |
+
+`PLANILHA_DESTINO_DESCRICAO` (e `BACKUP_DESTINO_EXTERNO_DESCRICAO`) é o texto mostrado na tela e na planilha (sem credencial). Conferir o acesso: `npm run protecao:verificar-destino` (grava, relê e apaga um arquivo de teste). **Nenhum destino foi configurado nesta máquina**: escolher o armazenamento autorizado pela operação (conta da empresa, acesso restrito a quem pode ver o inventário completo; backups só administradores) é decisão do responsável.
+
+**Acesso com o aplicativo fora do ar**: pelo próprio destino (console do provedor, Explorer no compartilhamento ou ferramenta S3 com credencial de leitura da pessoa autorizada): `planilha/Praca-Reversa-<unidade>-<cliente>/` tem o arquivo atual e `…manifesto.json` (revisão, SHA-256, instante); `versoes/` as anteriores; `backups/<pasta>/` os backups completos (vale só a pasta com `concluido.json`). Nada é público; nenhum link com segredo é gerado.
+
+**Backup completo** (separado da planilha; a planilha não substitui o backup: não tem usuários, permissões, anexos, auditoria completa nem estruturas técnicas):
+
+- Automático pelo trabalhador: a cada `BACKUP_INTERVALO_HORAS` (24) e antes de cada substituição do inventário; usa `scripts/recuperacao/rotina-backup.mjs` (snapshot coerente, manifesto com SHA-256, conferência, registro VERIFICADO/FALHOU) num processo filho; envia ao destino (cada arquivo conferido; `concluido.json` por último). `BACKUP_AUTOMATICO=desativada` desliga.
+- Pasta local `BACKUP_DESTINO` (padrão `.dados/backups`). Retenção local só nos backups criados por esta rotina (motivo registrado): `BACKUP_MANTER` (14), um por dia por `BACKUP_DIARIOS_DIAS` (30), anteriores a substituições por `BACKUP_PRE_SUBSTITUICAO_DIAS` (30); cópias manuais antigas nunca são apagadas automaticamente. A mesma regra no destino.
+- Manual: `npm run protecao:backup`.
+- **Teste de restauração com dados reais**: `npm run protecao:teste-restauracao [-- --origem=externo|local]` — baixa o último backup confirmado no destino (ou usa o último local), restaura num banco **novo e isolado** (`praca_reversa_restauracao_teste_…`) com comparação completa (manifesto, migrações, cada tabela, anexos, relações), conta inventário/pendências/relações, **remove o banco** e registra o resultado (dados da operação). Nunca toca o banco em uso. Teste com dados fictícios (`backup:teste-restauracao`) não conta como proteção atual. Repetir pelo menos a cada `RESTAURACAO_PRAZO_DIAS` (35).
+
+**Tela "Planilha e proteção"** (menu da conta; `praca.consultar`, nunca o cliente): destino, última alteração confirmada e sua revisão, última revisão gerada, última publicada e quando, alterações aguardando e atraso, falhas recentes, revisões com download. Estados: **Atualizada, Atualizando, Aguardando, Atrasada, Falhou, Não configurado**, pela evidência registrada. **Tentar novamente agora** (`planilha.publicar`: supervisor e administrador) reprocessa geração, conferência, envio e backup pendente, ignorando a espera; **Baixar** (`planilha.baixar`: supervisor, analista e administrador) entrega o arquivo relido e conferido pelo SHA-256, com revisão e situação da publicação; **Atualizar** relê a situação. Situação por comando: `npm run protecao:situacao`.
+
+| Item (26 out. 2026, computador de desenvolvimento, escopo real) | Situação |
+| --- | --- |
+| Geração automática local | **Funcionando**: trabalhador na porta 3000; revisão gerada ≈12 s depois de uma alteração registrada; ≈1,4 s por revisão (1.414 linhas, 924 movimentações) |
+| Publicação no destino independente | **Não configurado** — falta escolher o armazenamento autorizado e pôr as credenciais no `.env` |
+| Backup completo diário | **Funcionando no servidor** (automático; destino externo não configurado) |
+| Teste de restauração | **Aprovado com dados reais** em 26/10/2026 (backup local do dia, banco isolado removido) |
 
 ## Situação do ambiente (etapa 10)
 

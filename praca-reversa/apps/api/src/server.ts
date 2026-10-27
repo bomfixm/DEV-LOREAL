@@ -1,7 +1,7 @@
 import { criarApp } from './app.js';
 import { carregarEnvLocal, lerConfiguracao } from './config.js';
 import { criarBanco } from './db/cliente.js';
-import { iniciarAgendadorPlanilha } from './modules/planilha/agendador.js';
+import { iniciarTrabalhador } from './modules/protecao/trabalhador.js';
 
 carregarEnvLocal();
 const config = lerConfiguracao(process.env, process.argv);
@@ -46,17 +46,22 @@ app.log.info(
   'Praça Reversa: API iniciada',
 );
 
-// Planilha única: agendador no processo (fila e concessão no banco; ver modules/planilha).
-const agendadorPlanilha = config.planilha.automatica ? iniciarAgendadorPlanilha(db, config.planilha, app.log) : null;
+// Planilha automática e proteção: trabalhador no processo (fila e concessões no banco; ver modules/protecao).
+const trabalhador = config.planilha.automatica ? iniciarTrabalhador(db, config.planilha, app.log) : null;
+const descrever = (d: typeof config.planilha.destino) => (d === null ? 'não configurado (só geração local)' : `${d.descricao}${d.independente ? '' : ` — não independente: ${d.motivo ?? ''}`}`);
 app.log.info(
-  { automatica: config.planilha.automatica, destino: config.planilha.destino?.descricao ?? 'não configurado (só geração local)', pastaLocal: config.planilha.pastaLocal },
-  'Planilha única',
+  {
+    automatica: config.planilha.automatica,
+    destino: descrever(config.planilha.destino),
+    backup: { automatico: config.planilha.backup.automatico, destino: descrever(config.planilha.backup.destino) },
+  },
+  'Planilha automática e proteção',
 );
 
 for (const sinal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(sinal, () => {
     app.log.info({ sinal }, 'Encerrando API');
-    void (agendadorPlanilha?.parar() ?? Promise.resolve())
+    void (trabalhador?.parar() ?? Promise.resolve())
       .then(() => app.close())
       .then(() => db.$disconnect())
       .then(() => process.exit(0));

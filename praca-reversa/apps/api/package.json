@@ -16,7 +16,8 @@
     "inventario:carregar": "tsx src/cli/carregar-inventario.ts",
     "paletes:numeracao": "tsx src/cli/numeracao-paletes.ts",
     "paletes:corrigir": "tsx src/cli/corrigir-paletes.ts",
-    "planilha:exemplo": "tsx src/cli/exemplo-planilha.ts"
+    "planilha:exemplo": "tsx src/cli/exemplo-planilha.ts",
+    "protecao": "tsx src/cli/protecao.ts"
   },
   "dependencies": {
     "@fastify/cookie": "11.1.2",

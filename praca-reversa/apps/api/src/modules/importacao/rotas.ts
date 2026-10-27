@@ -22,6 +22,7 @@ import { ErroHttp, acessoNegado, requisicaoInvalida } from '../../http/erros.js'
 import { contextoDe, escopoAtivoDe, type Autenticacao, type Dependencias } from '../acesso/contexto.js';
 import { registrarEvento } from '../auditoria/registrar.js';
 import { executarIdempotente, type Resposta } from '../idempotencia/executar.js';
+import { protegerAntesDaSubstituicao } from '../protecao/substituicao.js';
 import { chaveIdempotencia, responder, validar } from '../idempotencia/http.js';
 import { paleteDestino, paleteDestinoParaContrato } from './bipagem.js';
 import { gerarModelo, tipoDoModelo } from './modelos.js';
@@ -219,6 +220,9 @@ export function registrarRotasImportacao(app: FastifyInstance, deps: Dependencia
     const lote = await detalharLote(deps.db, escopo.id, id, limites);
     await exigirTipo(request, lote.type);
     const dados = validar(ConfirmarImportacaoSchema, request.body, 'Informe a versão da prévia revisada e confirme a revisão.');
+    // Substituição do inventário ativo: planilha e backup da base atual ANTES da troca (recusa se não houver cópia verificada).
+    const substitui = lote.type === 'INVENTARIO' && lote.state !== 'CONFIRMADO' ? lote.parameters?.replacesInventoryId : null;
+    if (typeof substitui === 'string' && deps.planilha.protegerSubstituicao) await protegerAntesDaSubstituicao(deps.db, escopo.id, deps.planilha, autor, substitui);
     let resultado;
     try {
       resultado = await mutar(request, 'importacao.confirmar', { id, corpo: request.body }, async (tx, a) => ({

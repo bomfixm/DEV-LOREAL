@@ -1,7 +1,8 @@
 /**
  * Escrita da planilha única (XLSX sem macros): estilos próprios (Arial,
- * amarelo #FFCC00, vermelho #D40511, cinza escuro), tabelas do Excel com
- * filtro, painéis fixos, larguras, mesclas só em títulos e valores tipados.
+ * amarelo DHL #FFCC00 de destaque, títulos escuros, vermelho #D40511 só em
+ * filetes), tabelas do Excel com filtro, painéis fixos, larguras, mesclas só
+ * em títulos e valores tipados.
  *
  * Proteção contra fórmula injetada: todo texto vai como texto (inlineStr,
  * nunca <f>); textos que começam com = + - @ ou tabulação recebem também o
@@ -13,9 +14,9 @@ import { letraDaColuna } from '../importacao/arquivo/xlsx.js';
 import { textoXml } from '../importacao/arquivo/xlsx-escrita.js';
 import { escreverZip } from '../importacao/arquivo/zip.js';
 
-export const CORES = { amarelo: 'FFFFCC00', vermelho: 'FFD40511', texto: 'FF333333', cinza: 'FF666666', branco: 'FFFFFFFF' } as const;
+export const CORES = { amarelo: 'FFFFCC00', vermelho: 'FFD40511', texto: 'FF333333', escuro: 'FF1A1A1A', cinza: 'FF666666', branco: 'FFFFFFFF' } as const;
 
-export type Fundo = 'nenhum' | 'amarelo' | 'amareloClaro' | 'cinzaClaro' | 'zebra' | 'verdeClaro' | 'vermelhoClaro' | 'cinzaEstado';
+export type Fundo = 'nenhum' | 'amarelo' | 'amareloClaro' | 'cinzaClaro' | 'zebra' | 'verdeClaro' | 'vermelhoClaro' | 'cinzaEstado' | 'pendente' | 'referencia';
 export type Fonte = 'normal' | 'negrito' | 'titulo' | 'subtitulo' | 'aviso' | 'indicador' | 'rotulo' | 'cabecalho' | 'vermelho';
 export type Formato = 'geral' | 'texto' | 'inteiro' | 'decimal' | 'dataHora';
 
@@ -66,12 +67,12 @@ export interface Folha {
 const FONTES: Readonly<Record<Fonte, string>> = {
   normal: `<sz val="11"/><color rgb="${CORES.texto}"/><name val="Arial"/><family val="2"/>`,
   negrito: `<b/><sz val="11"/><color rgb="${CORES.texto}"/><name val="Arial"/><family val="2"/>`,
-  titulo: `<b/><sz val="20"/><color rgb="${CORES.vermelho}"/><name val="Arial"/><family val="2"/>`,
-  subtitulo: `<b/><sz val="14"/><color rgb="${CORES.texto}"/><name val="Arial"/><family val="2"/>`,
+  titulo: `<b/><sz val="18"/><color rgb="${CORES.escuro}"/><name val="Arial"/><family val="2"/>`,
+  subtitulo: `<b/><sz val="12"/><color rgb="${CORES.escuro}"/><name val="Arial"/><family val="2"/>`,
   aviso: `<sz val="10"/><color rgb="${CORES.cinza}"/><name val="Arial"/><family val="2"/>`,
   indicador: `<b/><sz val="16"/><color rgb="${CORES.texto}"/><name val="Arial"/><family val="2"/>`,
   rotulo: `<sz val="10"/><color rgb="${CORES.cinza}"/><name val="Arial"/><family val="2"/>`,
-  cabecalho: `<b/><sz val="11"/><color rgb="${CORES.texto}"/><name val="Arial"/><family val="2"/>`,
+  cabecalho: `<b/><sz val="10"/><color rgb="${CORES.escuro}"/><name val="Arial"/><family val="2"/>`,
   vermelho: `<b/><sz val="11"/><color rgb="${CORES.vermelho}"/><name val="Arial"/><family val="2"/>`,
 };
 
@@ -84,6 +85,8 @@ const FUNDOS: Readonly<Record<Fundo, string | null>> = {
   verdeClaro: 'FFE3F1DF',
   vermelhoClaro: 'FFFBE0E2',
   cinzaEstado: 'FFE7E7E7',
+  pendente: 'FFFDF0DC',
+  referencia: 'FFEFEFEF',
 };
 
 const LEVE = 'FFD9D9D9';

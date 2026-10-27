@@ -33,13 +33,14 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { RAIZ_REPOSITORIO, carregarEnvLocal } from '../config.js';
+import { RAIZ_REPOSITORIO, carregarEnvLocal, lerConfigProtecao } from '../config.js';
 import { criarBanco, type Banco } from '../db/cliente.js';
 import { ErroHttp } from '../http/erros.js';
 import { registrarEvento } from '../modules/auditoria/registrar.js';
 import { extrairEntrada, lerDiretorioZip, pareceZip } from '../modules/importacao/arquivo/zip.js';
 import { carregarEstadoCarga, executarCarga, lerPacote, planejarCarga, type PacoteLido, type ResultadoCarga } from '../modules/importacao/carga-lote.js';
 import { converterInventarioLoreal } from '../modules/importacao/inventario-loreal.js';
+import { protegerAntesDaSubstituicao } from '../modules/protecao/substituicao.js';
 
 const NOME_JSON = 'dados-importacao.json';
 const LIMITE_BYTES = 64 * 1_048_576;
@@ -215,6 +216,15 @@ async function principal(): Promise<number> {
       return 0;
     }
     const requestId = `cli-carga-${randomUUID()}`;
+    if (values.substitui !== undefined && !estado.loteExistente) {
+      // Substituição do inventário ativo: planilha e backup da base atual antes da troca (sem cópia verificada, nada é gravado).
+      const protecao = lerConfigProtecao(process.env);
+      if (protecao.protegerSubstituicao) {
+        console.log('\nProteção prévia: gerando a planilha e o backup completo da base atual…');
+        const p = await protegerAntesDaSubstituicao(db, escopo.id, protecao, { usuarioId: autor.usuarioId, requestId }, values.substitui);
+        console.log(`  - Planilha revisão ${String(p.revisao)} (${p.planilhaPublicada ? 'publicada no destino independente' : 'no servidor; envio pelo trabalhador'}); backup ${p.backupId} (${p.backupEnviado ? 'enviado ao destino' : 'verificado no servidor; envio pelo trabalhador'}).`);
+      }
+    }
     let r: ResultadoCarga;
     try {
       r = await executarCarga(db, escopo, { usuarioId: autor.usuarioId, requestId }, p, { substitui: values.substitui ?? null, descricao: values.descricao ?? null, manterAusentes }, new Date());

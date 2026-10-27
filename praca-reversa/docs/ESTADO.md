@@ -1,6 +1,6 @@
 # Estado do projeto
 
-Atualizado em 21 de outubro de 2026.
+Atualizado em 26 de outubro de 2026.
 
 ## Implementação
 
@@ -33,9 +33,28 @@ Atualizado em 21 de outubro de 2026.
 | Seleção cliente — teste (pedido de 20 out. 2026) | **Implementada e ativada no desenvolvimento local** (20 out. 2026): simulação do cliente consultando o estoque (só leitura) e montando solicitações de teste para uma agenda (carrinho, revisão, envio bloqueado, alteração com aprovação/recusa, versões, histórico); acesso só por concessão explícita (`supervisor.praca`, `supervisor.teste`, `teste.supervisor`); migração aplicada com backup; **leitor da planilha do cliente aguarda o arquivo real** — ver seção abaixo |
 | Painéis em uma tela (etapa 4 de `04-DASHBOARD-EM-UMA-TELA.txt`) | **Implementada no desenvolvimento local** (19 out. 2026): painel da operação e do cliente cabem numa tela no computador (1366×768, 1280×720, 1920×1080; menu compacto/expandido; claro/escuro) — filtros, quatro cartões, janela selecionada, situação da praça/etapas, volumes por rua e prioridades/histórico recente; detalhes, listas e definições ao clicar. Mesmos números da API (sem mudança de API, contrato ou permissão) — ver seção abaixo |
 | Importação do Excel da bipagem no palete (versão de 8 out.) | **Substituída** pela etapa 1 acima (D249–D252). Histórico: implementada no desenvolvimento local (8 out. 2026): botão no detalhe do palete, página `/paletes/<id>/bipagem`, prévia com decisões e gravação transacional; testada com dados fictícios. **Layout real da bipagem não fornecido** (associação de colunas e formato na tela; pendências em `DESCOBERTA.md`) |
-| Planilha única automática e proteção dos dados | **Implementada no desenvolvimento local** (6 out. 2026): geração local automática funcionando; destino independente e agendamento do backup **não configurados** (faltam pasta/compartilhamento e autorização); teste de restauração verificado com dados fictícios |
+| Planilha automática e proteção dos dados (pedido de 23 out. 2026) | **Implementada e ativa no desenvolvimento local** (26 out. 2026): revisão por escopo, geração validada automática (≈12–15 s), backup diário automático e teste de restauração com dados reais aprovado; **destino independente não configurado** (falta o armazenamento autorizado e as credenciais) — ver seção abaixo |
 | Palete × posição, validação sem endereço e conferência em tabela (pedido de 21 out. 2026) | **Implementado no desenvolvimento local** (21 out. 2026): número operacional, fila de validação interna, mover/validar/cancelar em lote, conferência do palete inteiro numa tabela (130 → 126 grava 126), estado e cor atualizados; migração aplicada com backup; correção dos dados reais simulada e aplicada — ver seção abaixo |
 | Tema escuro + novo visual dos painéis | **Implementado no desenvolvimento local** (19 out. 2026): seletor Claro/Escuro (menu lateral e menu da conta), escuro DHL em todas as telas só na tela (impressão/etiquetas brancas); painéis com cartões grandes (apresentação substituída pela etapa 4, D259–D263), destaque amarelo, anel de ocupação, colunas por rua e anéis da janela — ver seção abaixo |
+
+## Planilha automática e proteção dos dados — o que existe de fato (26 out. 2026)
+
+Pedido `PROMPT-CLAUDE-PLANILHA-E-PROTECAO-AUTOMATICA.txt` (23/10); decisões D304–D310; configuração e procedimento em `IMPLANTACAO.md` (seção "Planilha automática e proteção dos dados"); retomada `RETOMADA-PLANILHA-PROTECAO.md`.
+
+- **Entregue**: revisão crescente por escopo; geração validada (relê o XLSX) e envio ao destino registrados separadamente; aba Inventário com as 13 colunas da operação + situação/pendência/rastreabilidade (base ativa; validação e pendências do lote ativo identificadas, sem endereço nem quantidade inventados; "Não informado" fora da soma); Movimentações com antes/depois de auditoria, ocorrências, contagens, número do palete e volumes das janelas; Proteção e ajuda; destino `s3://` (SigV4 própria) ou compartilhamento de outra máquina, com gravação confirmada, revisão antiga nunca sobrescreve, retenção 50 + diária 30 d + pré-substituição 30 d; trabalhador no processo da API (fila/concessão no banco) e `protecao:processar` para agendador externo; backup completo diário e antes de substituições, enviado com `concluido.json`; teste de restauração com dados reais em banco isolado; proteção prévia obrigatória na substituição do inventário; tela com os seis estados, falhas, revisões e downloads; permissão `planilha.baixar`.
+- **Banco de desenvolvimento (escopo real)**: backup antes (`…-20261026-133125Z-0f14b56c`); migração `20261026090000_planilha_protecao_automatica` aplicada. Ensaio somente leitura: 1.414 linhas (1.191 no estoque, 16 sem documento, 11 paletes sem conteúdo, 131 em validação, 65 pendentes do lote ativo INV-000005), 18.386 volumes conhecidos, 37 do estoque sem volume, 924 movimentações; snapshot + montagem + validação ≈ 1,4 s. Porta 3000 com o trabalhador: revisões 1 e 2 geradas (a 2 saiu ≈12 s depois da alteração registrada), backup diário automático `6d8702a8…` (local). **Teste de restauração real aprovado** (backup do dia, 96 tabelas, 17.904 linhas, 283 relações, banco isolado removido).
+- **Não configurado (depende do usuário)**: destino independente (armazenamento autorizado da empresa + credenciais no `.env`). Sem ele, planilha e backup ficam só no servidor e a tela mostra "Não configurado" — verdadeiro, não verde.
+- **Limites**: escopos de demonstração só por pedido manual; publicação S3 verificada contra serviço S3 local de teste (assinatura conferida com os exemplos oficiais da AWS), não contra um provedor real; arquivos grandes de backup são lidos inteiros na memória no envio (banco atual ≈ 5 MB por backup).
+
+### Verificações (26 out. 2026)
+
+| Comando / verificação | Resultado |
+| --- | --- |
+| Vitest `planilha.test.ts` (banco + S3 local de teste) e `protecao-destino.test.ts` (unidade) | **13 + 6 aprovados**: fila/revisão, trabalhador, Inventário reconciliável (validação, pendência do lote, "Não informado", texto literal), movimento/baixa parcial/complemento sem duplicar, publicação com versões e download, destino indisponível + retentativa, leitura adulterada recusada, reinício/concorrência/mesma revisão sem duplicar/revisão antiga não sobrescreve, retenção, substituição com proteção prévia (base anterior recuperável), sem backup = troca recusada, permissões (supervisor, operador, administrador, cliente, outro escopo), backup externo + restauração isolada a partir do destino, pasta local não independente; SigV4 = exemplos da AWS |
+| `npm test` completo | 70 arquivos aprovados; os 7 com erro de conexão (rodada de 32 min concorrendo com o lint) **reexecutados sozinhos: 99/99**. Total: **658 testes aprovados** |
+| E2E (Chrome) `e2e/planilha.spec.ts` | **2 aprovados** (supervisor reprocessa e baixa a revisão; operador só consulta); captura `docs/capturas/planilha/situacao-sem-destino.png` |
+| `npm run lint` (completo), `typecheck` da API e da web, `npm run build` | Aprovados; porta 3000 reiniciada com o build |
+| Banco de desenvolvimento | Backup antes + migração aplicada; ensaio de leitura com dados reais validado; revisões 1–3 geradas automaticamente (≈12–15 s depois da alteração registrada, ≈1,4 s cada); backup diário automático; `protecao:teste-restauracao` **aprovado com dados reais** |
 
 ## Palete × posição, validação sem endereço e conferência em tabela — o que existe de fato (21 out. 2026)
 

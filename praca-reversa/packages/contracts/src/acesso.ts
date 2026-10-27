@@ -76,6 +76,8 @@ export const PermissaoSchema = z.enum([
   'selecao.exportar',
   /** Planilha única: pedir nova publicação agora ("tentar novamente"); a situação é consulta de todos. */
   'planilha.publicar',
+  /** Planilha única: baixar a última revisão gerada e as anteriores preservadas (cópia completa com pendências internas; nunca o cliente). */
+  'planilha.baixar',
   /** Painel da operação DHL (estoque, localização, reconferência, janelas e tarefas; claims só com claim.consultar). */
   'painel.operacao',
   /** Painel do cliente: estoque, janelas e histórico na projeção permitida (sem claims, valores nem pendências internas). */
@@ -131,6 +133,7 @@ export const PERMISSOES_IMPLEMENTADAS: ReadonlySet<Permissao> = new Set([
   'selecao.importar',
   'selecao.exportar',
   'planilha.publicar',
+  'planilha.baixar',
   'painel.operacao',
   'painel.cliente',
   'selecao_teste.solicitar',
@@ -208,6 +211,7 @@ export const PERMISSOES_POR_PERFIL: Readonly<Record<Perfil, readonly Permissao[]
     'selecao.importar',
     'selecao.exportar',
     'planilha.publicar',
+    'planilha.baixar',
     'painel.operacao',
     'painel.cliente',
     'conteudo.corrigir',
@@ -225,6 +229,7 @@ export const PERMISSOES_POR_PERFIL: Readonly<Record<Perfil, readonly Permissao[]
     'relatorio.exportar',
     'selecao.consultar',
     'selecao.exportar',
+    'planilha.baixar',
     'painel.operacao',
   ],
   // Perfil administrativo máximo: corrige registros de conteúdo (cadastro/importação) e resolve a validação (21 out. 2026).
@@ -235,6 +240,7 @@ export const PERMISSOES_POR_PERFIL: Readonly<Record<Perfil, readonly Permissao[]
     'acesso.administrar',
     'auditoria.consultar',
     'planilha.publicar',
+    'planilha.baixar',
     'painel.operacao',
     'conteudo.corrigir',
     'validacao.consultar',

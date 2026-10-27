@@ -138,21 +138,21 @@ describe('Registrar conteúdo', () => {
 });
 
 describe('Planilha única com conteúdo registrado', () => {
-  it('cada conteúdo registrado vira uma linha; identificação ausente aparece como não informada e a contagem vigente entra nos volumes', async () => {
+  it('cada conteúdo registrado vira uma linha; identificação ausente fica vazia, volume desconhecido "Não informado" e a contagem vigente entra nos volumes', async () => {
     const p = await criarPalete(a);
     const [item] = (await registrar(p.id, { sender: 'Remetente Planilha' })).items;
     await registrar(p.id, { sender: 'Remetente Planilha', documentType: 'NFD', documentNumber: '000789', delivery: 'DLV-7' });
     const c = await mutar(a.app, a.op, 'POST', `${API}/paletes/${p.id}/conteudos/contagens`, { target: { kind: 'REGISTRADO', id: item?.id }, counted: 6, origin: 'CONTAGEM_FISICA' });
     expect(c.statusCode, c.body).toBe(201);
     const { lerSnapshot } = await import('../../src/modules/planilha/dados.js');
-    const linhas = (await lerSnapshot(db, ID_ESCOPO_PRACA, 100)).inventario.filter((l) => l.palete === p.code);
-    const semDocumento = linhas.find((l) => l.nfd === null);
-    const comNota = linhas.find((l) => l.nfd === '000789');
+    const linhas = (await lerSnapshot(db, ID_ESCOPO_PRACA)).inventario.filter((l) => l.palete === p.code);
+    const semDocumento = linhas.find((l) => l.numero === null);
+    const comNota = linhas.find((l) => l.numero === '000789');
     expect(linhas).toHaveLength(2);
-    expect([semDocumento?.remetente, semDocumento?.delivery, semDocumento?.volumes]).toEqual(['Remetente Planilha', null, '6']);
-    expect([comNota?.remetente, comNota?.delivery, comNota?.volumes]).toEqual(['Remetente Planilha', 'DLV-7', null]);
-    expect(semDocumento?.situacao).toMatch(/documento não informado · Delivery não informado · Volumes contados no aplicativo/);
-    expect(comNota?.situacao).toMatch(/NFD 000789 · Aguardando conferência/);
+    expect([semDocumento?.remetente, semDocumento?.delivery, semDocumento?.volumes, semDocumento?.origemVolumes]).toEqual(['Remetente Planilha', null, 6, 'Contado no aplicativo']);
+    expect([comNota?.remetente, comNota?.delivery, comNota?.volumes, comNota?.volumesTexto]).toEqual(['Remetente Planilha', 'DLV-7', null, 'Não informado']);
+    expect([semDocumento?.grupo, comNota?.grupo, comNota?.tipo]).toEqual(['ESTOQUE', 'ESTOQUE', 'NFD']);
+    expect(comNota?.origemRegistro).toMatch(/^Cadastro no aplicativo em /);
   });
 });
 

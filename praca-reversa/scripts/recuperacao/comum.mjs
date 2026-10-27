@@ -23,7 +23,7 @@ export const TABELAS_ANEXOS = [
 ];
 /** Variáveis de configuração NÃO secretas copiadas para o backup (as demais são só nomeadas). */
 const CONFIG_PERMITIDA = /^(APP_AMBIENTE|APP_URL_PUBLICA|CAMINHO_BASE|PERSISTENCIA_LOCAL|HOST|PORT|LOG_LEVEL|COOKIE_SEGURO|SESSAO_[A-Z_]+|IMPORTACAO_[A-Z_]+|BUSCA_[A-Z_]+|CLAIMS_[A-Z_]+)$/;
-const CONFIG_SECRETA = ['DATABASE_URL', 'APP_SEGREDO'];
+const CONFIG_SECRETA = ['DATABASE_URL', 'APP_SEGREDO', 'PROTECAO_S3_CHAVE_ACESSO', 'PROTECAO_S3_SEGREDO'];
 
 export function falhar(mensagem, codigo = 1) {
   const erro = new Error(mensagem);

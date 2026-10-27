@@ -5225,6 +5225,12 @@ main[data-testid='tela-expedicao'] .pagina-conteudo {
   background: var(--tom-erro-fundo);
 }
 
+.selo-protecao--atrasada {
+  border-color: #c25e00;
+  background: var(--tom-amarelo-fundo);
+  font-weight: 700;
+}
+
 .selo-protecao--inativo {
   border-color: #8a8a8a;
   background: var(--tom-neutro-fundo);

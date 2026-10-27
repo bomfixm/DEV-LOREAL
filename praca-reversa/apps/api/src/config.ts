@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { isAbsolute, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { LimitesImportacao } from '@praca-reversa/contracts';
-import type { ConfigPlanilha } from './modules/planilha/situacao.js';
+import { criarDestino, type ConfigPlanilha } from './modules/protecao/configuracao.js';
 import { z } from 'zod';
 
 /** Pastas resolvidas a partir deste arquivo; valem para src/ (tsx) e dist/ (node). */
@@ -47,25 +47,49 @@ const AmbienteSchema = z.object({
   CAMINHO_BASE: z.string().trim().min(1).optional(),
   /** Rascunho não enviado no armazenamento do navegador (sessionStorage); sempre desativado em produção. */
   PERSISTENCIA_LOCAL: z.enum(['ativada', 'desativada']).optional(),
-  // Planilha única (docs/IMPLANTACAO.md): agendador, destino independente e retenção.
+  // Planilha automática e proteção (docs/IMPLANTACAO.md): trabalhador, destino independente, retenção e backup.
   PLANILHA_AUTOMATICA: z.enum(['ativada', 'desativada']).default('ativada'),
   /** "Seleção cliente — teste": desativada = rotas e permissões da funcionalidade somem (o restante segue igual). */
   SELECAO_CLIENTE_TESTE: z.enum(['ativada', 'desativada']).default('ativada'),
-  /** "pasta:<caminho absoluto>" de uma pasta sincronizada (OneDrive/SharePoint) ou compartilhamento fora do servidor. */
-  PLANILHA_DESTINO: z.string().trim().min(1).optional(),
+  /** Destino independente: "s3://<bucket>/<prefixo>" (PROTECAO_S3_*) ou "pasta:<compartilhamento de rede de outra máquina>". */
+  PLANILHA_DESTINO: z.preprocess((v) => (v === '' ? undefined : v), z.string().trim().min(1).optional()),
   PLANILHA_DESTINO_DESCRICAO: z.string().trim().min(3).max(200).optional(),
   PLANILHA_PASTA_LOCAL: z.string().trim().min(1).optional(),
-  PLANILHA_INTERVALO_S: z.coerce.number().int().min(5).max(3_600).default(20),
-  PLANILHA_AGRUPAR_S: z.coerce.number().int().min(0).max(3_600).default(30),
+  PLANILHA_INTERVALO_S: z.coerce.number().int().min(2).max(3_600).default(5),
+  PLANILHA_AGRUPAR_S: z.coerce.number().int().min(0).max(3_600).default(10),
+  PLANILHA_ESPERA_MAXIMA_S: z.coerce.number().int().min(10).max(3_600).default(60),
   PLANILHA_RECONCILIAR_MIN: z.coerce.number().int().min(5).max(1_440).default(60),
-  PLANILHA_VERSOES_MANTER: z.coerce.number().int().min(3).max(5_000).default(60),
-  PLANILHA_EVENTOS_MAX: z.coerce.number().int().min(100).max(500_000).default(20_000),
+  PLANILHA_ALVO_S: z.coerce.number().int().min(5).max(3_600).default(30),
+  PLANILHA_ATRASO_S: z.coerce.number().int().min(10).max(86_400).default(120),
+  PLANILHA_VERSOES_MANTER: z.coerce.number().int().min(3).max(5_000).default(50),
+  PLANILHA_DIARIAS_DIAS: z.coerce.number().int().min(0).max(3_650).default(30),
+  PLANILHA_PRE_SUBSTITUICAO_DIAS: z.coerce.number().int().min(30).max(3_650).default(30),
+  PLANILHA_MOVIMENTOS_POR_ARQUIVO: z.coerce.number().int().min(1_000).max(1_048_000).default(1_000_000),
   PLANILHA_CONCESSAO_MIN: z.coerce.number().int().min(1).max(120).default(10),
-  // Backup completo (rotina em scripts/recuperacao): prazo esperado, destino e responsável.
+  /** Planilha e backup prévios obrigatórios antes de substituir o inventário ativo. */
+  PLANILHA_PROTEGER_SUBSTITUICAO: z.enum(['ativada', 'desativada']).default('ativada'),
+  // Armazenamento S3 compatível do destino independente (credenciais só aqui; nunca no front, no repositório ou no log).
+  PROTECAO_S3_ENDPOINT: z.string().trim().min(1).optional(),
+  PROTECAO_S3_REGIAO: z.string().trim().min(1).max(40).optional(),
+  PROTECAO_S3_ESTILO: z.enum(['caminho', 'virtual']).optional(),
+  PROTECAO_S3_CHAVE_ACESSO: z.string().trim().min(1).optional(),
+  PROTECAO_S3_SEGREDO: z.string().trim().min(1).optional(),
+  // Backup completo automático (rotina em scripts/recuperacao, chamada pelo trabalhador).
+  BACKUP_AUTOMATICO: z.enum(['ativada', 'desativada']).default('ativada'),
+  BACKUP_INTERVALO_HORAS: z.coerce.number().int().min(1).max(24 * 31).default(24),
   BACKUP_PRAZO_HORAS: z.coerce.number().int().min(1).max(24 * 31).default(26),
-  BACKUP_DESTINO_DESCRICAO: z.string().trim().min(3).max(200).optional(),
+  /** Pasta local dos backups (mesmo servidor; origem do envio). */
+  BACKUP_DESTINO: z.string().trim().min(1).optional(),
+  /** Destino independente dos backups; padrão: o mesmo da planilha (chaves backups/…). */
+  BACKUP_DESTINO_EXTERNO: z.preprocess((v) => (v === '' ? undefined : v), z.string().trim().min(1).optional()),
+  BACKUP_DESTINO_EXTERNO_DESCRICAO: z.string().trim().min(3).max(200).optional(),
+  BACKUP_MANTER: z.coerce.number().int().min(2).max(1_000).default(14),
+  BACKUP_DIARIOS_DIAS: z.coerce.number().int().min(0).max(3_650).default(30),
+  BACKUP_PRE_SUBSTITUICAO_DIAS: z.coerce.number().int().min(30).max(3_650).default(30),
   BACKUP_RESPONSAVEL: z.string().trim().min(2).max(120).optional(),
-  RESTAURACAO_PRAZO_DIAS: z.coerce.number().int().min(1).max(730).default(90),
+  /** Variável com a URL do banco copiado (o valor nunca vai para argumento ou log). */
+  BACKUP_VARIAVEL_BANCO: z.string().regex(/^[A-Z][A-Z0-9_]*$/).default('DATABASE_URL'),
+  RESTAURACAO_PRAZO_DIAS: z.coerce.number().int().min(1).max(730).default(35),
 });
 
 /** Vite em `npm run dev`: a interface fica nesta origem; a API, no proxy. */
@@ -239,35 +263,47 @@ export function lerConfiguracao(env: NodeJS.ProcessEnv, argv: readonly string[])
   };
 }
 
+/** Configuração da planilha e da proteção a partir do ambiente (comandos locais). */
+export function lerConfigProtecao(env: NodeJS.ProcessEnv): ConfigPlanilha {
+  return lerConfigPlanilha(AmbienteSchema.parse(env));
+}
+
 /**
- * Planilha única: destino "pasta:<caminho absoluto>" (pasta sincronizada ou
- * compartilhamento fora do servidor; a independência é responsabilidade da
- * implantação e fica descrita em PLANILHA_DESTINO_DESCRICAO). Sem destino, a
- * planilha é gerada só localmente e aparece como "Não configurado".
+ * Planilha automática e proteção: destino independente da planilha
+ * (PLANILHA_DESTINO) e dos backups (BACKUP_DESTINO_EXTERNO, padrão: o mesmo),
+ * tempos, retenção e backup. Sem destino, a planilha é gerada só no servidor e
+ * aparece como "Não configurado"; pasta local não conta como independente.
  */
 export function lerConfigPlanilha(a: z.infer<typeof AmbienteSchema>): ConfigPlanilha {
-  let destino: ConfigPlanilha['destino'] = null;
-  if (a.PLANILHA_DESTINO !== undefined) {
-    const m = /^pasta:(.+)$/i.exec(a.PLANILHA_DESTINO);
-    const caminho = m?.[1]?.trim() ?? '';
-    if (!m || !isAbsolute(caminho)) throw new Error('PLANILHA_DESTINO precisa ser "pasta:<caminho absoluto>" (pasta sincronizada do OneDrive/SharePoint ou compartilhamento de rede).');
-    destino = { tipo: 'PASTA', caminho, descricao: a.PLANILHA_DESTINO_DESCRICAO ?? `Pasta ${caminho}` };
-  }
+  const s3 = { endpoint: a.PROTECAO_S3_ENDPOINT, regiao: a.PROTECAO_S3_REGIAO, estilo: a.PROTECAO_S3_ESTILO, chaveAcesso: a.PROTECAO_S3_CHAVE_ACESSO, segredo: a.PROTECAO_S3_SEGREDO };
+  const destino = a.PLANILHA_DESTINO === undefined ? null : criarDestino(a.PLANILHA_DESTINO, a.PLANILHA_DESTINO_DESCRICAO, s3);
+  const destinoBackup = a.BACKUP_DESTINO_EXTERNO === undefined ? destino : criarDestino(a.BACKUP_DESTINO_EXTERNO, a.BACKUP_DESTINO_EXTERNO_DESCRICAO, s3);
   return {
     automatica: a.PLANILHA_AUTOMATICA === 'ativada',
     destino,
     pastaLocal: resolve(RAIZ_REPOSITORIO, a.PLANILHA_PASTA_LOCAL ?? '.dados/planilha'),
     intervaloMs: a.PLANILHA_INTERVALO_S * 1_000,
     agruparMs: a.PLANILHA_AGRUPAR_S * 1_000,
+    esperaMaximaMs: a.PLANILHA_ESPERA_MAXIMA_S * 1_000,
     reconciliarMs: a.PLANILHA_RECONCILIAR_MIN * 60_000,
-    versoesManter: a.PLANILHA_VERSOES_MANTER,
-    eventosMax: a.PLANILHA_EVENTOS_MAX,
     concessaoMs: a.PLANILHA_CONCESSAO_MIN * 60_000,
+    alvoMs: a.PLANILHA_ALVO_S * 1_000,
+    atrasoMs: a.PLANILHA_ATRASO_S * 1_000,
+    retencao: { ultimas: a.PLANILHA_VERSOES_MANTER, diariasDias: a.PLANILHA_DIARIAS_DIAS, preSubstituicaoDias: a.PLANILHA_PRE_SUBSTITUICAO_DIAS },
+    movimentosPorArquivo: a.PLANILHA_MOVIMENTOS_POR_ARQUIVO,
+    protegerSubstituicao: a.PLANILHA_PROTEGER_SUBSTITUICAO === 'ativada',
     backup: {
+      automatico: a.BACKUP_AUTOMATICO === 'ativada',
+      intervaloHoras: a.BACKUP_INTERVALO_HORAS,
       prazoHoras: a.BACKUP_PRAZO_HORAS,
-      destinoDescricao: a.BACKUP_DESTINO_DESCRICAO ?? null,
+      destino: destinoBackup,
+      pastaLocal: resolve(RAIZ_REPOSITORIO, a.BACKUP_DESTINO ?? '.dados/backups'),
+      variavelBanco: a.BACKUP_VARIAVEL_BANCO,
+      manterLocal: a.BACKUP_MANTER,
+      retencao: { ultimas: a.BACKUP_MANTER, diariasDias: a.BACKUP_DIARIOS_DIAS, preSubstituicaoDias: a.BACKUP_PRE_SUBSTITUICAO_DIAS },
       responsavel: a.BACKUP_RESPONSAVEL ?? null,
       restauracaoPrazoDias: a.RESTAURACAO_PRAZO_DIAS,
+      raiz: RAIZ_REPOSITORIO,
     },
   };
 }

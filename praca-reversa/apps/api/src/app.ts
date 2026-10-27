@@ -34,7 +34,7 @@ import { registrarRotasSaude } from './modules/saude/rotas.js';
 import { registrarRotasSelecao } from './modules/selecao/rotas.js';
 import { registrarRotasPlanilha } from './modules/planilha/rotas.js';
 import { registrarRotasSelecaoTeste } from './modules/selecao-teste/rotas.js';
-import type { ConfigPlanilha } from './modules/planilha/situacao.js';
+import { PLANILHA_PADRAO, type ConfigPlanilha } from './modules/protecao/configuracao.js';
 
 export interface OpcoesApp {
   db: Banco;
@@ -62,19 +62,6 @@ export interface OpcoesApp {
 
 const QUINZE_MINUTOS = 15 * 60_000;
 
-/** Sem configuração: geração local só por pedido, sem destino independente. */
-const PLANILHA_PADRAO: ConfigPlanilha = {
-  automatica: false,
-  destino: null,
-  pastaLocal: '.dados/planilha',
-  intervaloMs: 20_000,
-  agruparMs: 30_000,
-  reconciliarMs: 3_600_000,
-  versoesManter: 60,
-  eventosMax: 20_000,
-  concessaoMs: 600_000,
-  backup: { prazoHoras: 26, destinoDescricao: null, responsavel: null, restauracaoPrazoDias: 90 },
-};
 
 export async function criarApp(opcoes: OpcoesApp): Promise<FastifyInstance> {
   const app = Fastify({ logger: opcoes.logger ?? false });
@@ -104,6 +91,7 @@ export async function criarApp(opcoes: OpcoesApp): Promise<FastifyInstance> {
     claims: { ordemPadrao: 'PRIORIDADE', anexoMaxBytes: 5 * 1_048_576, ...opcoes.claims },
     caminhoBase: opcoes.aplicativo?.caminhoBase ?? '/',
     selecaoClienteTeste: opcoes.selecaoClienteTeste ?? true,
+    planilha: opcoes.planilha ?? PLANILHA_PADRAO,
   };
   void hashParaContaInexistente();
   const aplicativo: ConfigAplicativo = {
@@ -208,7 +196,7 @@ export async function criarApp(opcoes: OpcoesApp): Promise<FastifyInstance> {
         registrarRotasAjuda(privado, deps, auth);
         registrarRotasIndicadores(privado, deps, auth);
         registrarRotasPaineis(privado, deps, auth);
-        registrarRotasPlanilha(privado, deps, auth, opcoes.planilha ?? PLANILHA_PADRAO);
+        registrarRotasPlanilha(privado, deps, auth, deps.planilha);
         // Desligada na instalação (SELECAO_CLIENTE_TESTE=desativada): as rotas não existem.
         if (deps.selecaoClienteTeste) registrarRotasSelecaoTeste(privado, deps, auth);
         pronto();

@@ -14,6 +14,7 @@ import type { Banco } from '../../db/cliente.js';
 import { ErroHttp, acessoNegado, naoAutenticado, sessaoExpirada } from '../../http/erros.js';
 import { ehMutavel } from '../../http/seguranca.js';
 import { registrarEvento } from '../auditoria/registrar.js';
+import type { ConfigPlanilha } from '../protecao/configuracao.js';
 import { escoposDoUsuario } from './escopos.js';
 import type { LimitadorTentativas } from './limitador.js';
 import type { ServicoSessoes, SessaoValida } from './sessoes.js';
@@ -59,6 +60,8 @@ export interface Dependencias {
   caminhoBase?: string;
   /** "Seleção cliente — teste" ligada na instalação (padrão: ligada; acesso só por concessão). */
   selecaoClienteTeste: boolean;
+  /** Planilha automática e proteção (destino, tempos, retenção, backup). */
+  planilha: ConfigPlanilha;
 }
 
 export function nomeCookie(config: ConfigAcesso): string {

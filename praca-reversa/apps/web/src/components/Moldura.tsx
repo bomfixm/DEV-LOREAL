@@ -323,15 +323,16 @@ export function Pagina({
 }
 
 /** Mensagem de resultado de uma ação: sucesso, erro ou conflito de versão. */
-export function MensagemAcao({ mensagem, testId }: { mensagem: { tipo: 'ok' | 'erro' | 'conflito'; texto: string } | null; testId: string }) {
+export function MensagemAcao({ mensagem, testId }: { mensagem: { tipo: 'ok' | 'erro' | 'conflito' | 'aviso'; texto: string } | null; testId: string }) {
   if (mensagem === null) return null;
   return (
     <p
-      className={mensagem.tipo === 'ok' ? 'mensagem-ok' : mensagem.tipo === 'conflito' ? 'mensagem-conflito' : 'estado-erro'}
+      className={mensagem.tipo === 'ok' ? 'mensagem-ok' : mensagem.tipo === 'conflito' || mensagem.tipo === 'aviso' ? 'mensagem-conflito' : 'estado-erro'}
       role={mensagem.tipo === 'ok' ? 'status' : 'alert'}
       data-testid={testId}
     >
       {mensagem.tipo === 'conflito' && <strong>Conflito: </strong>}
+      {mensagem.tipo === 'aviso' && <strong>Atenção: </strong>}
       {mensagem.texto}
     </p>
   );

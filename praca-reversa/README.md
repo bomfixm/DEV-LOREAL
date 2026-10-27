@@ -317,9 +317,9 @@ Contrato em `docs/CORRECAO-PALETES-CONFERENCIA.md` (D289–D295).
 
 Decisões D267–D273; testes em `apps/api/test/banco/selecao-teste.test.ts`. O importador da planilha do cliente (seleção importada) **não mudou**: o ajuste do leitor aguarda o arquivo real.
 
-## Planilha única e proteção dos dados
+## Planilha automática e proteção dos dados
 
-Com `npm start`, o servidor gera `Praca-Reversa-<unidade>-<cliente>.xlsx` (abas Inventário, Movimentações e Proteção e ajuda) depois das alterações confirmadas e a cada reconciliação. Sem `PLANILHA_DESTINO` a cópia fica só no servidor (`.dados/planilha/`) e a tela **Planilha e proteção** (menu da conta) mostra "Não configurado"; com uma pasta sincronizada do SharePoint/OneDrive ou compartilhamento fora do servidor, publica o arquivo atual e guarda versões anteriores. Backup verificado: `npm run backup:rotina`; teste de restauração isolado (dados fictícios): `npm run backup:teste-restauracao`; exemplo fictício: `npm run planilha:exemplo`. Ativação e agendamento em `docs/IMPLANTACAO.md`.
+Com `npm start`, o trabalhador da API gera `Praca-Reversa-<unidade>-<cliente>.xlsx` (abas Inventário — mesmas colunas da planilha da operação, com situação e pendências —, Movimentações e Proteção e ajuda) depois de cada alteração confirmada, com **revisão** crescente, validação do arquivo e versões anteriores (alvo de até 30 s; não é garantia). Sem `PLANILHA_DESTINO` a cópia fica só no servidor (`.dados/planilha/`) e a tela **Planilha e proteção** (menu da conta) mostra "Não configurado"; com um armazenamento S3 compatível (`s3://…`) ou compartilhamento de outra máquina, publica o arquivo atual, o manifesto e as versões, conferindo cada gravação. O **backup completo** é diário e antes de cada substituição do inventário (enviado ao mesmo destino). Comandos: `npm run protecao:situacao`, `protecao:processar` (uma volta), `protecao:backup`, `protecao:teste-restauracao` (backup real num banco isolado, removido depois), `protecao:verificar-destino`; exemplo fictício: `npm run planilha:exemplo`. Configuração em `docs/IMPLANTACAO.md`.
 
 ## Variáveis de ambiente
 

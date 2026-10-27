@@ -5,7 +5,15 @@
 // Só registra VERIFICADO depois da conferência; falha também é registrada.
 //
 // Uso (agendar pelo Agendador de Tarefas do Windows ou cron; ver docs/IMPLANTACAO.md):
-//   node scripts/recuperacao/rotina-backup.mjs [--destino=<pasta>] [--manter=14] [--origem=DATABASE_URL]
+//   node scripts/recuperacao/rotina-backup.mjs [--destino=<pasta>] [--manter=14] [--origem=DATABASE_URL] [--motivo=DIARIO|PRE_SUBSTITUICAO|MANUAL]
+//
+// Desde 26 out. 2026 o trabalhador da API (modules/protecao) chama esta rotina
+// todo dia e antes de cada substituição do inventário, e envia o backup ao
+// destino independente; as linhas BACKUP_ID= e BACKUP_PASTA= da saída são
+// lidas por ele. Backups anteriores a substituições ficam na pasta local por
+// BACKUP_PRE_SUBSTITUICAO_DIAS (padrão 30) além dos --manter mais novos.
+// --sem-retencao: não apaga nada aqui (o trabalhador aplica a retenção só aos
+// backups criados por ele, com motivo registrado; cópias manuais antigas ficam).
 //
 // Configuração (variáveis de ambiente; nenhuma é segredo):
 //   BACKUP_DESTINO            pasta dos backups (padrão .dados/backups — no MESMO servidor)
@@ -29,6 +37,17 @@ function tamanhoPasta(pasta) {
   return total;
 }
 
+/** IDs dos backups anteriores a substituições ainda dentro da retenção própria. */
+async function backupsProtegidos(url, dias) {
+  const cliente = await conectar(url);
+  try {
+    const r = await cliente.query("SELECT identificador FROM registro_protecao WHERE tipo = 'BACKUP' AND situacao = 'VERIFICADO' AND detalhes->>'motivo' = 'PRE_SUBSTITUICAO' AND concluido_em > now() - make_interval(days => $1)", [dias]);
+    return new Set(r.rows.map((l) => l.identificador));
+  } finally {
+    await cliente.end();
+  }
+}
+
 /** Registra o resultado (BACKUP ou TESTE_RESTAURACAO) e marca a planilha de todos os escopos para atualizar. */
 export async function registrarProtecao(url, r) {
   const cliente = await conectar(url);
@@ -49,13 +68,23 @@ export async function registrarProtecao(url, r) {
   }
 }
 
-/** Mantém os `manter` backups verificados mais novos; nunca apaga o recém-criado nem deixa a pasta sem backup. */
-function aplicarRetencao(destino, manter, recente) {
+/** Mantém os `manter` backups verificados mais novos e os protegidos; nunca apaga o recém-criado nem deixa a pasta sem backup. */
+function aplicarRetencao(destino, manter, recente, protegidos) {
   const pastas = readdirSync(destino)
     .filter((n) => /^praca-reversa-backup-.+-\d{8}-\d{6}Z-[0-9a-f]{8}$/.test(n) && existsSync(join(destino, n, 'manifesto.json')))
     .sort()
     .reverse();
-  const apagar = pastas.filter((n) => join(destino, n) !== recente).slice(Math.max(1, manter - 1));
+  const idDe = (n) => {
+    try {
+      return lerManifesto(join(destino, n)).id;
+    } catch {
+      return null;
+    }
+  };
+  const apagar = pastas
+    .filter((n) => join(destino, n) !== recente)
+    .slice(Math.max(1, manter - 1))
+    .filter((n) => !protegidos.has(idDe(n)));
   for (const n of apagar) rmSync(join(destino, n), { recursive: true, force: true });
   return apagar.length;
 }
@@ -70,6 +99,9 @@ async function principal() {
   const fora = process.env.BACKUP_FORA_DO_SERVIDOR === 'sim';
   const descricao = process.env.BACKUP_DESTINO_DESCRICAO ?? (fora ? destino : `${destino} (mesmo servidor da aplicação)`);
   const responsavel = process.env.BACKUP_RESPONSAVEL ?? null;
+  const motivo = typeof args.motivo === 'string' ? args.motivo : 'MANUAL';
+  if (!['DIARIO', 'PRE_SUBSTITUICAO', 'MANUAL'].includes(motivo)) falhar('--motivo precisa ser DIARIO, PRE_SUBSTITUICAO ou MANUAL.');
+  const diasPre = Math.max(1, Number(process.env.BACKUP_PRE_SUBSTITUICAO_DIAS ?? 30));
   const iniciadoEm = new Date();
   let pasta = null;
   try {
@@ -82,7 +114,7 @@ async function principal() {
     const arquivos = await conferirArquivos(pasta, manifesto);
     const tamanho = tamanhoPasta(pasta);
     const linhas = manifesto.tabelas.reduce((s, t) => s + t.linhas, 0);
-    const removidos = aplicarRetencao(destino, manter, pasta);
+    const removidos = args['sem-retencao'] ? 0 : aplicarRetencao(destino, manter, pasta, await backupsProtegidos(url, diasPre));
     await registrarProtecao(url, {
       tipo: 'BACKUP',
       situacao: 'VERIFICADO',
@@ -94,14 +126,16 @@ async function principal() {
       foraDoServidor: fora,
       dados: 'OPERACAO',
       responsavel,
-      detalhes: { tabelas: manifesto.tabelas.length, linhas, arquivosConferidos: arquivos, anexos: manifesto.anexos.total, instanteDoSnapshot: manifesto.instanteDoSnapshot, retencao: manter, removidos },
+      detalhes: { motivo, tabelas: manifesto.tabelas.length, linhas, arquivosConferidos: arquivos, anexos: manifesto.anexos.total, instanteDoSnapshot: manifesto.instanteDoSnapshot, retencao: manter, removidos },
     });
+    console.log(`BACKUP_ID=${manifesto.id}`);
+    console.log(`BACKUP_PASTA=${pasta}`);
     console.log(`Backup VERIFICADO: ${manifesto.id} · ${String(tamanho)} bytes · ${String(arquivos)} arquivo(s) conferido(s) · ${String(linhas)} linhas · retenção ${String(manter)} (removidos ${String(removidos)}).`);
     if (!fora) console.log('ATENÇÃO: destino no mesmo servidor da aplicação (BACKUP_FORA_DO_SERVIDOR não é "sim"): o aplicativo mostra "Não configurado" para a proteção fora do servidor.');
   } catch (erro) {
     const mensagem = (erro instanceof Error ? erro.message : String(erro)).slice(0, 500);
     try {
-      await registrarProtecao(url, { tipo: 'BACKUP', situacao: 'FALHOU', iniciadoEm, concluidoEm: new Date(), destino: descricao, foraDoServidor: fora, dados: 'OPERACAO', responsavel, mensagem, detalhes: { pasta } });
+      await registrarProtecao(url, { tipo: 'BACKUP', situacao: 'FALHOU', iniciadoEm, concluidoEm: new Date(), destino: descricao, foraDoServidor: fora, dados: 'OPERACAO', responsavel, mensagem, detalhes: { motivo, pasta } });
     } catch (registro) {
       console.error(`Não foi possível registrar a falha no banco: ${registro instanceof Error ? registro.message : String(registro)}`);
     }

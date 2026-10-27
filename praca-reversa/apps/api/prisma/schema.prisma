@@ -390,6 +390,8 @@ model Escopo {
   informacoesDocumento InformacaoDocumento[]
   controlePlanilha     ControlePlanilha?
   publicacoesPlanilha  PublicacaoPlanilha[]
+  geracoesPlanilha     GeracaoPlanilha[]
+  enviosExternos       EnvioExterno[]
   solicitacoesTeste    SolicitacaoSelecaoTeste[]
 
   @@unique([unidadeId, clienteId])
@@ -500,7 +502,8 @@ model Usuario {
   alteracoesTesteRespond   AlteracaoSelecaoTeste[]   @relation("AlteracaoTesteRespondidaPor")
   eventosSelecaoTeste      EventoSelecaoTeste[]      @relation("EventoSelecaoTesteAutor")
   publicacoesPlanilha      PublicacaoPlanilha[]      @relation("PublicacaoPlanilhaSolicitadaPor")
-  numeracoesPalete         NumeracaoPalete[]         @relation("NumeracaoPaleteAtualizadaPor")
+  geracoesPlanilha         GeracaoPlanilha[]         @relation("GeracaoPlanilhaSolicitadaPor")
+  numeracoesPalete        NumeracaoPalete[]         @relation("NumeracaoPaleteAtualizadaPor")
   preferencia              PreferenciaUsuario?
 
   @@map("usuario")
@@ -2843,9 +2846,12 @@ model AlteracaoPlanilha {
   @@map("alteracao_planilha")
 }
 
-/// Controle da publicação por escopo: numeração das versões, concessão
-/// exclusiva com expiração (um publicador por vez; recuperação após
-/// reinício) e falhas seguidas com a próxima tentativa.
+/// Controle da planilha por escopo: concessão exclusiva com expiração (um
+/// trabalho por vez; recuperação após reinício), revisão dos dados (crescente:
+/// cada estado capturado e gerado recebe a seguinte), última revisão
+/// confirmada no destino independente e as falhas seguidas da geração e do
+/// envio (cada uma com a própria próxima tentativa). `versaoAtual` numerava
+/// as tentativas do modelo anterior (`publicacao_planilha`).
 model ControlePlanilha {
   escopoId           String    @id @map("escopo_id") @db.Uuid
   versaoAtual        Int       @default(0) @map("versao_atual")
@@ -2855,10 +2861,101 @@ model ControlePlanilha {
   proximaTentativaEm DateTime? @map("proxima_tentativa_em") @db.Timestamptz(3)
   ultimaFalha        String?   @map("ultima_falha")
   ultimaFalhaEm      DateTime? @map("ultima_falha_em") @db.Timestamptz(3)
+  revisaoDados       Int       @default(0) @map("revisao_dados")
+  revisaoPublicada   Int       @default(0) @map("revisao_publicada")
+  envioFalhas        Int       @default(0) @map("envio_falhas")
+  envioProximaEm     DateTime? @map("envio_proxima_em") @db.Timestamptz(3)
+  envioUltimaFalha   String?   @map("envio_ultima_falha")
+  envioUltimaFalhaEm DateTime? @map("envio_ultima_falha_em") @db.Timestamptz(3)
 
   escopo Escopo @relation(fields: [escopoId], references: [id])
 
   @@map("controle_planilha")
+}
+
+/// Geração local da planilha (26 out. 2026): uma linha por tentativa.
+/// GERADA = arquivo(s) validado(s) e gravado(s) na pasta local do escopo com a
+/// revisão dos dados; FALHOU = nada substituído e nenhuma revisão ocupada.
+/// Imutável depois de concluída.
+model GeracaoPlanilha {
+  id                  String    @id @db.Uuid
+  escopoId            String    @map("escopo_id") @db.Uuid
+  revisao             Int?
+  /// GERANDO, GERADA ou FALHOU.
+  situacao            String
+  /// ALTERACAO, RECONCILIACAO, MANUAL ou PRE_SUBSTITUICAO.
+  motivo              String
+  solicitadoPorId     String?   @map("solicitado_por_id") @db.Uuid
+  iniciadoEm          DateTime  @map("iniciado_em") @db.Timestamptz(3)
+  concluidoEm         DateTime? @map("concluido_em") @db.Timestamptz(3)
+  /// Instante do snapshot (todas as abas do mesmo momento).
+  instanteDados       DateTime? @map("instante_dados") @db.Timestamptz(3)
+  /// Alteração confirmada mais recente incluída nesta revisão.
+  ultimaAlteracaoEm   DateTime? @map("ultima_alteracao_em") @db.Timestamptz(3)
+  alteracoesIncluidas Int       @default(0) @map("alteracoes_incluidas")
+  /// Inventário ativo no snapshot (código e data), como texto.
+  loteAtivo           String?   @map("lote_ativo")
+  /// Cópia preservada antes de uma substituição do inventário (retenção mínima própria).
+  preSubstituicao     Boolean   @default(false) @map("pre_substituicao")
+  registros           Json?
+  /// Arquivos da revisão: [{ papel, nome, sha256, tamanho }] (principal e de apoio).
+  arquivos            Json?
+  nomeArquivo         String?   @map("nome_arquivo")
+  hashArquivo         String?   @map("hash_arquivo")
+  tamanhoBytes        Int?      @map("tamanho_bytes")
+  erro                String?
+
+  escopo        Escopo   @relation(fields: [escopoId], references: [id])
+  solicitadoPor Usuario? @relation("GeracaoPlanilhaSolicitadaPor", fields: [solicitadoPorId], references: [id])
+
+  @@unique([escopoId, revisao])
+  @@index([escopoId, iniciadoEm])
+  @@map("geracao_planilha")
+}
+
+/// Envio de uma cópia ao destino independente: a planilha de uma revisão
+/// (escopo) ou um backup completo (sem escopo). CONFIRMADO só depois de relido
+/// do destino e conferido pelo SHA-256; a mesma referência é confirmada uma vez.
+model EnvioExterno {
+  id           String    @id @db.Uuid
+  /// PLANILHA ou BACKUP.
+  tipo         String
+  escopoId     String?   @map("escopo_id") @db.Uuid
+  /// Revisão (planilha) ou ID do backup.
+  referencia   String
+  /// ENVIANDO, CONFIRMADO ou FALHOU.
+  situacao     String
+  /// S3 ou PASTA (compartilhamento de rede).
+  destinoTipo  String    @map("destino_tipo")
+  /// Descrição do destino, sem credencial.
+  destino      String
+  /// Chave/caminho relativo do arquivo principal no destino.
+  chave        String?
+  hash         String?
+  tamanhoBytes BigInt?   @map("tamanho_bytes")
+  arquivos     Int?
+  iniciadoEm   DateTime  @map("iniciado_em") @db.Timestamptz(3)
+  concluidoEm  DateTime? @map("concluido_em") @db.Timestamptz(3)
+  erro         String?
+  detalhes     Json?
+
+  escopo Escopo? @relation(fields: [escopoId], references: [id])
+
+  @@index([tipo, escopoId, iniciadoEm])
+  @@map("envio_externo")
+}
+
+/// Concessão e espera das rotinas globais de proteção (chave BACKUP).
+model ControleProtecao {
+  chave           String    @id
+  executandoDesde DateTime? @map("executando_desde") @db.Timestamptz(3)
+  executandoPor   String?   @map("executando_por")
+  falhas          Int       @default(0)
+  proximaEm       DateTime? @map("proxima_em") @db.Timestamptz(3)
+  ultimaFalha     String?   @map("ultima_falha")
+  ultimaFalhaEm   DateTime? @map("ultima_falha_em") @db.Timestamptz(3)
+
+  @@map("controle_protecao")
 }
 
 /// Uma tentativa de gerar e publicar a planilha do escopo (versão única por

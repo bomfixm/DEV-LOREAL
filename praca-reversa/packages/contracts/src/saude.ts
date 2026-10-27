@@ -55,6 +55,8 @@ export const CodigoErroSchema = z.enum([
   'JANELA_VINCULADA',
   /** O mesmo arquivo já foi confirmado em outro lote. */
   'ARQUIVO_JA_IMPORTADO',
+  /** A planilha ou o backup da base atual não foi gerado antes da substituição do inventário: nada foi substituído. */
+  'PROTECAO_PREVIA_FALHOU',
   /** Validação de recuperação recusada por regra (produto, unidade, lote, origem, condição, base). */
   'RECUPERACAO_BLOQUEADA',
   /** Quantidade acima do elegível do material ou do restante da linha do claim. */

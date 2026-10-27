@@ -180,11 +180,14 @@ export function Cabecalho({ sessao, rota, barraLateral = false, secao = null, pe
                 {erroEscopo}
               </p>
             )}
-            <div className="menu-conta-tema">
-              <p className="menu-conta-grupo">Tema da tela</p>
-              <SeletorTema />
-            </div>
-            {itens.length > 0 && (
+            {/* Com o menu lateral (computador), páginas e tema ficam só nele; aqui sobra o que é da conta. */}
+            {!barraLateral && (
+              <div className="menu-conta-tema">
+                <p className="menu-conta-grupo">Tema da tela</p>
+                <SeletorTema />
+              </div>
+            )}
+            {!barraLateral && itens.length > 0 && (
               <nav className="menu-conta-paginas" aria-label="Páginas">
                 <p className="menu-conta-grupo">Todas as páginas</p>
                 {itens.map((item) => (

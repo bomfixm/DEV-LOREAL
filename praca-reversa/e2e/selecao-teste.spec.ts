@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { abrirMenuConta, ehCelular, entrar } from './apoio';
+import { ehCelular, entrar, irParaPagina, semPaginaNoMenu } from './apoio';
 import { credenciais, type Credenciais } from './credenciais';
 
 /**
@@ -72,8 +72,7 @@ async function contar(page: Page, paleteId: string, conteudoId: string, volumes:
 }
 
 async function abrirArea(page: Page): Promise<void> {
-  await abrirMenuConta(page);
-  await page.getByTestId('menu-conta').getByRole('button', { name: 'Seleção cliente — teste' }).click();
+  await irParaPagina(page, 'Seleção cliente — teste');
   await expect(page.getByTestId('tela-selecao-teste')).toBeVisible();
   await expect(page.getByTestId('st-ambiente-teste')).toHaveText('Ambiente de teste — não movimenta estoque');
 }
@@ -101,14 +100,12 @@ test.describe('Seleção cliente — teste', () => {
     await paginaOperador.goto('/selecao-teste');
     await expect(paginaOperador.getByTestId('sem-permissao')).toBeVisible();
     expect((await paginaOperador.request.get(`${API_TESTE}/estoque`)).status()).toBe(403);
-    await abrirMenuConta(paginaOperador);
-    await expect(paginaOperador.getByTestId('menu-conta').getByRole('button', { name: 'Seleção cliente — teste' })).toHaveCount(0);
+    await semPaginaNoMenu(paginaOperador, 'Seleção cliente — teste');
     await operador.close();
 
     // Concessão explícita pela tela do administrador.
     await entrar(page, 'adminCadastro');
-    await abrirMenuConta(page);
-    await page.getByRole('button', { name: 'Administração de acesso' }).click();
+    await irParaPagina(page, 'Administração de acesso');
     const linha = page.locator(`.usuario-linha[data-login="${credenciais().supervisor.login}"]`);
     await linha.getByTestId('alternar-selecao-teste').click();
     await expect(page.getByTestId('mensagem-acesso')).toContainText('com acesso à Seleção cliente — teste');

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdirSync, readFileSync } from 'node:fs';
-import { abrirMenuConta, ehCelular, entrar } from './apoio';
+import { ehCelular, entrar, irParaPagina } from './apoio';
 
 /**
  * Planilha e proteção (26 out. 2026), no escopo de cadastro do E2E (dados
@@ -9,8 +9,7 @@ import { abrirMenuConta, ehCelular, entrar } from './apoio';
  * revisão validada (XLSX) e o operador só consulta.
  */
 async function abrirTela(page: Page): Promise<void> {
-  await abrirMenuConta(page);
-  await page.getByRole('button', { name: 'Planilha e proteção' }).click();
+  await irParaPagina(page, 'Planilha e proteção');
   await expect(page.getByTestId('tela-planilha')).toBeVisible();
 }
 

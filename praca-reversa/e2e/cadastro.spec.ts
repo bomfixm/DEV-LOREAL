@@ -1,14 +1,15 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { mostrarListaPaletesNoMapa } from '../apps/web/src/features/mapa/configuracao';
 import {
-  abrirMenuConta,
   aguardarMapa,
   aguardarMapaParado,
   bordaBranca,
   decodificarQr,
   entrar,
   forma,
+  irParaPagina,
   obterPraca,
+  semPaginaNoMenu,
   type PracaApi,
   verMais,
 } from './apoio';
@@ -25,8 +26,7 @@ function posicaoLivre(praca: PracaApi, fileira: string) {
 }
 
 async function irPeloMenu(page: Page, item: string): Promise<void> {
-  await abrirMenuConta(page);
-  await page.getByRole('button', { name: item }).click();
+  await irParaPagina(page, item);
 }
 
 /** Login pelo formulário numa página que já está na tela de entrada. */
@@ -269,8 +269,7 @@ test.describe('cadastro, mapa, etiqueta e QR', () => {
   test('sem permissão: consulta não cadastra pela interface nem pela API', async ({ page, isMobile }) => {
     test.skip(isMobile, 'Permissões verificadas no computador.');
     await entrar(page, 'consultaCadastro');
-    await abrirMenuConta(page);
-    await expect(page.getByRole('button', { name: 'Cadastrar palete' })).toHaveCount(0);
+    await semPaginaNoMenu(page, 'Cadastrar palete');
     await expect(page.getByRole('button', { name: 'Novo palete' })).toHaveCount(0);
     await page.goto('/paletes/novo');
     await expect(page.getByTestId('sem-permissao')).toBeVisible();

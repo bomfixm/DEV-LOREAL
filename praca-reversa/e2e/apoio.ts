@@ -105,6 +105,34 @@ export async function abrirMenuConta(page: Page): Promise<void> {
   await expect(menu.locator('.menu-conta-painel')).toBeVisible();
 }
 
+/**
+ * Abre uma página pelo menu, como o usuário: no computador pelo menu lateral
+ * (abrindo "Mais" se preciso); no celular, pelo menu da conta (27/10/2026: o
+ * menu da conta só lista páginas quando não há menu lateral).
+ */
+/** Nome no menu lateral quando difere do menu da conta (components/Navegacao.tsx). */
+const NOME_LATERAL: Record<string, string> = { 'Cadastrar palete': 'Recebimento', 'Janelas de devolução': 'Agendas', 'Painel da operação': 'Painel' };
+
+/** A página não é oferecida em nenhum menu: lateral (inclusive "Mais") e da conta. */
+export async function semPaginaNoMenu(page: Page, rotulo: string): Promise<void> {
+  await abrirMenuConta(page);
+  await expect(page.getByTestId('menu-conta').getByRole('button', { name: rotulo, exact: true })).toHaveCount(0);
+  await expect(page.getByTestId('barra-lateral').getByRole('link', { name: NOME_LATERAL[rotulo] ?? rotulo, exact: true, includeHidden: true })).toHaveCount(0);
+}
+
+export async function irParaPagina(page: Page, rotulo: string): Promise<void> {
+  await expect(page.getByTestId('menu-conta')).toBeVisible();
+  const lateral = page.getByTestId('barra-lateral');
+  if (await lateral.isVisible()) {
+    const link = lateral.getByRole('link', { name: NOME_LATERAL[rotulo] ?? rotulo, exact: true });
+    if (!(await link.isVisible())) await lateral.getByTestId('navegacao-mais-botao').click();
+    await link.click();
+    return;
+  }
+  await abrirMenuConta(page);
+  await page.getByTestId('menu-conta').getByRole('button', { name: rotulo, exact: true }).click();
+}
+
 export async function trocarEscopo(page: Page, nome: string): Promise<void> {
   await abrirMenuConta(page);
   await page.getByLabel('Unidade / cliente').selectOption({ label: nome });

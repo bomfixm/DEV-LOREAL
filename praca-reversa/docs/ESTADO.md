@@ -40,6 +40,10 @@ Atualizado em 27 de outubro de 2026.
 | Validação urgente: "Colocar no mapa" + atualização do aplicativo em uso (pedido de 26 out. 2026) | **Implementado e entregue na porta 3000** (26 out. 2026): barra presa ao rodapé ao marcar a primeira nota, janela "Colocar N notas no mapa" com a escolha de destino existente, conflito nomeia as notas e mantém o resto; versão nova entra sozinha na abertura quando nada está pendente — ver seção abaixo |
 | Dashboard de Indicadores (pedido de 22 out. 2026, `prompts/dashboard-indicadores/`) | **Integrado ao `main` e entregue na porta 3000 em 26 out. 2026** (merge `7529cff` do commit `5035ead`, branch `claude/great-ptolemy-qje7dw`). Implementado na sessão na nuvem (22 out. 2026), verificado com bancos de teste/E2E e escopo de demonstração (dados fictícios): rota `/indicadores` na largura toda ao lado do menu, cabeçalho compacto, quatro indicadores, módulos de posições/conferência/movimentação, estoque e atenção, abas com todos os números anteriores, "Sobre os números" e impressão completa; API e cálculos inalterados — ver seção abaixo. Telas não conferidas uma a uma com o banco real |
 
+## Menu da conta sem páginas repetidas (27 out. 2026, D325)
+
+No computador, com o menu lateral, o menu da conta mostra só a conta: nome e perfil, unidade/cliente, instalar, **Sair** e os links de termos e privacidade. Páginas e tema ficam no menu lateral. No celular, sem menu lateral, nada mudou. E2E afetados (acesso, caminho-base, cadastro, planilha, seleção teste, conteúdo, busca e importação, claims, documentos, comum, celular, redesign): 61 aprovados, depois de ajustar os testes para navegar pelo menu lateral. Build entregue na porta 3000.
+
 ## Termos, privacidade e segurança — o que existe de fato (27 out. 2026)
 
 Pedido `PROMPT-CLAUDE-PRACA-REVERSA-TERMOS-PRIVACIDADE-E-SEGURANCA.txt`. Decisões D317–D324. Documentos em `docs/conformidade/`:

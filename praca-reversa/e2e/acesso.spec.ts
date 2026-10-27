@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { randomBytes } from 'node:crypto';
-import { abrirMenuConta, aguardarMapa, entrar, entrarNoMapa, focarArea, forma, obterPraca, trocarEscopo } from './apoio';
+import { abrirMenuConta, aguardarMapa, entrar, entrarNoMapa, focarArea, forma, irParaPagina, obterPraca, semPaginaNoMenu, trocarEscopo } from './apoio';
 import { credenciais } from './credenciais';
 
 test.skip(({ isMobile }) => isMobile, 'Fluxos de acesso no layout de computador.');
@@ -45,8 +45,7 @@ test.describe('sessão na interface', () => {
 test.describe('permissões e escopos', () => {
   test('consulta não vê administração e a API recusa a chamada direta', async ({ page }) => {
     await entrarNoMapa(page, 'consulta');
-    await abrirMenu(page);
-    await expect(page.getByRole('button', { name: 'Administração de acesso' })).toHaveCount(0);
+    await semPaginaNoMenu(page, 'Administração de acesso');
     expect((await page.request.get('/api/v1/admin/usuarios')).status()).toBe(403);
   });
 
@@ -72,8 +71,7 @@ test.describe('permissões e escopos', () => {
 test.describe('administração de acesso', () => {
   test('cria usuário com resposta perdida: a nova tentativa reutiliza a chave e não duplica', async ({ page }) => {
     await entrarNoMapa(page, 'admin');
-    await abrirMenu(page);
-    await page.getByRole('button', { name: 'Administração de acesso' }).click();
+    await irParaPagina(page, 'Administração de acesso');
     await expect(page.getByTestId('tela-acesso')).toBeVisible();
 
     const chaves: string[] = [];
@@ -113,8 +111,7 @@ test.describe('administração de acesso', () => {
     await entrarNoMapa(paginaUsuario, 'descartavel');
 
     await entrarNoMapa(page, 'admin');
-    await abrirMenu(page);
-    await page.getByRole('button', { name: 'Administração de acesso' }).click();
+    await irParaPagina(page, 'Administração de acesso');
     const linha = page.locator('.usuario-linha[data-login="descartavel.e2e"]');
     await linha.getByRole('button', { name: 'Desativar conta' }).click();
     await expect(page.getByTestId('mensagem-acesso')).toContainText('sessões abertas foram encerradas');
@@ -135,8 +132,7 @@ test.describe('administração de acesso', () => {
   test('administrador não pode alterar o próprio acesso pela tela', async ({ page }) => {
     await entrar(page, 'admin');
     await aguardarMapa(page);
-    await abrirMenu(page);
-    await page.getByRole('button', { name: 'Administração de acesso' }).click();
+    await irParaPagina(page, 'Administração de acesso');
     const propria = page.locator('.usuario-linha[data-login="admin.e2e"]');
     await expect(propria.getByRole('button', { name: 'Desativar conta' })).toBeDisabled();
     await expect(propria.getByLabel('Perfil de admin.e2e')).toBeDisabled();

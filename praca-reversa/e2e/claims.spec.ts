@@ -1,6 +1,6 @@
 import { expect, test, type APIResponse, type Page, type TestInfo } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { abrirMenuConta, aguardarMapa, aguardarMapaParado, centroDaCaixa, entrar, forma, mapa, obterPraca, type PracaApi } from './apoio';
+import { abrirMenuConta, aguardarMapa, aguardarMapaParado, centroDaCaixa, entrar, forma, mapa, obterPraca, semPaginaNoMenu, type PracaApi } from './apoio';
 import { credenciais, type Credenciais } from './credenciais';
 
 /**
@@ -200,8 +200,7 @@ test.describe('claims', () => {
   test('operador não acessa claims; consulta não vê o menu; chamada direta negada', async ({ page, isMobile }) => {
     test.skip(isMobile, 'Fluxo de computador.');
     await entrar(page, 'operador');
-    await abrirMenuConta(page);
-    await expect(page.getByRole('button', { name: 'Claims' })).toHaveCount(0);
+    await semPaginaNoMenu(page, 'Claims');
     await page.goto('/claims');
     await expect(page.getByTestId('sem-permissao')).toBeVisible();
     expect((await page.request.get('/api/v1/claims')).status()).toBe(403);

@@ -33,9 +33,12 @@ test.describe('Registrar conteúdo e conferência de volumes', () => {
     await lateral.getByTestId('navegacao-mais-botao').click();
     await expect(lateral.getByRole('link', { name: 'Registrar conteúdo' })).toHaveCount(1);
     await expect(lateral.getByText('Catálogo de SKU')).toHaveCount(0);
+    // Com o menu lateral, o menu da conta não repete as páginas (27/10/2026): só conta, unidade, instalar e sair.
     await abrirMenuConta(page);
     const menuConta = page.getByTestId('menu-conta');
-    await expect(menuConta.getByRole('button', { name: 'Registrar conteúdo' })).toHaveCount(1);
+    await expect(menuConta.getByRole('button', { name: 'Registrar conteúdo' })).toHaveCount(0);
+    await expect(menuConta.getByTestId('seletor-tema')).toHaveCount(0);
+    await expect(menuConta.getByRole('button', { name: 'Sair' })).toBeVisible();
     await expect(menuConta.getByText('Catálogo de SKU')).toHaveCount(0);
 
     // Rotas antigas ("Novo produto" e catálogo de SKU) levam ao "Registrar conteúdo", sem SKU.

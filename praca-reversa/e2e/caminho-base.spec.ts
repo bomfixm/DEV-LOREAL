@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { irParaPagina } from './apoio';
 import { credenciais } from './credenciais';
 
 /**
@@ -46,8 +47,7 @@ test('caminho-base /praca/: manifest, service worker, login, QR profundo, etique
 
   // Navegação interna mantém o prefixo (a janela do palete fecha antes).
   await page.keyboard.press('Escape');
-  await page.getByTestId('menu-conta').locator('summary').click();
-  await page.getByRole('button', { name: 'Aplicativo e aparelho' }).click();
+  await irParaPagina(page, 'Aplicativo e aparelho');
   await expect(page.getByTestId('tela-aplicativo')).toBeVisible();
   expect(new URL(page.url()).pathname).toBe('/praca/aplicativo');
   await expect(page.getByTestId('versoes')).toContainText('contrato 11');

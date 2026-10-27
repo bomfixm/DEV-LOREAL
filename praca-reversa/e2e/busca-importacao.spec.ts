@@ -1,7 +1,7 @@
 import { expect, test, type APIResponse, type Page, type TestInfo } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { abrirMenuConta, aguardarMapa, aguardarMapaParado, centroDaCaixa, entrar, forma, mapa, obterPraca, type PracaApi, verMais } from './apoio';
+import { abrirMenuConta, aguardarMapa, aguardarMapaParado, centroDaCaixa, entrar, forma, mapa, obterPraca, semPaginaNoMenu, type PracaApi, verMais } from './apoio';
 import { credenciais, type Credenciais } from './credenciais';
 
 /**
@@ -250,8 +250,7 @@ test.describe('busca e importação', () => {
     await page.getByTestId('campo-busca').fill('000123');
     await expect(page.getByTestId('busca-total')).toContainText('resultado(s)');
     await expect(page.getByTestId('busca-exportar')).toHaveCount(0);
-    await abrirMenuConta(page);
-    await expect(page.getByRole('button', { name: 'Importações' })).toHaveCount(0);
+    await semPaginaNoMenu(page, 'Importações');
     await page.goto('/importacoes');
     await expect(page.getByTestId('sem-permissao')).toBeVisible();
     expect((await page.request.get('/api/v1/importacoes')).status()).toBe(403);

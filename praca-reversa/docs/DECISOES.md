@@ -636,6 +636,12 @@ Pedido `PROMPT-CLAUDE-PRACA-REVERSA-TERMOS-PRIVACIDADE-E-SEGURANCA.txt` (27/10).
 | D323 | **Avisos de dependências registrados, sem atualização em massa**: zod < 4.6.6 (alto) e fastify 5.12.x (baixo) têm atualização dirigida recomendada, com regressão completa. Os avisos do CLI do Prisma (mysql2, deepmerge-ts) são de ferramenta de build. O projeto não declara licença própria até a decisão sobre direitos. | Item 5.3. |
 | D324 | **Sem banner de cookies e sem fila de solicitações de titulares nesta tarefa**: só existem o cookie técnico de sessão e preferências locais, e não há canal de privacidade aprovado; um formulário sem destino real seria enganoso. Ambos ficam registrados como decisão humana. | Itens 4.2 e 8.1. |
 
+## Menu da conta sem páginas repetidas — 27 out. 2026
+
+| ID | Decisão | Motivo |
+| --- | --- | --- |
+| D325 | **Com o menu lateral (computador), o menu da conta não repete as páginas nem o tema**. Fica só o que é da conta: nome e perfil, troca de unidade/cliente, instalar o aplicativo, **Sair** e os links de termos e privacidade. Sem menu lateral (celular), a lista "Todas as páginas" e o tema continuam no menu da conta, que é a navegação de lá. Nos testes E2E, a navegação passa pelo menu lateral (`irParaPagina`), e "não oferece a página" confere os dois menus (`semPaginaNoMenu`). | Pedido do usuário (27/10): a lista duplicada empurrava o "Sair" para fora da tela. |
+
 ## Registrar mudança
 
 Data; decisão alterada; nova decisão; motivo; origem da alteração; arquivos/módulos afetados; verificações; impacto no piloto. Quando uma decisão substituir outra, indicar explicitamente qual foi substituída. Evitar repetir a conversa inteira.

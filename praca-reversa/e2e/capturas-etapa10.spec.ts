@@ -77,7 +77,9 @@ test.describe('capturas etapa 10 @captura', () => {
     await page.goto('/indicadores');
     await expect(page.getByTestId('base-posicoes')).toBeVisible();
     await capturar(page, '12-indicadores');
-    await page.getByTestId('ind-estoque').scrollIntoViewIfNeeded();
+    // Dashboard de 22/10/2026: estoque e fluxo ficam na aba "Estoque e idade".
+    await page.getByTestId('ind-aba-estoque').click();
+    await expect(page.getByTestId('ind-estoque')).toBeVisible();
     await capturar(page, '13-indicadores-estoque-e-fluxo');
     await page.goto('/relatorios?tipo=paletes&somentePendencias=1');
     await expect(page.getByTestId('relatorio-tabela')).toBeVisible();

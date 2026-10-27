@@ -254,7 +254,7 @@ function AreaAutenticada({
     conteudo = <TelaAjuda guia={rota.guia} />;
   } else if (rota.tipo === 'indicadores') {
     conteudo = pode('praca.consultar') ? (
-      <TelaIndicadores inicio={rota.inicio} fim={rota.fim} permissoes={sessao.permissions} aoNavegar={navegar} />
+      <TelaIndicadores inicio={rota.inicio} fim={rota.fim} aba={rota.aba ?? null} permissoes={sessao.permissions} aoNavegar={navegar} />
     ) : (
       <SemPermissao aoVoltar={voltarAoMapa} />
     );

@@ -126,6 +126,25 @@ Várias evidências não multiplicam o valor de uma decisão (o valor é do resu
 - **Produtividade e tempo poupado:** não há registro de esforço (horas por tarefa) nem base comparável anterior ao aplicativo. O tempo entre abrir e concluir uma conferência não comprova trabalho ativo. Nada é estimado como economia.
 - **Metas, faixas de idade e prioridade do cliente:** não informadas.
 
+## Apresentação em dashboard (22 out. 2026; D297–D303)
+
+Mesmos números da API acima (uma consulta `GET /indicadores` por período, snapshot único); muda só a apresentação (`apps/web/src/features/indicadores/`: `TelaIndicadores.tsx`, `visao-geral.tsx`, `detalhes.tsx`, `pecas.tsx`, `dashboard-dados.ts`, `indicadores.css`). Toda a largura ao lado do menu, abas em `?aba=` com o período preservado; conferido por `e2e/indicadores.spec.ts` e `e2e/indicadores-dashboard.spec.ts` (1920, 2560, 1366, 1280, 768, 390 e 320 px; zoom 200%; menu compacto/expandido; claro/escuro).
+
+| Na tela | Campo da API | Abre |
+| --- | --- | --- |
+| Paletes na praça (com posição · localização pendente) | `praca.palletsInStock`, `palletsWithPosition`, `palletsLocationPending` | Relatório de paletes |
+| Posições livres (sem palete registrado, de N elegíveis, "Base provisória") | `praca.positions.free`, `eligible`; `positionsBasis.provisional` | — |
+| Paletes não conferidos (de N na praça, estado no cadastro) | `conferencia.byState.NAO_CONFERIDO`; N = soma dos quatro estados | Relatório filtrado |
+| Mudanças de localização (no período, eventos) | `praca.period.moves` | — |
+| Uso das posições: anel ocupadas × livres, percentual, "provisória", fora da base, capacidade, mudanças de configuração | `praca.positions.{occupied,free,eligible,unavailable,unavailableOccupied}`, `occupancyPercent`, `occupancyNote`, `positionsBasis` | — |
+| Conferência dos paletes: uma barra por estado; sessões e observações à parte | `conferencia.byState`, `activeCounts`, `pendingObservations` | Relatório por estado; aba Conferências |
+| Movimentação no período | `praca.period.{moves,registered,shippedWhole,retiredEmpty}` | Aba Praça e movimentações |
+| Estoque e idade | `estoque.current` (por unidade), `palletsWithUnknownContent`, `documentary`; `idade.byMonth`/`withoutEntryDate` | Aba Estoque e idade |
+| Pontos de atenção | base provisória, mudanças de configuração, localização pendente, indisponíveis com palete, conteúdo não validado, aguardando validação, observações pendentes, fluxo que não fecha — só quando > 0 | Relatório quando há lista com a mesma definição |
+| Abas de detalhe e "Sobre os números" | Todos os demais campos (praça agora, período, janelas, sessões, saldo, fluxo, retornos, idade, claims, valores, `unavailable`, `restricted`) | — |
+
+Sem série diária na API: nenhum gráfico de linha, sparkline, meta, faixa de idade ou tendência. A impressão leva todas as abas e a metodologia.
+
 ## Relatórios
 
 Formato único (`RelatorioSchema`): título, escopo, período, horário da consulta, filtros, base, notas (dados ausentes e universo parcial), totais tipados (contagem, quantidade, valor) e linhas. **A tela, o CSV e a impressão mostram exatamente o mesmo conteúdo.** Página na tela: 50 linhas; exportação: até **5.000 linhas** (o cabeçalho do CSV informa quando há mais e pede para refinar os filtros).

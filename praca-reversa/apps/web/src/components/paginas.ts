@@ -109,6 +109,8 @@ export function secaoDaRota(rota: Rota): { titulo: string; descricao: string } {
       return { titulo: 'Importações', descricao: 'Arquivos enviados, prévias e resultados.' };
     case 'conferencia':
       return { titulo: 'Conferência', descricao: 'Contagem física do palete.' };
+    case 'indicadores':
+      return { titulo: 'Indicadores', descricao: 'Praça, conferência, movimentações e estoque.' };
     case 'mover':
     case 'transferir':
     case 'historico':

@@ -18,7 +18,7 @@ import { ehTarefa, type IdTarefa } from './features/ajuda/tarefas';
  * expedições (retorno) em /expedicoes/<uuid>. Palete aberto da lista de
  * preparação leva ?reserva=<uuid> para voltar à preparação. Etapa 09:
  * /aplicativo (instalação, aparelho e versões, sem dados da operação). Etapa
- * 10: /ajuda (?guia=<tarefa>), /indicadores (?inicio&fim) e /relatorios
+ * 10: /ajuda (?guia=<tarefa>), /indicadores (?inicio&fim&aba) e /relatorios
  * (?tipo e filtros do relatório), e /paletes/<uuid>/retirar (palete vazio
  * depois de consolidação). Importar bipagem: /bipagem (arquivo → prévia → posição no mapa) ou /paletes/<uuid>/bipagem (destino = o palete aberto). Complemento "seleção do cliente": /selecoes,
  * /selecoes/<uuid> (?situacao=… filtros da conciliação), /inventarios e
@@ -60,7 +60,8 @@ export type Rota =
   | { tipo: 'etiquetas'; ids: string[] }
   | { tipo: 'aplicativo' }
   | { tipo: 'ajuda'; guia: IdTarefa | null }
-  | { tipo: 'indicadores'; inicio: string | null; fim: string | null }
+  /** `aba` ausente = Visão geral; trocar de aba mantém o período. */
+  | { tipo: 'indicadores'; inicio: string | null; fim: string | null; aba?: AbaIndicadores }
   | { tipo: 'relatorios'; parametros: string }
   | { tipo: 'planilha' }
   | { tipo: 'selecoes' }
@@ -86,6 +87,10 @@ const ABAS_CLAIM: readonly AbaClaim[] = ['linhas', 'candidatos', 'evidencias', '
 /** Seções do detalhe da janela. */
 export type AbaJanela = 'resumo' | 'material' | 'reservas' | 'historico';
 const ABAS_JANELA: readonly AbaJanela[] = ['resumo', 'material', 'reservas', 'historico'];
+
+/** Abas de detalhe dos indicadores (a Visão geral não aparece na URL). */
+export type AbaIndicadores = 'movimentacoes' | 'conferencias' | 'estoque' | 'claims';
+const ABAS_INDICADORES: readonly AbaIndicadores[] = ['movimentacoes', 'conferencias', 'estoque', 'claims'];
 
 /** Caso e linha de onde o palete foi aberto (para "Voltar ao claim"). */
 export interface ContextoClaim {
@@ -228,7 +233,8 @@ export function lerRota(caminho: string, busca: string): Rota {
   if (partes.length === 1 && primeira === 'indicadores') {
     const inicio = parametros.get('inicio') ?? '';
     const fim = parametros.get('fim') ?? '';
-    return { tipo: 'indicadores', inicio: DATA.test(inicio) ? inicio : null, fim: DATA.test(fim) ? fim : null };
+    const aba = ABAS_INDICADORES.find((a) => a === parametros.get('aba'));
+    return { tipo: 'indicadores', inicio: DATA.test(inicio) ? inicio : null, fim: DATA.test(fim) ? fim : null, ...(aba ? { aba } : {}) };
   }
   if (partes.length === 1 && primeira === 'relatorios') return { tipo: 'relatorios', parametros: parametrosRelatorio(parametros) };
   if (partes.length === 1 && primeira === 'planilha') return { tipo: 'planilha' };
@@ -330,6 +336,7 @@ export function caminhoDe(rota: Rota): string {
       const p = new URLSearchParams();
       if (rota.inicio) p.set('inicio', rota.inicio);
       if (rota.fim) p.set('fim', rota.fim);
+      if (rota.aba) p.set('aba', rota.aba);
       const q = p.toString();
       return `/indicadores${q ? `?${q}` : ''}`;
     }

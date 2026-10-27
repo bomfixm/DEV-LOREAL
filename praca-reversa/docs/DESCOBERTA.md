@@ -251,6 +251,11 @@ Variações de escrita observadas e tratadas pela normalização: "15- A120", "1
 - **Retorno físico por volumes**: quando volume expedido voltar, como registrar (hoje só o retorno da etapa 08, por SKU; o estorno de expedição é correção de registro, não retorno).
 - **Palete esvaziado pela expedição por volumes**: arquivar/retirar segue o fluxo existente; confirmar se a operação quer aviso automático.
 
+### Indicadores: conferência por produto × conferência de volumes (22 out. 2026) — a decidir
+
+- **"Paletes não conferidos" nos Indicadores** conta `palete.estado_conferencia` (conferência por produto/SKU e reconciliação, etapa 04). A conferência de volumes em tabela (21/10, D292) não altera esse estado, e o mapa mostra o estado de volumes (D293). Resultado: um palete "Conferido" no mapa pode aparecer como "Não conferido" nos Indicadores. A tela avisa isso (D303); **não** foi mudado o cálculo. Pergunta: o indicador deve passar a considerar a conferência de volumes (e com qual regra para "parcial" e "com diferença")? Isso muda consulta/API (`apps/api/src/modules/indicadores/consultas.ts`) e precisa de teste de banco próprio.
+- **Capacidade física da praça**: a ocupação continua "provisória" sobre as posições cadastradas enquanto o layout não for validado (códigos provisórios). Quem confirma a capacidade física e quando?
+
 ## Suposições usadas somente na demonstração (etapas 01 a 09)
 
 Não são regras do cliente. Servem para exercitar a interface com dados fictícios e devem ser substituídas pelas respostas acima.

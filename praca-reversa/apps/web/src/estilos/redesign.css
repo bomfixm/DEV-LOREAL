@@ -1472,6 +1472,12 @@
       padding: 4px;
       border-radius: 50%;
     }
+
+    /* O botão da conta tem 44 px fixos: não encolhe (passava da borda e
+       criava rolagem horizontal em 320 px); quem encolhe é o título. */
+    .topo:has(.menu-conta) .menu-conta {
+      flex: none;
+    }
   }
 
   /* ---------- Restos do visual antigo: destaques em amarelo/tinta, alertas em laranja ---------- */
@@ -2657,6 +2663,14 @@
     min-height: 56px;
     padding: 8px 16px;
     gap: 12px;
+  }
+
+  /* 320 px: com o botão da conta sem encolher, o título não some de vez. */
+  @media (max-width: 359.98px) {
+    .topo,
+    .topo--com-barra {
+      gap: 8px;
+    }
   }
 
   .topo-titulo {

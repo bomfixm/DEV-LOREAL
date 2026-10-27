@@ -10,7 +10,7 @@ Nenhuma outra variável é necessária. Nenhum valor secreto está envolvido.
 
 ## Implantação (instalação local da porta 3000)
 
-1. Backup antes da migração: `npm run backup:rotina -- --motivo=MANUAL`. Conferir `BACKUP_ID=` na saída.
+1. Backup antes da migração: `npm run backup:rotina -- --motivo=MANUAL --sem-retencao`. Conferir `BACKUP_ID=` na saída.
 2. Migração aditiva: `npm run db:migrar`. Ela cria `documento_publico` e `aceite_documento` e a proteção da auditoria.
 3. Build: `npm run build`. A tarefa "Praca Reversa - servidor 3000" reinicia sozinha com o build novo.
 4. Conferir:

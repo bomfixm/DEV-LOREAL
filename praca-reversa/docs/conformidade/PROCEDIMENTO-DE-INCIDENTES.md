@@ -10,7 +10,7 @@ Para suspeita de acesso indevido, perda, alteração ou divulgação de dados, o
 3. **Preservar evidências:**
    - eventos de auditoria (Administração → auditoria; tabela `evento_auditoria`);
    - registro técnico `.dados/servidor/servidor.log` e `servidor.log.1` (copiar antes da rotação de 5 MB);
-   - backup do momento (`npm run backup:rotina -- --motivo=MANUAL`).
+   - backup do momento (`npm run backup:rotina -- --motivo=MANUAL --sem-retencao`).
 4. **Registrar:** data e hora, descrição, dados e pessoas possivelmente afetados, medidas tomadas e quem decidiu. Usar [A DEFINIR: registro corporativo de incidentes].
 5. **Acionar o responsável corporativo:** [A DEFINIR: canal de segurança/privacidade]. Cabe a ele avaliar:
    - a comunicação à ANPD e aos titulares (LGPD art. 48: comunicação pelo controlador em prazo razoável definido pela autoridade);

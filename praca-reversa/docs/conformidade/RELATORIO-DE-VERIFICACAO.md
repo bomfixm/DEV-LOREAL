@@ -1,10 +1,10 @@
 # Relatório de verificação — termos, privacidade e segurança (27/10/2026)
 
-Ambiente: Windows 11, Node 24, PostgreSQL 17 local. Bancos de **teste** (`vitest`) e de **E2E** (Playwright, Chrome), ambos recriados a cada execução, com dados fictícios. **Nada foi gravado no banco da instalação em uso**, e a migração nova **não foi aplicada nele** (decisão humana 11).
+Ambiente: Windows 11, Node 24, PostgreSQL 17 local. Bancos de **teste** (`vitest`) e de **E2E** (Playwright, Chrome), ambos recriados a cada execução, com dados fictícios. Nos testes, nada foi gravado no banco da instalação em uso. Depois, com autorização, a migração foi aplicada nele (27/10, após o backup `578e269a`). A conferência por contagem é a de T01.
 
 | Requisito | Implementado | Configurado | Testado | Evidência | Pendência |
 | --- | --- | --- | --- | --- | --- |
-| T01 Preservação | Migração só aditiva (2 tabelas + 1 gatilho); sem backfill | — | Sim, em bancos isolados; o banco real não foi migrado | `20261027100000_documentos_publicos/migration.sql`; suíte de banco verde | Aplicar no banco em uso com backup antes (decisão 11) |
+| T01 Preservação | Migração só aditiva (2 tabelas + 1 gatilho); sem backfill | — | Sim: bancos isolados e, depois da migração no banco em uso, 92 tabelas com a mesma contagem do backup feito antes | `20261027100000_documentos_publicos/migration.sql`; suíte de banco verde; contagem comparada com o manifesto do backup `578e269a` | O backup manual apagou 8 backups anteriores a 13/10 pela retenção antiga do script (ver decisão 12) |
 | T02 Operação | Sem mudança nos fluxos | — | Sim | E2E `acesso`, `comum`, `pwa`, `paineis`, `caminho-base`, `palete-confirmar-enter`, `redesign`, `validacao-urgente`; banco `permissoes-e-praca`, `sessao`, `paineis`, `correcao-conteudos` | — |
 | T03 Autorização | Existente + `documentos.administrar` | Sim (perfil) | Sim | `documentos.test.ts` (supervisor, operador e cliente recebem 403 na administração; operador e cliente não resolvem a validação pela API) | — |
 | T04 Escopo | Existente (escopo da sessão) | — | Sim, nos testes existentes com dois escopos | `claims-acesso`, `janelas-acesso`, `selecao-cliente` | Documentos são globais da instalação, não por escopo |

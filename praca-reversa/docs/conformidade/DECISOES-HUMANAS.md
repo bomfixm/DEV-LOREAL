@@ -14,7 +14,8 @@ Itens que o sistema não pode decidir. Cada um bloqueia **somente** a publicaç�
 | 8 | Canal de privacidade (encarregado ou contato), suporte e procedimento corporativo de incidentes | Privacidade/segurança da informação | Página de privacidade não mostra contato; nenhum alerta externo é enviado | Procedimento curto (`PROCEDIMENTO-DE-INCIDENTES.md`); campo para o contato no texto do aviso |
 | 9 | Níveis de serviço e objetivos de recuperação (disponibilidade, RPO, RTO) | Gestão da operação + TI | Minuta F com metas `[A DEFINIR]`; nada é prometido | Backup diário, teste de restauração aprovado em 26/10 (tempo observado registrado), situação real na tela "Planilha e proteção" |
 | 10 | Ligar a exigência de aceite dos termos (`DOCUMENTOS_EXIGIR_ACEITE=ativada`) | Responsável pela decisão 1, depois da publicação | Ninguém é bloqueado; termos publicados ficam só para leitura | Aceite por versão exata, idempotente, sem retroativo, testado com dados fictícios |
-| 11 | Autorização para aplicar a migração `20261027100000_documentos_publicos` no banco da instalação em uso | Responsável pelo ambiente (porta 3000) | A tela de administração dos documentos responde "não instalado"; páginas públicas dizem "não publicado" | Migração aditiva testada nos bancos de teste e E2E; backup antes de migrar já é rotina (`npm run backup:rotina`) |
+| 11 | ~~Autorização para aplicar a migração `20261027100000_documentos_publicos` no banco da instalação em uso~~ — **resolvida em 27/10/2026** (autorizada pelo usuário; aplicada depois do backup `578e269a`) | — | — | — |
+| 12 | Política para os backups manuais: hoje `backup:rotina` sem `--sem-retencao` apaga os mais antigos além de 14 (em 27/10 removeu 8 anteriores a 13/10) | Responsável pelo ambiente + TI | Usar sempre `--sem-retencao` nos manuais | Trocar o padrão do comando manual para não apagar (mudança pequena, a autorizar) |
 
 ## Como registrar uma decisão
 

@@ -12,6 +12,10 @@ import { lojaEnviosEmCurso, lojaProtecoes } from './protecoes';
  *   (confirmação em curso, operação em confirmação, entrada só na memória).
  * - Quando outra aba ativa a versão nova, esta aba não recarrega: avisa que
  *   continua na versão anterior até a pessoa atualizar (sem troca silenciosa).
+ * - Abertura (26 out. 2026): versão nova encontrada logo ao abrir o aplicativo,
+ *   sem nada pendente nesta aba e sem outra aba aberta, entra sozinha (reabrir
+ *   basta para receber a atualização). Com qualquer pendência ou outra aba,
+ *   continua o aviso "Atualizar". Nada é apagado (rascunhos, fila e sessão ficam).
  */
 export interface EstadoAtualizacao {
   suportado: boolean;
@@ -34,6 +38,19 @@ export const lojaAtualizacao = criarLoja<EstadoAtualizacao>({
 let atualizarSW: ((recarregar?: boolean) => Promise<void>) | null = null;
 let iniciadaAqui = false;
 const INTERVALO_VERIFICACAO_MS = 30 * 60_000;
+/** Janela depois de abrir a página em que a versão nova ainda pode entrar sozinha. */
+const JANELA_ABERTURA_MS = 20_000;
+const abertaEm = Date.now();
+
+/** Ativa sozinha só na abertura, sem pendência aqui e sem outra aba aberta; senão fica o aviso. */
+async function ativarNaAbertura(): Promise<void> {
+  if (Date.now() - abertaEm > JANELA_ABERTURA_MS || atualizarSW === null) return;
+  if (impedimentosParaAtualizar().length > 0 || avisosAoAtualizar().length > 0) return;
+  const outras = await consultarOutrasAbas();
+  if (outras.abas > 0) return;
+  iniciadaAqui = true;
+  await atualizarSW(true);
+}
 
 function alterar(mudanca: Partial<EstadoAtualizacao>): void {
   lojaAtualizacao.definir((atual) => ({ ...atual, ...mudanca }));
@@ -68,6 +85,7 @@ export function iniciarServiceWorker(): void {
     immediate: true,
     onNeedRefresh() {
       alterar({ novaVersao: true });
+      void ativarNaAbertura().catch(() => undefined);
     },
     onOfflineReady() {
       alterar({ prontoOffline: true });

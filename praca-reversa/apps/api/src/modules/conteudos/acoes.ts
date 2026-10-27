@@ -94,14 +94,19 @@ async function carregarOcorrencias(tx: Transacao, escopoId: string, alvos: reado
            ORDER BY c.id FOR UPDATE`,
   ]);
   const lidas = [...v, ...c];
-  const fora = alvos.length - lidas.filter((o) => o.situacao === situacao && (paleteId === null || o.palete_id === paleteId)).length;
+  const validas = lidas.filter((o) => o.situacao === situacao && (paleteId === null || o.palete_id === paleteId));
+  const fora = alvos.length - validas.length;
   if (fora > 0) {
+    // Quais mudaram (as que ainda existem no escopo); nada é gravado para nenhuma delas.
+    const ok = new Set(validas.map((o) => o.id));
+    const nomes = lidas.filter((o) => !ok.has(o.id)).map(documento);
+    const quais = nomes.length === 0 ? '' : ` (${nomes.slice(0, 10).join('; ')}${nomes.length > 10 ? '; …' : ''})`;
     throw new ErroHttp(
       409,
       'CONJUNTO_ALTERADO',
       situacao === 'ATIVO'
-        ? `${String(fora)} conteúdo(s) selecionado(s) não ${fora === 1 ? 'está' : 'estão'} mais neste palete (movido, enviado à validação ou cancelado por outra pessoa). Nada foi gravado: revise a seleção atualizada.`
-        : `${String(fora)} pendência(s) selecionada(s) já ${fora === 1 ? 'foi resolvida' : 'foram resolvidas'} por outra pessoa. Nada foi gravado: revise a lista atualizada.`,
+        ? `${String(fora)} conteúdo(s) selecionado(s) não ${fora === 1 ? 'está' : 'estão'} mais neste palete${quais} (movido, enviado à validação ou cancelado por outra pessoa). Nada foi gravado: revise a seleção atualizada.`
+        : `${String(fora)} pendência(s) selecionada(s) já ${fora === 1 ? 'foi resolvida' : 'foram resolvidas'} por outra pessoa${quais}. Nada foi gravado: revise a lista atualizada e confirme de novo as que continuam pendentes.`,
     );
   }
   // Ordem da seleção (o histórico e a resposta seguem a mesma ordem).

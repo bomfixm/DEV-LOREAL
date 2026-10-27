@@ -1,6 +1,6 @@
 # Estado do projeto
 
-Atualizado em 26 de outubro de 2026.
+Atualizado em 27 de outubro de 2026.
 
 ## Implementação
 
@@ -36,7 +36,33 @@ Atualizado em 26 de outubro de 2026.
 | Planilha automática e proteção dos dados (pedido de 23 out. 2026) | **Implementada e ativa no desenvolvimento local** (26 out. 2026): revisão por escopo, geração validada automática (≈12–15 s), backup diário automático e teste de restauração com dados reais aprovado; **destino independente não configurado** (falta o armazenamento autorizado e as credenciais) — ver seção abaixo |
 | Palete × posição, validação sem endereço e conferência em tabela (pedido de 21 out. 2026) | **Implementado no desenvolvimento local** (21 out. 2026): número operacional, fila de validação interna, mover/validar/cancelar em lote, conferência do palete inteiro numa tabela (130 → 126 grava 126), estado e cor atualizados; migração aplicada com backup; correção dos dados reais simulada e aplicada — ver seção abaixo |
 | Tema escuro + novo visual dos painéis | **Implementado no desenvolvimento local** (19 out. 2026): seletor Claro/Escuro (menu lateral e menu da conta), escuro DHL em todas as telas só na tela (impressão/etiquetas brancas); painéis com cartões grandes (apresentação substituída pela etapa 4, D259–D263), destaque amarelo, anel de ocupação, colunas por rua e anéis da janela — ver seção abaixo |
-| Dashboard de Indicadores (pedido de 22 out. 2026, `prompts/dashboard-indicadores/`) | **Implementado na sessão na nuvem** (22 out. 2026), verificado com bancos de teste/E2E e escopo de demonstração (dados fictícios): rota `/indicadores` na largura toda ao lado do menu, cabeçalho compacto, quatro indicadores, módulos de posições/conferência/movimentação, estoque e atenção, abas com todos os números anteriores, "Sobre os números" e impressão completa; API e cálculos inalterados — ver seção abaixo. **Não verificado com o banco real da porta 3000** |
+| Validação urgente: "Colocar no mapa" + atualização do aplicativo em uso (pedido de 26 out. 2026) | **Implementado e entregue na porta 3000** (26 out. 2026): barra presa ao rodapé ao marcar a primeira nota, janela "Colocar N notas no mapa" com a escolha de destino existente, conflito nomeia as notas e mantém o resto; versão nova entra sozinha na abertura quando nada está pendente — ver seção abaixo |
+| Dashboard de Indicadores (pedido de 22 out. 2026, `prompts/dashboard-indicadores/`) | **Integrado ao `main` e entregue na porta 3000 em 26 out. 2026** (merge `7529cff` do commit `5035ead`, branch `claude/great-ptolemy-qje7dw`). Implementado na sessão na nuvem (22 out. 2026), verificado com bancos de teste/E2E e escopo de demonstração (dados fictícios): rota `/indicadores` na largura toda ao lado do menu, cabeçalho compacto, quatro indicadores, módulos de posições/conferência/movimentação, estoque e atenção, abas com todos os números anteriores, "Sobre os números" e impressão completa; API e cálculos inalterados — ver seção abaixo. Telas não conferidas uma a uma com o banco real |
+
+## Validação urgente: "Colocar no mapa" e atualização do aplicativo em uso — o que existe de fato (26 out. 2026)
+
+Pedido `PROMPT-CLAUDE-VALIDACAO-URGENTE-E-ATUALIZACAO-GITHUB.txt` (26/10). Decisões D311–D313.
+
+- **Barra ao selecionar** (`TelaValidacao.tsx`, `correcoes.css`): ao marcar a primeira nota, aparece uma barra presa ao rodapé da área de conteúdo com "N notas selecionadas" (e "· M fora da busca atual"), **Limpar seleção** e **Colocar no mapa** (amarelo). No fim da lista a barra não cobre o último card. No celular, respeita a área segura. Quem não tem permissão de resolver vê a barra com o aviso de que a ação fica com o supervisor ou o administrador.
+- **Janela "Colocar N notas no mapa"** (`JanelaModal` + `AcoesConteudo` + `EscolherNoMapa` existentes): mostra o resumo de todas as selecionadas, inclusive as escondidas pela busca. O formulário do fim da lista saiu.
+- **Regras do servidor inalteradas**: palete ocupado pede confirmação; o lote é atômico. A lista, os contadores e o mapa só mudam depois do sucesso.
+- **Conflito** (`CONJUNTO_ALTERADO`, `conteudos/acoes.ts`): a mensagem agora nomeia as notas que mudaram, até 10. A lista é atualizada e a janela continua com as notas que ainda estão pendentes. Nada é gravado.
+- **Seleção pelo ID da ocorrência**, derivada da lista atual: uma nota resolvida por outra pessoa sai sozinha da seleção.
+- **Atualização do aplicativo** (`pwa/atualizacao.ts`, D312): uma versão encontrada nos primeiros 20 s após abrir é ativada e recarrega uma vez, desde que não haja nada pendente nesta aba nem outra aba aberta. Caso contrário, continua o aviso "Atualizar". Nenhum dado local é apagado.
+- **Trabalho da nuvem** (D313): integrado por merge (`7529cff`) do commit `5035ead`. O trabalho local estava registrado antes em `ab6799e`. Sem reset nem force push; nada foi publicado no GitHub.
+
+### Verificações (26–27 out. 2026, computador local)
+
+| Comando / verificação | Resultado |
+| --- | --- |
+| `npm run typecheck` (web e API) e `eslint` nos arquivos alterados | Aprovados |
+| Teste de banco `correcao-conteudos` | 5/5 |
+| E2E `validacao-urgente.spec.ts` (novo) + `conferencia-tabela.spec.ts` + `pwa.spec.ts` | 13 aprovados. Cobre: barra visível ao marcar o 2º e o 8º item; último card clicável; selecionar todas (14); busca com "13 fora da busca atual"; Esc; limpar; palete ocupado → confirmar → acrescentar; conflito com outra pessoa (mensagem com a NFD, 1 restante, repetição grava só a pendente); celular; reabrir com versão nova sem aviso |
+| E2E completo (`--grep-invert @captura`) | **144 aprovados, 7 falhas, 100 pulados**. Nenhuma falha na validação. A execução atravessou o computador desligado durante a noite (um teste ficou parado 4,3 h); as falhas foram de entrada, banco indisponível (503), uma posição já ocupada por outro teste e 2 px de rolagem no Indicadores em 320×640. A repetição isolada ficou pendente porque outra sessão rodou o E2E no mesmo banco ao mesmo tempo. |
+| `npm run build` + porta 3000 | `sw.js` servido igual ao de `dist`; chunk da validação servido (200); recarga no navegador abriu a versão nova sem service worker em espera |
+| Capturas (`docs/capturas/validacao-urgente/`, dados fictícios do E2E) | Barra ao selecionar, janela de destino, celular |
+
+**Limites**: não testado com as 131 pendências reais (nenhuma gravação no banco real). A ativação automática depende de abrir o aplicativo e de o navegador encontrar a versão nova nos primeiros 20 s; depois disso, continua o botão "Atualizar".
 
 ## Dashboard de Indicadores — o que existe de fato (22 out. 2026)
 

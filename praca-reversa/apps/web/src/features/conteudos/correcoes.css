@@ -125,3 +125,78 @@
   font-family: ui-monospace, Consolas, monospace;
   font-size: 0.8rem;
 }
+
+/* Validação urgente (26 out. 2026): ao marcar a primeira nota, barra presa ao
+   rodapé da área de conteúdo (sticky: respeita o menu lateral e a largura da
+   página; no fim da lista ocupa o próprio espaço e não cobre o último card). */
+.validacao-area {
+  position: relative;
+}
+
+.validacao-item--marcado {
+  border-color: var(--amarelo-acao-borda, #e9d46a);
+  background: var(--superficie-2, #f6f7f8);
+}
+
+.validacao-barra {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: 12px;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  background: var(--superficie);
+  box-shadow: var(--sombra-flutuante, 0 8px 24px rgb(0 0 0 / 0.18));
+}
+
+.validacao-barra-texto {
+  margin: 0;
+}
+
+.validacao-barra-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.validacao-janela-fundo .janela {
+  width: min(1000px, 100%);
+}
+
+.validacao-resumo-selecao {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.validacao-resumo-selecao p {
+  margin: 0;
+}
+
+.validacao-resumo-lista {
+  max-height: 160px;
+  margin: 0;
+  padding: 6px 10px 6px 26px;
+  overflow: auto;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 720px) {
+  .validacao-barra {
+    border-radius: 12px 12px 0 0;
+  }
+
+  .validacao-barra-acoes {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

@@ -159,11 +159,18 @@ test.describe('Conferência em tabela e correção de conteúdos', () => {
     await capturar(page, '04-validacao-sem-endereco');
     await item.getByTestId('validacao-marcar').check();
     await page.locator(`[data-testid="validacao-item"][data-numero="82${s}"]`).getByTestId('validacao-marcar').check();
-    await page.getByTestId('escolher-busca').fill(destino.code);
-    await page.getByTestId('escolher-palete').first().click();
-    await expect(page.getByTestId('acao-destino')).toContainText(destino.code);
-    await page.getByTestId('acao-mover-confirmar').click();
+    // Barra de ação ao selecionar (26 out. 2026): "Colocar no mapa" abre a escolha do destino numa janela.
+    await expect(page.getByTestId('validacao-barra-contagem')).toHaveText('2 notas selecionadas');
+    await page.getByTestId('validacao-colocar').click();
+    const janela = page.getByTestId('validacao-janela');
+    await expect(janela.getByTestId('janela-titulo')).toHaveText('Colocar 2 notas no mapa');
+    await janela.getByTestId('escolher-busca').fill(destino.code);
+    await janela.getByTestId('escolher-palete').first().click();
+    await expect(janela.getByTestId('acao-destino')).toContainText(destino.code);
+    await janela.getByTestId('acao-mover-confirmar').click();
     await expect(page.getByTestId('validacao-mensagem')).toContainText(`alocado(s) no palete ${destino.code}`);
+    await expect(janela).toHaveCount(0);
     await expect(page.locator(`[data-testid="validacao-item"][data-numero="81${s}"]`)).toHaveCount(0);
+    await expect(page.getByTestId('validacao-barra')).toHaveCount(0);
   });
 });

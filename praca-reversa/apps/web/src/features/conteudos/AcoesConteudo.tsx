@@ -32,11 +32,14 @@ export function AcoesConteudo({
   paleteId,
   selecionados,
   aoConcluido,
+  aoConflito,
   apenasResolver = false,
 }: {
   paleteId: string | null;
   selecionados: readonly OcorrenciaSelecionada[];
   aoConcluido: (r: ResultadoAcaoConteudos) => void;
+  /** O conjunto mudou no servidor (resolvido/movido por outra pessoa): quem abriu atualiza a lista. */
+  aoConflito?: () => void;
   apenasResolver?: boolean;
 }) {
   const ids = useId();
@@ -97,6 +100,7 @@ export function AcoesConteudo({
         return;
       }
       setMensagem({ tipo: erro instanceof FalhaRequisicao && (erro.codigo === 'CONJUNTO_ALTERADO' || erro.codigo === 'JANELA_VINCULADA') ? 'conflito' : 'erro', texto: mensagemDeFalha(erro) });
+      if (erro instanceof FalhaRequisicao && erro.codigo === 'CONJUNTO_ALTERADO') aoConflito?.();
     } finally {
       setOcupado(false);
     }

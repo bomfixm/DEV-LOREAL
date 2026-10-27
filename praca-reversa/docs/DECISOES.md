@@ -601,6 +601,16 @@ Pedido `PROMPT-CLAUDE-PLANILHA-E-PROTECAO-AUTOMATICA.txt` (23/10). Numeradas dep
 | D309 | **Proteção antes de substituir o inventário** (confirmação na tela e `inventario:carregar --substitui`): revisão "antes da substituição" da base atual e backup verificado obrigatórios (`PROTECAO_PREVIA_FALHOU` recusa a troca sem eles); falha só no envio externo não bloqueia (cópias no servidor, reenvio automático). | Item 6. |
 | D310 | **Permissões**: situação com `praca.consultar` (perfis internos); "Tentar novamente agora" com `planilha.publicar` (supervisor, administrador); download com a nova `planilha.baixar` (supervisor, analista de claims, administrador) — arquivo conferido pelo SHA-256 registrado, revisão e publicação nos cabeçalhos, auditado. Cliente sem rota de planilha; backup completo nunca servido pelo aplicativo. | Item 5 ("proteger as rotas no backend"). |
 
+## Validação urgente e atualização do aplicativo em uso — 26 out. 2026
+
+Pedido `PROMPT-CLAUDE-VALIDACAO-URGENTE-E-ATUALIZACAO-GITHUB.txt` (26/10).
+
+| ID | Decisão | Motivo |
+| --- | --- | --- |
+| D311 | **"Colocar no mapa" visível ao selecionar**: na fila "Validação urgente — sem endereço", marcar a primeira nota mostra uma barra presa ao rodapé da área de conteúdo (`position: sticky`; respeita o menu lateral, a largura da página e a área segura do celular; no fim da lista ocupa o próprio espaço e não cobre o último card) com "N notas selecionadas", **Limpar seleção** e **Colocar no mapa** (amarelo). O botão abre a `JanelaModal` existente ("Colocar N notas no mapa") com o resumo compacto de todas as selecionadas (inclusive as escondidas pela busca) e o mesmo `AcoesConteudo` + `EscolherNoMapa` de antes — um único formulário; o do fim da lista saiu. Seleção pelo ID da ocorrência; a seleção efetiva é derivada da lista atual (resolvida por outra pessoa sai sozinha). Servidor inalterado na regra (lote atômico, palete ocupado pede confirmação, permissão `conteudo.corrigir`); o conflito `CONJUNTO_ALTERADO` agora nomeia as notas que mudaram, a lista é atualizada e a janela fica aberta com as que continuam pendentes. | Itens 2 e 3 do pedido. |
+| D312 | **Versão nova entra sozinha na abertura** (altera em parte D151): versão encontrada nos primeiros 20 s depois de abrir o aplicativo, sem nada pendente nesta aba (confirmações, operações em confirmação, proteções) e sem outra aba aberta, é ativada e a página recarrega uma vez; caso contrário continua o aviso "Atualizar" de D151. Nenhum dado local é apagado. | Item 4: "o aplicativo normal apresenta a alteração depois de reabrir/recarregar". |
+| D313 | **Trabalho da nuvem integrado pelo Git**: o dashboard de 22/10 estava só no branch `claude/great-ptolemy-qje7dw` (commit `5035ead`), nunca integrado ao `main` nem puxado neste computador — causa de não aparecer na versão em uso. Integrado por merge (`7529cff`) depois de registrar o trabalho local (`ab6799e`); decisões da planilha renumeradas D304–D310. Entrega na versão em uso = `npm run build` (a tarefa do Windows reinicia a porta 3000 com o build novo). | Item 1 do pedido. |
+
 ## Registrar mudança
 
 Data; decisão alterada; nova decisão; motivo; origem da alteração; arquivos/módulos afetados; verificações; impacto no piloto. Quando uma decisão substituir outra, indicar explicitamente qual foi substituída. Evitar repetir a conversa inteira.

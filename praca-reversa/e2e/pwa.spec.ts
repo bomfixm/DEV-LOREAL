@@ -208,6 +208,29 @@ test.describe('PWA', () => {
     }
   });
 
+  test('reabrir com versão nova e nada pendente: a versão nova entra sozinha, sem aviso e sem perder a sessão', async ({ page }) => {
+    test.setTimeout(90_000);
+    const sw = resolve('apps/web/dist/sw.js');
+    const original = readFileSync(sw, 'utf8');
+    try {
+      await entrar(page, 'consulta');
+      await aguardarServiceWorker(page);
+      let cargas = 0;
+      page.on('load', () => {
+        cargas += 1;
+      });
+      // Versão nova publicada; a pessoa reabre (recarrega) o aplicativo sem nada em andamento.
+      writeFileSync(sw, `${original}\n// versão de teste ${randomUUID()}\n`);
+      await page.reload();
+      await expect.poll(() => cargas, { timeout: 45_000 }).toBeGreaterThanOrEqual(2);
+      await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.waiting ?? null), { timeout: 15_000 }).toBeNull();
+      await expect(page.getByTestId('aviso-nova-versao')).toHaveCount(0);
+      await expect(page.getByTestId('menu-conta')).toBeVisible();
+    } finally {
+      writeFileSync(sw, original);
+    }
+  });
+
   test('API de outra versão: confirmações bloqueadas sem envio, aviso para atualizar; a API recusa contrato antigo', async ({ page }) => {
     await entrar(page, 'supervisor');
     await page.route('**/api/v1/versao', (r) =>

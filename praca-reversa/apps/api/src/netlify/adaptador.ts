@@ -48,7 +48,7 @@ export async function criarAppFuncao(env: NodeJS.ProcessEnv): Promise<FastifyIns
     (erro) => {
       console.error('Erro em conexão ociosa do banco', erro.message);
     },
-    { max: numero(env.DB_POOL_MAX, 3, 1, 20), conexaoTimeoutMs: numero(env.DB_CONEXAO_TIMEOUT_MS, 15_000, 1_000, 50_000), ociosoTimeoutMs: 10_000 },
+    { max: numero(env.DB_POOL_MAX, 3, 1, 20), conexaoTimeoutMs: numero(env.DB_CONEXAO_TIMEOUT_MS, 15_000, 1_000, 50_000), ociosoTimeoutMs: 10_000, ...(env.DB_SSL_CA ? { ca: env.DB_SSL_CA } : {}) },
   );
   const app = await criarApp({
     db,

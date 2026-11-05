@@ -15,11 +15,15 @@ export interface OpcoesPool {
   /** Espera para conectar (padrão 5 s; o Neon pode precisar acordar). */
   conexaoTimeoutMs?: number;
   ociosoTimeoutMs?: number;
+  /** Certificado raiz (PEM) para validar servidores com CA não pública (ex.: Supabase). A verificação continua ligada. */
+  ca?: string;
 }
 
 export function criarBanco(databaseUrl: string, aoErroDoPool: (erro: Error) => void, opcoes: OpcoesPool = {}): Banco {
+  // Com CA própria o sslmode da URL sai (sobrescreveria o objeto ssl); a validação do certificado segue obrigatória.
+  const url = opcoes.ca ? databaseUrl.replace(/([?&])sslmode=[^&]*&?/i, '$1').replace(/[?&]$/, '') : databaseUrl;
   const adapter = new PrismaPg(
-    { connectionString: databaseUrl, max: opcoes.max ?? 10, connectionTimeoutMillis: opcoes.conexaoTimeoutMs ?? 5_000, idleTimeoutMillis: opcoes.ociosoTimeoutMs ?? 30_000 },
+    { connectionString: url, ...(opcoes.ca ? { ssl: { ca: opcoes.ca, rejectUnauthorized: true } } : {}), max: opcoes.max ?? 10, connectionTimeoutMillis: opcoes.conexaoTimeoutMs ?? 5_000, idleTimeoutMillis: opcoes.ociosoTimeoutMs ?? 30_000 },
     { onPoolError: aoErroDoPool },
   );
   return new PrismaClient({ adapter });

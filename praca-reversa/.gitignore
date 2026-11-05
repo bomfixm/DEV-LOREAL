@@ -19,3 +19,6 @@ apps/api/src/generated/
 
 # Amostras reais da operação (ex.: amostras/Bipagem-real.xlsx): uso local nos testes, fora do versionamento.
 amostras/
+
+# Saída do build da Vercel
+.vercel/

@@ -16,6 +16,7 @@
   },
   "include": [
     "e2e",
+    "vercel",
     "playwright.config.ts",
     "vitest.config.ts",
     "netlify"

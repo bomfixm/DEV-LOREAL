@@ -441,7 +441,7 @@ export function TabelaEstoque({ linhas, aoAbrirPalete }: { linhas: readonly Linh
             <th scope="col">Remetente</th>
             <th scope="col">Volumes</th>
             <th scope="col">Palete</th>
-            <th scope="col">Full/misto</th>
+            <th scope="col">Full/fracionado</th>
             <th scope="col">Endereço</th>
             <th scope="col">Situação na janela</th>
           </tr>
@@ -471,7 +471,7 @@ export function TabelaEstoque({ linhas, aoAbrirPalete }: { linhas: readonly Linh
                   l.palletCode
                 )}
               </td>
-              <td data-rotulo="Full/misto">{ROTULO_FULL[l.palletType]}</td>
+              <td data-rotulo="Full/fracionado">{ROTULO_FULL[l.palletType]}</td>
               <td data-rotulo="Endereço">{l.address ?? <em>Localização em atualização</em>}</td>
               <td data-rotulo="Situação na janela">{l.windowStage === null ? '—' : ROTULO_ETAPA_SELECAO[l.windowStage]}</td>
             </tr>

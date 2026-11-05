@@ -10,7 +10,7 @@ import { consultaDe, filtrosDe, volumes, type ValoresFiltro } from './formato';
 const ROTULO_SITUACAO: Record<string, string> = {
   'sem-endereco': 'Só paletes sem endereço confirmado',
   full: 'Só paletes full',
-  misto: 'Só paletes mistos',
+  misto: 'Só paletes fracionados',
   'sem-volume': 'Só conteúdos sem volume informado',
   reconferencia: 'Só paletes com reconferência vencida',
 };

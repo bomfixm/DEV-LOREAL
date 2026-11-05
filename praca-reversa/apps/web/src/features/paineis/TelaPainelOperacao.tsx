@@ -113,7 +113,7 @@ export function TelaPainelOperacao({ parametros, permissoes, aoNavegar }: { para
           rotulo="Paletes na praça"
           valor={volumes(d.stock.activePallets)}
           unidade="paletes"
-          contexto={`${volumes(d.stock.fullPallets)} full · ${volumes(d.stock.mixedPallets)} misto(s)`}
+          contexto={`${volumes(d.stock.fullPallets)} full · ${volumes(d.stock.mixedPallets)} fracionado(s)`}
           dica="Cada palete conta uma vez, mesmo com várias notas."
           aoAbrir={() => {
             lista({});

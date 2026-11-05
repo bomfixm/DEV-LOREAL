@@ -215,7 +215,7 @@ export type PaleteFull = z.infer<typeof PaleteFullSchema>;
 
 export const ROTULOS_PALETE_FULL: Readonly<Record<PaleteFull, string>> = {
   FULL: 'Full (uma única nota)',
-  MISTO: 'Misto (várias notas)',
+  MISTO: 'Fracionado (várias notas)',
   NAO_INFORMADO: 'Não informado',
 };
 

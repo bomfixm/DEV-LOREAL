@@ -302,6 +302,10 @@ export type AlterarPalete = z.input<typeof AlterarPaleteSchema>;
 export const RenumerarPaleteSchema = z.object({ number: CodigoPaleteSchema });
 export type RenumerarPalete = z.output<typeof RenumerarPaleteSchema>;
 
+/** Full ou fracionado definido à mão; `null` volta ao cálculo automático (1 nota = full, 2 ou mais = fracionado). */
+export const DefinirTipoCargaSchema = z.object({ kind: z.enum(['FULL', 'FRACIONADO']).nullable() });
+export type DefinirTipoCarga = z.output<typeof DefinirTipoCargaSchema>;
+
 /** Arquivar um cadastro feito por engano: o código continua reservado. */
 export const ArquivarPaleteSchema = z.object({
   expectedVersion: z.number().int().positive(),

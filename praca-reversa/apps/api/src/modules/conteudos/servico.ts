@@ -219,7 +219,7 @@ export async function conteudosDoPalete(db: Db, escopoId: string, paleteId: stri
   const semDocumento = items.filter((i) => i.documentNumber === null).length;
   // FRACIONADO na planilha: uma nota só não basta para tratar o palete como full.
   const fracionado = items.some((i) => i.fullKind === 'FRACIONADO' || (i.palletFull ?? '').trim().toUpperCase() === 'FRACIONADO');
-  const full = documentos.size >= 2 ? 'MISTO' : documentos.size === 1 && semDocumento === 0 && !fracionado ? 'FULL' : 'NAO_INFORMADO';
+  const full = palete.tipoCarga === 'FULL' ? 'FULL' : palete.tipoCarga === 'FRACIONADO' ? 'MISTO' : documentos.size >= 2 ? 'MISTO' : documentos.size === 1 && semDocumento === 0 && !fracionado ? 'FULL' : 'NAO_INFORMADO';
   // Conferência por linha e do palete, e a assinatura do conjunto exibido (a conferência em tabela a devolve).
   const ocorrencias = await ocorrenciasAtivas(db, escopoId, [paleteId]);
   const conferencia = await calcularConferencia(db, escopoId, ocorrencias, [paleteId]);

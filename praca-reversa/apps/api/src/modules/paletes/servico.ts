@@ -5,6 +5,7 @@ import {
   type CadastroPaleteSchema,
   type Escopo,
   type PaleteDetalhe,
+  type DefinirTipoCarga,
   type RenumerarPalete,
 } from '@praca-reversa/contracts';
 import { randomUUID } from 'node:crypto';
@@ -334,6 +335,28 @@ export async function renumerarPalete(tx: Transacao, escopo: Escopo, id: string,
     alvoTipo: 'PALETE',
     alvoId: id,
     detalhes: { operacao: operacaoId, de: atual.codigo, para: numero, fonte: 'MANUAL' },
+    requestId: autor.requestId,
+  });
+  const detalhe = await consultarPalete(tx, escopo, id);
+  if (!detalhe) throw naoEncontrado('Palete não encontrado neste escopo.');
+  return detalhe;
+}
+
+/** Full ou fracionado definido à mão (nulo = automático). Só o rótulo: não mexe em volumes, conferência nem estoque. */
+export async function definirTipoCarga(tx: Transacao, escopo: Escopo, id: string, dados: DefinirTipoCarga, autor: Autor): Promise<PaleteDetalhe> {
+  const [atual] = await tx.$queryRaw<{ codigo: string; tipo: string | null; arquivado: Date | null }[]>`
+    SELECT codigo, tipo_carga AS tipo, arquivado_em AS arquivado FROM palete WHERE id = ${id}::uuid AND escopo_id = ${escopo.id}::uuid FOR UPDATE`;
+  if (!atual) throw naoEncontrado('Palete não encontrado neste escopo.');
+  if (atual.arquivado !== null) throw new ErroHttp(409, 'CONFLITO', 'Palete arquivado: não pode ser alterado.');
+  await tx.$executeRaw`UPDATE palete SET tipo_carga = ${dados.kind} WHERE id = ${id}::uuid AND escopo_id = ${escopo.id}::uuid`;
+  await registrarEvento(tx, {
+    acao: 'PALETE_ALTERADO',
+    resultado: 'SUCESSO',
+    atorUsuarioId: autor.usuarioId,
+    escopoId: escopo.id,
+    alvoTipo: 'PALETE',
+    alvoId: id,
+    detalhes: { codigo: atual.codigo, campo: 'tipoCarga', de: atual.tipo, para: dados.kind },
     requestId: autor.requestId,
   });
   const detalhe = await consultarPalete(tx, escopo, id);

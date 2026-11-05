@@ -29,7 +29,7 @@ export function rotuloTipoDocumentoTeste(tipo: string | null): string {
 /** Full/misto em palavras comuns (sem termo técnico sem explicação). */
 export const EXPLICACAO_TIPO_PALETE: Record<z.infer<typeof FullMistoSchema>, string> = {
   FULL: 'Palete full: todo o palete é de uma única nota.',
-  MISTO: 'Palete misto: o palete tem mais de uma nota.',
+  MISTO: 'Palete fracionado: o palete tem mais de uma nota.',
   NAO_INFORMADO: 'Composição não informada: o cadastro não identifica todas as notas deste palete.',
 };
 

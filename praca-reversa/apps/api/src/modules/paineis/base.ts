@@ -122,9 +122,10 @@ export async function carregarBase(db: Db, escopoId: string): Promise<BasePainel
       reconferencia_exigida_em: Date | null;
       reconferencia_exigida_motivo: string | null;
       estado_fluxo: string;
+      tipo_carga: string | null;
     }[]
   >`
-    SELECT p.id::text, p.codigo, p.posicao_id::text, pos.codigo AS posicao_codigo,
+    SELECT p.tipo_carga, p.id::text, p.codigo, p.posicao_id::text, pos.codigo AS posicao_codigo,
            CASE WHEN ep.situacao = 'CONFIRMADO' THEN ep.endereco END AS endereco,
            coalesce(nullif(btrim(el.nome_operacional), ''), el.rotulo) AS rua,
            p.criado_em, p.relogio_inicio_em, p.relogio_inicio_origem, p.ultima_movimentacao_em, p.ultima_movimentacao_tipo,
@@ -246,7 +247,7 @@ export async function carregarBase(db: Db, escopoId: string): Promise<BasePainel
     const cs = porPalete.get(p.id) ?? [];
     const ids = new Set(cs.flatMap((c) => (c.identidade === null ? [] : [c.identidade])));
     const naoIdentificado = semDocumento.has(p.id) || cs.some((c) => c.identidade === null);
-    const tipoPalete: FullMisto = ids.size >= 2 ? 'MISTO' : ids.size === 1 && !naoIdentificado && !cs.some((c) => c.fracionado) ? 'FULL' : 'NAO_INFORMADO';
+    const tipoPalete: FullMisto = p.tipo_carga === 'FULL' ? 'FULL' : p.tipo_carga === 'FRACIONADO' ? 'MISTO' : ids.size >= 2 ? 'MISTO' : ids.size === 1 && !naoIdentificado && !cs.some((c) => c.fracionado) ? 'FULL' : 'NAO_INFORMADO';
     return {
       id: p.id,
       codigo: p.codigo,

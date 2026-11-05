@@ -207,7 +207,7 @@ export function TelaPainelCliente({ parametros, aoNavegar }: { parametros: strin
           rotulo="Paletes"
           valor={volumes(d.stock.pallets)}
           unidade="paletes"
-          contexto={`${volumes(d.stock.fullPallets)} full · ${volumes(d.stock.mixedPallets)} misto(s)`}
+          contexto={`${volumes(d.stock.fullPallets)} full · ${volumes(d.stock.mixedPallets)} fracionado(s)`}
           aoAbrir={() => {
             consulta('aba=estoque');
           }}

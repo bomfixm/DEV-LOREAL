@@ -322,6 +322,19 @@ describe('cadastro de palete', () => {
     expect((await mutar(app, sConsulta, 'PUT', `/api/v1/paletes/${criado.id}/numero`, { number: '30' })).statusCode).toBe(403);
   });
 
+  it('tipo do palete à mão: Fracionado, Full e volta ao automático; consulta sem permissão é recusada', async () => {
+    const posicao = await idPosicao(db, ID_ESCOPO_PRACA, 'F04-P02');
+    const criado = PaleteDetalheSchema.parse((await novoPalete(sOperador, { code: { mode: 'GERAR' }, positionId: posicao })).json());
+    const tipo = async () => (await como(app, sSupervisor, { method: 'GET', url: `/api/v1/paletes/${criado.id}/conteudos` })).json() as { loadKind: string | null; full: string };
+    expect((await mutar(app, sSupervisor, 'PUT', `/api/v1/paletes/${criado.id}/tipo-carga`, { kind: 'FRACIONADO' })).statusCode).toBe(200);
+    expect(await tipo()).toMatchObject({ loadKind: 'FRACIONADO', full: 'MISTO' });
+    expect((await mutar(app, sSupervisor, 'PUT', `/api/v1/paletes/${criado.id}/tipo-carga`, { kind: 'FULL' })).statusCode).toBe(200);
+    expect(await tipo()).toMatchObject({ loadKind: 'FULL', full: 'FULL' });
+    expect((await mutar(app, sSupervisor, 'PUT', `/api/v1/paletes/${criado.id}/tipo-carga`, { kind: null })).statusCode).toBe(200);
+    expect(await tipo()).toMatchObject({ loadKind: null });
+    expect((await mutar(app, sConsulta, 'PUT', `/api/v1/paletes/${criado.id}/tipo-carga`, { kind: 'FULL' })).statusCode).toBe(403);
+  });
+
   it('arquivar cadastro por engano libera a posição, sai do mapa e mantém o detalhe pelo ID', async () => {
     const posicao = await idPosicao(db, ID_ESCOPO_PRACA, 'F04-P02');
     const criado = PaleteDetalheSchema.parse((await novoPalete(sOperador, { code: { mode: 'GERAR' }, positionId: posicao })).json());

@@ -1,6 +1,7 @@
 import {
   API_PREFIXO,
   ConteudosPaleteSchema,
+  DefinirTipoCargaSchema,
   PaleteDetalheSchema,
   RenumerarPaleteSchema,
   compararQuantidades,
@@ -75,6 +76,39 @@ function AlterarNumero({ palete, aoTrocado }: { palete: PaleteResumo; aoTrocado:
       />{' '}
       <button type="button" className="botao-secundario" disabled={enviando} onClick={() => void salvar()} data-testid="janela-numero-salvar">Salvar</button>{' '}
       <button type="button" className="botao-link" disabled={enviando} onClick={() => { setAberto(false); setErro(null); }}>Cancelar</button>
+      {erro !== null && <span className="mensagem-conflito" role="alert"> {erro}</span>}
+    </span>
+  );
+}
+
+/** Full ou fracionado à mão; "Automático" volta à regra (1 nota = full, 2 ou mais = fracionado). */
+function EscolherTipoCarga({ paleteId, atual, aoTrocado }: { paleteId: string; atual: 'FULL' | 'FRACIONADO' | null; aoTrocado: (texto: string) => void }) {
+  const [erro, setErro] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const chaves = useChaves();
+  async function trocar(valor: string) {
+    const lido = DefinirTipoCargaSchema.parse({ kind: valor === '' ? null : valor });
+    const assinatura = `palete-tipo:${paleteId}:${valor}`;
+    setEnviando(true);
+    setErro(null);
+    try {
+      await enviarJson('PUT', `${API_PREFIXO}/paletes/${paleteId}/tipo-carga`, PaleteDetalheSchema, { corpo: lido, idempotencia: chaves.para(assinatura) });
+      chaves.concluir(assinatura);
+      aoTrocado(lido.kind === null ? 'Tipo do palete voltou ao automático.' : `Palete marcado como ${lido.kind === 'FULL' ? 'full' : 'fracionado'}.`);
+    } catch (e) {
+      chaves.concluir(assinatura, e);
+      setErro(mensagemDeFalha(e));
+    } finally {
+      setEnviando(false);
+    }
+  }
+  return (
+    <span className="janela-tipo-carga">
+      <select value={atual ?? ''} disabled={enviando} aria-label="Tipo do palete" data-testid="janela-tipo-carga-escolha" onChange={(e) => void trocar(e.target.value)}>
+        <option value="">Automático</option>
+        <option value="FULL">Full</option>
+        <option value="FRACIONADO">Fracionado</option>
+      </select>
       {erro !== null && <span className="mensagem-conflito" role="alert"> {erro}</span>}
     </span>
   );
@@ -646,19 +680,22 @@ export function JanelaPalete(props: PropsPalete) {
             {conteudo !== null && conteudo.withoutDocument > 0 && <span className="janela-base"> + {conteudo.withoutDocument} sem documento</span>}
           </dd>
         </div>
-        {conteudo?.loadKind != null && (
-          <div>
-            <dt>Palete</dt>
-            <dd data-testid="janela-tipo-carga">{conteudo.loadKind === 'FULL' ? 'Full' : 'Fracionado'} · informado na bipagem</dd>
-          </div>
-        )}
-        {conteudo !== null && conteudo.loadKind == null && (tipoPalete !== 'NAO_INFORMADO' || fullPlanilha !== null) && (
+        {conteudo !== null && (tipoPalete !== 'NAO_INFORMADO' || fullPlanilha !== null || conteudo.loadKind !== null || props.permissoes.includes('palete.cadastrar')) && (
           <div>
             <dt>Palete</dt>
             <dd data-testid="janela-full">
-              {/* Indicação da planilha (FULL n/m ou Fracionado) prevalece sobre a regra de uma nota só. */}
-              {tipoPalete === 'MISTO' ? 'Misto' : (fullPlanilha ?? 'Full')}
-              {tipoPalete === 'FULL' && fullPlanilha === null && sequencia !== null && ` · ${sequencia}`}
+              {/* Marcação manual prevalece; depois a indicação da planilha (FULL n/m ou Fracionado) e a regra de contagem de notas. */}
+              {conteudo.loadKind !== null
+                ? conteudo.loadKind === 'FULL' ? 'Full' : 'Fracionado'
+                : tipoPalete === 'MISTO' ? 'Fracionado' : tipoPalete === 'FULL' || fullPlanilha !== null ? (fullPlanilha ?? 'Full') : 'Não informado'}
+              {conteudo.loadKind === null && tipoPalete === 'FULL' && fullPlanilha === null && sequencia !== null && ` · ${sequencia}`}
+              {conteudo.loadKind !== null && <span className="janela-base"> · marcado à mão</span>}
+              {props.permissoes.includes('palete.cadastrar') && palete.flowState !== 'EXPEDIDO' && (
+                <>
+                  {' '}
+                  <EscolherTipoCarga paleteId={palete.id} atual={conteudo.loadKind} aoTrocado={props.aoAlterado} />
+                </>
+              )}
             </dd>
           </div>
         )}

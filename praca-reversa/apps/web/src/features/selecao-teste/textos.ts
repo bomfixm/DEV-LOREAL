@@ -26,7 +26,7 @@ export function textoVolumes(n: number | null): string {
 /** Full/misto em palavras comuns (rótulo curto + explicação). */
 export const TIPO_PALETE: Record<FullMisto, { rotulo: string; explicacao: string }> = {
   FULL: { rotulo: 'Full', explicacao: 'todo o palete é de uma única nota' },
-  MISTO: { rotulo: 'Misto', explicacao: 'o palete tem mais de uma nota' },
+  MISTO: { rotulo: 'Fracionado', explicacao: 'o palete tem mais de uma nota' },
   NAO_INFORMADO: { rotulo: 'Composição não informada', explicacao: 'o cadastro não identifica todas as notas deste palete' },
 };
 

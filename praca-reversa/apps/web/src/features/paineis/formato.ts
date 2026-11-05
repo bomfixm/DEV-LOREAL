@@ -9,7 +9,7 @@ export function porcento(p: string | null): string | null {
   return p === null ? null : `${p.replace('.', ',')}%`;
 }
 
-export const ROTULO_FULL: Record<FullMisto, string> = { FULL: 'Full', MISTO: 'Misto', NAO_INFORMADO: 'Não informado' };
+export const ROTULO_FULL: Record<FullMisto, string> = { FULL: 'Full', MISTO: 'Fracionado', NAO_INFORMADO: 'Não informado' };
 
 export interface ValoresFiltro {
   janela?: string;

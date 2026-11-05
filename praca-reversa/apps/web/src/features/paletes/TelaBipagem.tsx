@@ -206,7 +206,15 @@ function EnvioArquivo({
 }
 
 /** 2. Prévia objetiva: notas, remetentes, volumes e total; o resto sob demanda. */
-function Previa({ resumo }: { resumo: ResumoBipagem }) {
+function Previa({
+  resumo,
+  aoObservar,
+  ocupado,
+}: {
+  resumo: ResumoBipagem;
+  aoObservar: (linha: number, texto: string) => void;
+  ocupado: boolean;
+}) {
   const ids = useId();
   const [mostrar, setMostrar] = useState(POR_VEZ);
   const c = resumo.counters;
@@ -306,6 +314,7 @@ function Previa({ resumo }: { resumo: ResumoBipagem }) {
                 Volumes
               </th>
               <th scope="col">Situação</th>
+              <th scope="col">Observação (opcional)</th>
             </tr>
           </thead>
           <tbody>
@@ -327,6 +336,22 @@ function Previa({ resumo }: { resumo: ResumoBipagem }) {
                     {ROTULOS_ACAO_DOCUMENTO_BIPAGEM[d.action]}
                   </span>
                 </td>
+                <td>
+                  <input
+                    key={`${String(d.row)}:${d.note ?? ""}`}
+                    type="text"
+                    maxLength={500}
+                    defaultValue={d.note ?? ""}
+                    disabled={ocupado}
+                    placeholder="Ex.: minuta sem dados na caixa"
+                    aria-label={`Observação da nota ${d.type} ${d.number}`}
+                    data-testid="bipagem-observacao"
+                    onBlur={(e) => {
+                      const texto = e.currentTarget.value.trim();
+                      if (texto !== (d.note ?? "")) aoObservar(d.row, texto);
+                    }}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -343,6 +368,7 @@ function Previa({ resumo }: { resumo: ResumoBipagem }) {
                   ? `${String(revalidadas.length)} revalidada(s) fora`
                   : ""}
               </td>
+              <td />
             </tr>
           </tfoot>
         </table>
@@ -814,6 +840,16 @@ export function TelaBipagem({ paleteId, sessao, aoNavegar, aoGravar }: Props) {
     }
   }
 
+  function observar(linha: number, texto: string) {
+    if (!lote) return;
+    const atuais = ParametrosBipagemSchema.parse(
+      lote.parameters ?? {},
+    ).notes.filter((n) => n.row !== linha);
+    void aplicar({
+      notes: texto === "" ? atuais : [...atuais, { row: linha, text: texto }],
+    });
+  }
+
   function decidir(linhas: readonly number[], decisao: DecisaoBipagem) {
     if (!lote) return;
     const atuais = ParametrosBipagemSchema.parse(
@@ -998,7 +1034,33 @@ export function TelaBipagem({ paleteId, sessao, aoNavegar, aoGravar }: Props) {
             )}
             {lote?.state === "PREVIA" && resumo && (
               <>
-                <Previa resumo={resumo} />
+                <Previa resumo={resumo} aoObservar={observar} ocupado={enviando} />
+                <fieldset className="cartao" data-testid="bipagem-tipo-carga">
+                  <legend>Este palete é full ou fracionado? (opcional)</legend>
+                  {(
+                    [
+                      ["FULL", "Full"],
+                      ["FRACIONADO", "Fracionado"],
+                      [null, "Não informar"],
+                    ] as const
+                  ).map(([valor, rotulo]) => (
+                    <label className="opcao" key={rotulo}>
+                      <input
+                        type="radio"
+                        name="tipo-carga"
+                        disabled={enviando}
+                        checked={
+                          ParametrosBipagemSchema.parse(lote.parameters ?? {})
+                            .palletKind === valor
+                        }
+                        onChange={() => {
+                          void aplicar({ palletKind: valor });
+                        }}
+                      />
+                      <span>{rotulo}</span>
+                    </label>
+                  ))}
+                </fieldset>
                 {decidirMapa ? (
                   <EscolhaNoMapa
                     aoEscolher={(d) => {

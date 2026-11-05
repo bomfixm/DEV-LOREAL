@@ -145,7 +145,9 @@ describe('Bipagem "Etiquetas": amostra real (amostras/Bipagem-real.xlsx)', () =>
 
     // Posição livre escolhida no mapa: palete novo, número só na confirmação.
     const posicao = await posicaoLivre();
-    const comDestino = await ajustar(lote, { destination: { kind: 'POSICAO', id: posicao } });
+    const comDestino = await ajustar(lote, { destination: { kind: 'POSICAO', id: posicao }, notes: [{ row: 13, text: 'Minuta sem dados na caixa' }], palletKind: 'FRACIONADO' });
+    expect(doc(comDestino, '1379').note).toBe('Minuta sem dados na caixa');
+    expect(doc(comDestino, '285987').note).toBeNull();
     expect(comDestino.palletImport?.destination).toMatchObject({ kind: 'NOVO_PALETE', pallet: null, currentEntries: 0, blocked: null });
     expect(comDestino.canConfirm).toBe(true);
     expect(await totalPaletes()).toBe(antes);
@@ -158,7 +160,10 @@ describe('Bipagem "Etiquetas": amostra real (amostras/Bipagem-real.xlsx)', () =>
     expect([p.code, p.positionId]).toEqual([numero, posicao]);
     const api = await conteudos(paleteId);
     expect(api.items).toHaveLength(41);
+    expect(api.loadKind).toBe('FRACIONADO');
     expect(api.items.reduce((s, i) => s + Number(i.count.counted ?? 0), 0)).toBe(47);
+    expect(api.items.find((i) => i.documentNumber === '1379')).toMatchObject({ description: 'Minuta sem dados na caixa' });
+    expect(api.items.find((i) => i.documentNumber === '285987')?.description ?? null).toBeNull();
     expect(api.items.find((i) => i.documentNumber === '285987')).toMatchObject({ documentType: 'NF', documentTypeOriginal: 'NF-e', count: { counted: '5', origin: 'BIPAGEM' } });
     // Lote ligado ao palete na confirmação; numeração avançou; prévia não criou nada antes.
     expect((await db.loteImportacao.findUniqueOrThrow({ where: { id: lote.id }, select: { paleteId: true } })).paleteId).toBe(paleteId);

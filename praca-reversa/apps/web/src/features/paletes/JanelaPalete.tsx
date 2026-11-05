@@ -581,7 +581,13 @@ export function JanelaPalete(props: PropsPalete) {
             {conteudo !== null && conteudo.withoutDocument > 0 && <span className="janela-base"> + {conteudo.withoutDocument} sem documento</span>}
           </dd>
         </div>
-        {conteudo !== null && (tipoPalete !== 'NAO_INFORMADO' || fullPlanilha !== null) && (
+        {conteudo?.loadKind != null && (
+          <div>
+            <dt>Palete</dt>
+            <dd data-testid="janela-tipo-carga">{conteudo.loadKind === 'FULL' ? 'Full' : 'Fracionado'} · informado na bipagem</dd>
+          </div>
+        )}
+        {conteudo !== null && conteudo.loadKind == null && (tipoPalete !== 'NAO_INFORMADO' || fullPlanilha !== null) && (
           <div>
             <dt>Palete</dt>
             <dd data-testid="janela-full">

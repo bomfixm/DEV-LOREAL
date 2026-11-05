@@ -149,6 +149,13 @@ export const ParametrosBipagemSchema = z.object({
     .default([]),
   /** O mesmo arquivo já foi importado antes e a pessoa confirma que é uma nova operação legítima. */
   newOperation: z.boolean().default(false),
+  /** Observação opcional por linha do arquivo (ex.: minutas sem informação na caixa); gravada na descrição do conteúdo. */
+  /** Palete full ou fracionado, informado pela pessoa (opcional). */
+  palletKind: z.enum(['FULL', 'FRACIONADO']).nullable().default(null),
+  notes: z
+    .array(z.object({ row: LinhaArquivoSchema, text: z.string().trim().min(1).max(500) }))
+    .max(10_000)
+    .default([]),
 });
 export type ParametrosBipagem = z.output<typeof ParametrosBipagemSchema>;
 
@@ -209,6 +216,8 @@ export const DocumentoBipagemSchema = z.object({
   /** Decisão necessária e ainda não tomada (bloqueia a confirmação). */
   awaitingDecision: z.boolean(),
   notices: z.array(z.string().min(1)),
+  /** Observação informada para a linha (opcional). */
+  note: z.string().nullable().default(null),
 });
 export type DocumentoBipagem = z.infer<typeof DocumentoBipagemSchema>;
 

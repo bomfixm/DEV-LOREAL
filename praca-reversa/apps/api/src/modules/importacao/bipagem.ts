@@ -459,6 +459,7 @@ export interface GravacaoBipagem {
   linha: LinhaBipagemLida;
   chave: string;
   separada: boolean;
+  observacao: string | null;
 }
 
 export interface PlanoBipagem {
@@ -470,6 +471,7 @@ export interface PlanoBipagem {
   semLeitura: number;
   volumes: number;
   novaOperacao: boolean;
+  tipoCarga: 'FULL' | 'FRACIONADO' | null;
 }
 
 function destinoParaContrato(d: DestinoEstado): DestinoResumoBipagem {
@@ -495,6 +497,7 @@ export function classificarBipagem(
   arquivo: { aba: string | null; linhaCabecalho: number; cabecalho: readonly { indice: number; letra: string; texto: string }[]; colunas: Readonly<Record<string, number | null>> },
 ): { linhas: LinhaClassificada[]; plano: PlanoBipagem } {
   const decisoes = new Map(p.decisions.map((d) => [d.row, d.decision]));
+  const observacoes = new Map(p.notes.map((n) => [n.row, n.text]));
   const validas = lidas.filter((l) => l.erros.length === 0 && l.volumes !== null);
   const positivas = validas.filter((l) => (l.volumes ?? 0) > 0 && l.chave !== null);
 
@@ -557,11 +560,12 @@ export function classificarBipagem(
       decision: decisao,
       awaitingDecision: acao === 'COINCIDENTE',
       notices: avisos,
+      note: observacoes.get(l.numero) ?? null,
     });
 
     const chave = l.chave ?? '';
     if (acao === 'NOVO' || acao === 'IMPORTAR_SEPARADO') {
-      gravacoes.push({ linha: l, chave, separada: acao === 'IMPORTAR_SEPARADO' });
+      gravacoes.push({ linha: l, chave, separada: acao === 'IMPORTAR_SEPARADO', observacao: observacoes.get(l.numero) ?? null });
       porLinha.set(l.numero, {
         ...base(l),
         classificacao: 'VALIDA_NOVA',
@@ -658,7 +662,7 @@ export function classificarBipagem(
     destinoTexto,
     `A gravar: ${plural(gravacoes.length, 'entrada', 'entradas')} (${plural(volumesGravar, 'volume', 'volumes')}); ${String(revalidadas.length)} revalidada(s); ${String(aguardando)} aguardando escolha.`,
   ];
-  return { linhas, plano: { destino, gravacoes, revalidadas, resumo, textos, semLeitura: semLeitura.length, volumes: volumesGravar, novaOperacao: p.newOperation } };
+  return { linhas, plano: { destino, gravacoes, revalidadas, resumo, textos, semLeitura: semLeitura.length, volumes: volumesGravar, novaOperacao: p.newOperation, tipoCarga: p.palletKind } };
 }
 
 // ---------- Gravação ----------
@@ -704,6 +708,7 @@ export async function gravarBipagem(
     palete = { id: destino.palete.id, codigo: destino.palete.codigo };
   }
 
+  if (plano.tipoCarga !== null) await tx.palete.update({ where: { id: palete.id }, data: { tipoCarga: plano.tipoCarga } });
   const registros = new Map<number, string>();
   for (const g of plano.gravacoes) {
     const l = g.linha;
@@ -719,6 +724,7 @@ export async function gravarBipagem(
         numeroDocumento: l.numeroDocumento,
         cnpjRemetente: l.cnpj,
         cnpjRemetenteDigitos: l.cnpjDigitos,
+        descricao: g.observacao,
         origem: 'BIPAGEM',
         loteImportacaoId: lote.id,
         linhaArquivo: l.numero,
@@ -771,6 +777,7 @@ export async function gravarBipagem(
       semLeitura: plano.semLeitura,
       volumes: plano.volumes,
       novaOperacao: plano.novaOperacao,
+      tipoCarga: plano.tipoCarga,
     },
     requestId: autor.requestId,
   });

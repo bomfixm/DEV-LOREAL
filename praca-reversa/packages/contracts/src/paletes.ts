@@ -298,6 +298,10 @@ export const AlterarPaleteSchema = z.object({
 });
 export type AlterarPalete = z.input<typeof AlterarPaleteSchema>;
 
+/** Troca manual do número do palete ("Palete 28"): ID, QR, contagens e histórico não mudam. */
+export const RenumerarPaleteSchema = z.object({ number: CodigoPaleteSchema });
+export type RenumerarPalete = z.output<typeof RenumerarPaleteSchema>;
+
 /** Arquivar um cadastro feito por engano: o código continua reservado. */
 export const ArquivarPaleteSchema = z.object({
   expectedVersion: z.number().int().positive(),

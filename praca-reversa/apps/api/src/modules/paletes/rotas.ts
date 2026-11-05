@@ -6,6 +6,7 @@ import {
   ArquivarPaleteSchema,
   CadastroPaleteSchema,
   NovaDescricaoCaixaSchema,
+  RenumerarPaleteSchema,
   RetirarDescricaoCaixaSchema,
   perfilPossui,
   type EscopoDoPalete,
@@ -18,7 +19,7 @@ import { registrarEvento } from '../auditoria/registrar.js';
 import { executarIdempotente } from '../idempotencia/executar.js';
 import { chaveIdempotencia, responder, validar } from '../idempotencia/http.js';
 import { adicionarDescricaoCaixa, alterarCidadeDestino, alterarProdutoNaCaixa, retirarDescricaoCaixa } from './notas.js';
-import { alterarPalete, arquivarPalete, cadastrarPalete, type Autor } from './servico.js';
+import { alterarPalete, arquivarPalete, cadastrarPalete, renumerarPalete, type Autor } from './servico.js';
 
 const ParametrosSchema = z.object({ id: z.uuid() });
 const ParametrosCaixaSchema = z.object({ id: z.uuid(), descricao: z.uuid() });
@@ -54,6 +55,21 @@ export function registrarRotasPaletes(app: FastifyInstance, deps: Dependencias, 
       deps.config.appSegredo,
       { escopoId: escopo.id, usuarioId: autor.usuarioId, operacao: 'palete.alterar', chave, payload: { id, corpo: request.body } },
       async (tx) => ({ status: 200, corpo: await alterarPalete(tx, escopo, id, dados, autor) }),
+    );
+    return responder(reply, resultado);
+  });
+
+  app.put(`${API_PREFIXO}/paletes/:id/numero`, { preHandler: auth.exigirPermissao('palete.cadastrar') }, async (request, reply) => {
+    const escopo = escopoAtivoDe(request);
+    const autor = autorDe(request);
+    const chave = chaveIdempotencia(request);
+    const { id } = validar(ParametrosSchema, request.params, 'Identificador de palete inválido.');
+    const dados = validar(RenumerarPaleteSchema, request.body, 'Número do palete inválido.');
+    const resultado = await executarIdempotente(
+      deps.db,
+      deps.config.appSegredo,
+      { escopoId: escopo.id, usuarioId: autor.usuarioId, operacao: 'palete.renumerar', chave, payload: { id, corpo: request.body } },
+      async (tx) => ({ status: 200, corpo: await renumerarPalete(tx, escopo, id, dados, autor, deps.agora()) }),
     );
     return responder(reply, resultado);
   });

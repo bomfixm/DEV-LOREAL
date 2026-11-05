@@ -308,6 +308,20 @@ describe('cadastro de palete', () => {
     expect((await db.palete.findUniqueOrThrow({ where: { id: criado.id } })).observacoes).toBe('Filme rasgado');
   });
 
+  it('troca manual do número: preserva ID e legado, registra histórico e recusa número em uso', async () => {
+    const posicao = await idPosicao(db, ID_ESCOPO_PRACA, 'F04-P02');
+    const criado = PaleteDetalheSchema.parse((await novoPalete(sOperador, { code: { mode: 'GERAR' }, positionId: posicao })).json());
+    const trocado = await mutar(app, sSupervisor, 'PUT', `/api/v1/paletes/${criado.id}/numero`, { number: '28' });
+    expect(PaleteDetalheSchema.parse(trocado.json())).toMatchObject({ id: criado.id, code: '28', legacyCode: criado.code });
+    const outra = await mutar(app, sSupervisor, 'PUT', `/api/v1/paletes/${criado.id}/numero`, { number: '29' });
+    expect(PaleteDetalheSchema.parse(outra.json())).toMatchObject({ code: '29', legacyCode: criado.code });
+    expect(await db.historicoCodigoPalete.count({ where: { paleteId: criado.id } })).toBe(2);
+    const usado = await mutar(app, sSupervisor, 'PUT', `/api/v1/paletes/00000000-0000-4000-8000-000000000005/numero`, { number: '29' });
+    expect([usado.statusCode, codigoErro(usado)]).toEqual([409, 'CONFLITO']);
+    expect((await mutar(app, sSupervisor, 'PUT', `/api/v1/paletes/${criado.id}/numero`, { number: criado.code })).statusCode).toBe(409);
+    expect((await mutar(app, sConsulta, 'PUT', `/api/v1/paletes/${criado.id}/numero`, { number: '30' })).statusCode).toBe(403);
+  });
+
   it('arquivar cadastro por engano libera a posição, sai do mapa e mantém o detalhe pelo ID', async () => {
     const posicao = await idPosicao(db, ID_ESCOPO_PRACA, 'F04-P02');
     const criado = PaleteDetalheSchema.parse((await novoPalete(sOperador, { code: { mode: 'GERAR' }, positionId: posicao })).json());

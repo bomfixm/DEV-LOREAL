@@ -1,6 +1,8 @@
 import {
   API_PREFIXO,
   ConteudosPaleteSchema,
+  PaleteDetalheSchema,
+  RenumerarPaleteSchema,
   compararQuantidades,
   subtrairQuantidades,
   type ConteudoPalete,
@@ -11,6 +13,8 @@ import {
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { Carga } from '../../api/use-recurso';
 import { useRecurso } from '../../api/use-recurso';
+import { enviarJson, mensagemDeFalha } from '../../api/cliente';
+import { useChaves } from '../../api/chaves';
 import { IconeAlvo, IconeArquivo, IconeFechar, IconeImprimir } from '../../components/Icones';
 import { formatarDataHora } from '../../utils/datas';
 import { formatarQuantidade } from '../../utils/numeros';
@@ -20,6 +24,61 @@ import { agruparDocumentos, contarDocumentos } from './documentos';
 import { estadoExibido } from './estados';
 import { NAO_INFORMADO, avisoReconferencia, baseDosVolumes, dataSimples, somaContada, textoConferenciaInformada, textoFull, textoVolumes } from './janela';
 import { textoSequenciaFull } from './volumes';
+
+/** Troca manual do número do palete (ex.: "28" → "30"): campo curto no cabeçalho da janela. */
+function AlterarNumero({ palete, aoTrocado }: { palete: PaleteResumo; aoTrocado: (texto: string) => void }) {
+  const [aberto, setAberto] = useState(false);
+  const [valor, setValor] = useState('');
+  const [erro, setErro] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const chaves = useChaves();
+  if (!aberto) {
+    return (
+      <button type="button" className="botao-link" data-testid="janela-alterar-numero" onClick={() => { setValor(palete.code); setAberto(true); }}>
+        Alterar número
+      </button>
+    );
+  }
+  async function salvar() {
+    const lido = RenumerarPaleteSchema.safeParse({ number: valor });
+    if (!lido.success) {
+      setErro(lido.error.issues[0]?.message ?? 'Número inválido.');
+      return;
+    }
+    const assinatura = `palete-numero:${palete.id}:${lido.data.number}`;
+    setEnviando(true);
+    setErro(null);
+    try {
+      await enviarJson('PUT', `${API_PREFIXO}/paletes/${palete.id}/numero`, PaleteDetalheSchema, { corpo: lido.data, idempotencia: chaves.para(assinatura) });
+      chaves.concluir(assinatura);
+      setAberto(false);
+      aoTrocado(`Número do palete trocado para ${lido.data.number}.`);
+    } catch (e) {
+      chaves.concluir(assinatura, e);
+      setErro(mensagemDeFalha(e));
+    } finally {
+      setEnviando(false);
+    }
+  }
+  return (
+    <span className="janela-alterar-numero" data-testid="janela-numero-formulario">
+      <input
+        type="text"
+        value={valor}
+        maxLength={40}
+        autoFocus
+        disabled={enviando}
+        aria-label="Novo número do palete"
+        data-testid="janela-numero-campo"
+        onChange={(e) => { setValor(e.target.value); setErro(null); }}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); void salvar(); } }}
+      />{' '}
+      <button type="button" className="botao-secundario" disabled={enviando} onClick={() => void salvar()} data-testid="janela-numero-salvar">Salvar</button>{' '}
+      <button type="button" className="botao-link" disabled={enviando} onClick={() => { setAberto(false); setErro(null); }}>Cancelar</button>
+      {erro !== null && <span className="mensagem-conflito" role="alert"> {erro}</span>}
+    </span>
+  );
+}
 
 /** Linhas por página na tabela de conteúdo (o restante fica nas páginas seguintes, nunca escondido). */
 const LINHAS_POR_PAGINA = 50;
@@ -551,6 +610,12 @@ export function JanelaPalete(props: PropsPalete) {
               {' '}
               · antes {palete.legacyCode}
             </span>
+          )}
+          {props.permissoes.includes('palete.cadastrar') && palete.flowState !== 'EXPEDIDO' && (
+            <>
+              {' · '}
+              <AlterarNumero palete={palete} aoTrocado={props.aoAlterado} />
+            </>
           )}
         </>
       }

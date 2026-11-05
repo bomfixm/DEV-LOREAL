@@ -5,6 +5,7 @@ import {
   type CadastroPaleteSchema,
   type Escopo,
   type PaleteDetalhe,
+  type RenumerarPalete,
 } from '@praca-reversa/contracts';
 import { randomUUID } from 'node:crypto';
 import type { z } from 'zod';
@@ -14,6 +15,7 @@ import { ErroHttp, naoEncontrado, requisicaoInvalida } from '../../http/erros.js
 import { registrarEvento } from '../auditoria/registrar.js';
 import { exigirSemConferenciaAtiva } from '../conferencia/servico.js';
 import { consultarPalete } from '../praca/consultas.js';
+import { ehCodigoGerado } from './numero-operacional.js';
 
 export type DadosCadastro = z.output<typeof CadastroPaleteSchema>;
 export type DadosAlteracao = z.output<typeof AlterarPaleteSchema>;
@@ -79,7 +81,7 @@ async function codigoLegadoDe(tx: Transacao, escopoId: string, chave: string): P
 }
 
 /** Código informado: único no escopo (inclusive arquivados e identificadores legados) e diferente de código de posição. */
-async function conferirCodigoInformado(tx: Transacao, escopo: Escopo, codigo: string): Promise<void> {
+export async function conferirCodigoInformado(tx: Transacao, escopo: Escopo, codigo: string): Promise<void> {
   const chave = chaveDeCodigo(codigo);
   const existente = await tx.palete.findFirst({
     where: { escopoId: escopo.id, codigoBusca: chave },
@@ -280,6 +282,58 @@ export async function alterarPalete(tx: Transacao, escopo: Escopo, id: string, d
     alvoTipo: 'PALETE',
     alvoId: id,
     detalhes: { codigo: atual.codigo, campo: 'observacoes', versao: dados.expectedVersion + 1 },
+    requestId: autor.requestId,
+  });
+  const detalhe = await consultarPalete(tx, escopo, id);
+  if (!detalhe) throw naoEncontrado('Palete não encontrado neste escopo.');
+  return detalhe;
+}
+
+/**
+ * Troca manual do número do palete. O novo número precisa estar livre (nenhum
+ * palete, nem arquivado, identificador anterior ou código de posição). O
+ * identificador gerado (PR-…) continua como legado; o número anterior fica em
+ * `historico_codigo_palete` e na auditoria. ID, QR, contagens e conferência não mudam.
+ */
+export async function renumerarPalete(tx: Transacao, escopo: Escopo, id: string, dados: RenumerarPalete, autor: Autor, agora: Date): Promise<PaleteDetalhe> {
+  const [atual] = await tx.$queryRaw<{ codigo: string; origem: string; legado: string | null; arquivado: Date | null }[]>`
+    SELECT codigo, origem_codigo::text AS origem, codigo_legado AS legado, arquivado_em AS arquivado
+      FROM palete WHERE id = ${id}::uuid AND escopo_id = ${escopo.id}::uuid FOR UPDATE`;
+  if (!atual) throw naoEncontrado('Palete não encontrado neste escopo.');
+  if (atual.arquivado !== null) throw new ErroHttp(409, 'CONFLITO', 'Palete arquivado: o número não pode ser trocado.');
+  const numero = dados.number;
+  if (chaveDeCodigo(numero) === chaveDeCodigo(atual.codigo)) throw new ErroHttp(409, 'CONFLITO', `O palete já tem o número ${atual.codigo}.`);
+  await conferirCodigoInformado(tx, escopo, numero);
+  const legado = atual.legado ?? (ehCodigoGerado(atual.codigo) ? atual.codigo : null);
+  await tx.$executeRaw`
+    UPDATE palete SET codigo = ${numero}, codigo_busca = ${chaveDeCodigo(numero)}, codigo_legado = ${legado},
+                      origem_codigo = 'EXISTENTE', versao = versao + 1, atualizado_em = ${agora}
+     WHERE id = ${id}::uuid AND escopo_id = ${escopo.id}::uuid`;
+  const operacaoId = randomUUID();
+  await tx.historicoCodigoPalete.create({
+    data: {
+      id: randomUUID(),
+      escopoId: escopo.id,
+      paleteId: id,
+      codigoAnterior: atual.codigo,
+      codigoNovo: numero,
+      origemAnterior: atual.origem,
+      origemNova: 'EXISTENTE',
+      motivo: 'Número trocado manualmente na janela do palete.',
+      fonte: 'MANUAL',
+      operacaoId,
+      autorId: autor.usuarioId,
+      registradoEm: agora,
+    },
+  });
+  await registrarEvento(tx, {
+    acao: 'PALETE_NUMERO_OPERACIONAL',
+    resultado: 'SUCESSO',
+    atorUsuarioId: autor.usuarioId,
+    escopoId: escopo.id,
+    alvoTipo: 'PALETE',
+    alvoId: id,
+    detalhes: { operacao: operacaoId, de: atual.codigo, para: numero, fonte: 'MANUAL' },
     requestId: autor.requestId,
   });
   const detalhe = await consultarPalete(tx, escopo, id);

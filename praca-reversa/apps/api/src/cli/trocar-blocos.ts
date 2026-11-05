@@ -9,6 +9,7 @@
  * Sem --executar: só mostra o que mudaria. Faça antes `npm run backup:rotina -- --motivo=MANUAL --sem-retencao`.
  */
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { carregarEnvLocal } from '../config.js';
 import { criarBanco } from '../db/cliente.js';
@@ -23,7 +24,9 @@ async function principal(): Promise<void> {
   carregarEnvLocal();
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL não definido.');
-  const db = criarBanco(url, (e) => { console.error(e.message); });
+  // Banco do Supabase: certificado raiz próprio (validação continua ligada).
+  const ca = /supabase\.com/.test(url) ? readFileSync(new URL('../../../../vercel/supabase-ca.pem', import.meta.url), 'utf8') : undefined;
+  const db = criarBanco(url, (e) => { console.error(e.message); }, ca ? { ca, max: 2 } : {});
   try {
     const escopo = await db.escopo.findFirst({ where: { ativo: true, unidade: { codigo: values.unidade }, cliente: { codigo: values.cliente } }, select: { id: true, nome: true } });
     if (!escopo) throw new Error('Escopo não encontrado.');

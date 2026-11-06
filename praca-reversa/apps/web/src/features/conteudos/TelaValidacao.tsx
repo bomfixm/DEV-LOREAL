@@ -1,5 +1,6 @@
-import { API_PREFIXO, FilaValidacaoSchema, type FilaValidacao, type ItemValidacao } from '@praca-reversa/contracts';
-import { useState } from 'react';
+import { API_PREFIXO, ExcluirValidacaoSchema, FilaValidacaoSchema, ResultadoAcaoConteudosSchema, type FilaValidacao, type ItemValidacao, type ResultadoAcaoConteudos } from '@praca-reversa/contracts';
+import { useRef, useState } from 'react';
+import { FalhaRequisicao, enviarJson, mensagemDeFalha } from '../../api/cliente';
 import { useRecurso } from '../../api/use-recurso';
 import { IconeAtualizar } from '../../components/Icones';
 import { MensagemAcao, Pagina } from '../../components/Moldura';
@@ -65,13 +66,13 @@ function Pendencia({ item, marcado, aoMarcar }: { item: ItemValidacao; marcado: 
 }
 
 /** Resumo compacto do que vai ao mapa (todas as selecionadas, inclusive as escondidas pela busca). */
-function ResumoSelecao({ itens }: { itens: readonly ItemValidacao[] }) {
+function ResumoSelecao({ itens, excluir = false }: { itens: readonly ItemValidacao[]; excluir?: boolean }) {
   const conhecidos = itens.reduce((t, i) => t + (i.volumes ?? 0), 0);
   const sem = itens.filter((i) => i.volumes === null).length;
   return (
     <section className="validacao-resumo-selecao" aria-label="Notas selecionadas" data-testid="validacao-janela-resumo">
       <p className="tabela-nota">
-        {notas(itens.length)} · {conhecidos} volume(s) conhecido(s){sem > 0 ? ` + ${String(sem)} sem quantidade` : ''}. Selecionar não movimenta nada: a gravação só acontece depois de escolher o destino e confirmar.
+        {notas(itens.length)} · {conhecidos} volume(s) conhecido(s){sem > 0 ? ` + ${String(sem)} sem quantidade` : ''}. {excluir ? 'Nada muda antes de confirmar.' : 'Selecionar não movimenta nada: a gravação só acontece depois de escolher o destino e confirmar.'}
       </p>
       <ul className="validacao-resumo-lista">
         {itens.map((i) => (
@@ -82,6 +83,61 @@ function ResumoSelecao({ itens }: { itens: readonly ItemValidacao[] }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+/** Excluir da fila (ex.: NF já entregue). Sai da lista e do estoque; histórico, autor e motivo ficam. */
+function JanelaExcluir({ itens, aoFechar, aoConcluido, aoConflito }: { itens: readonly ItemValidacao[]; aoFechar: () => void; aoConcluido: (r: ResultadoAcaoConteudos) => void; aoConflito: () => void }) {
+  const [motivo, setMotivo] = useState('NF já entregue');
+  const [confirmado, setConfirmado] = useState(false);
+  const [ocupado, setOcupado] = useState(false);
+  const [mensagem, setMensagem] = useState<{ tipo: 'erro' | 'conflito'; texto: string } | null>(null);
+  // Repetir o mesmo envio (queda de conexão) não exclui duas vezes.
+  const chave = useRef<{ assinatura: string; valor: string } | null>(null);
+
+  async function enviar() {
+    const corpo = { items: itens.map((i) => ({ kind: i.kind, id: i.id })), reason: motivo, confirm: confirmado };
+    const valido = ExcluirValidacaoSchema.safeParse(corpo);
+    if (!valido.success) {
+      setMensagem({ tipo: 'erro', texto: valido.error.issues[0]?.message ?? 'Revise a exclusão.' });
+      return;
+    }
+    const assinatura = JSON.stringify(corpo);
+    if (chave.current?.assinatura !== assinatura) chave.current = { assinatura, valor: crypto.randomUUID() };
+    setOcupado(true);
+    setMensagem(null);
+    try {
+      aoConcluido(await enviarJson('POST', `${API_PREFIXO}/validacao/excluir`, ResultadoAcaoConteudosSchema, { corpo, idempotencia: chave.current.valor }));
+    } catch (erro) {
+      const conflito = erro instanceof FalhaRequisicao && erro.codigo === 'CONJUNTO_ALTERADO';
+      setMensagem({ tipo: conflito || (erro instanceof FalhaRequisicao && erro.codigo === 'JANELA_VINCULADA') ? 'conflito' : 'erro', texto: mensagemDeFalha(erro) });
+      if (conflito) {
+        chave.current = null;
+        aoConflito();
+      }
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <JanelaModal titulo={`Excluir ${notas(itens.length)} da validação`} subtitulo="Para nota que não está mais na operação, como NF já entregue. Se ela ainda está aqui, use Colocar no mapa." aoFechar={aoFechar} testId="validacao-excluir-janela" classe="validacao-janela-fundo">
+      <ResumoSelecao itens={itens} excluir />
+      <div className="acoes-conteudo-painel">
+        <label className="campo">
+          <span className="campo-rotulo">Motivo</span>
+          <input value={motivo} maxLength={300} onChange={(e) => { setMotivo(e.target.value); }} data-testid="validacao-excluir-motivo" />
+        </label>
+        <label className="conf-check">
+          <input type="checkbox" checked={confirmado} onChange={(e) => { setConfirmado(e.target.checked); }} data-testid="validacao-excluir-confirmo" />
+          Confirmo que {itens.length === 1 ? 'esta nota não está' : `estas ${String(itens.length)} notas não estão`} mais na operação. O histórico continua guardado.
+        </label>
+        <button type="button" className="botao-perigo" disabled={ocupado || motivo.trim().length < 3 || !confirmado} onClick={() => void enviar()} data-testid="validacao-excluir-confirmar">
+          {ocupado ? 'Excluindo…' : `Excluir ${notas(itens.length)}`}
+        </button>
+      </div>
+      <MensagemAcao mensagem={mensagem} testId="validacao-excluir-mensagem" />
+    </JanelaModal>
   );
 }
 
@@ -103,6 +159,7 @@ export function TelaValidacao({ podeResolver, aoNavegar, aoGravar }: { podeResol
   const [marcados, setMarcados] = useState<ReadonlySet<string>>(new Set());
   const [filtro, setFiltro] = useState('');
   const [janela, setJanela] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
   const [mensagem, setMensagem] = useState<{ tipo: 'ok' | 'conflito'; texto: string } | null>(null);
   // Durante a atualização a lista (e a janela aberta) continua com os últimos dados confirmados.
   const [ultimos, setUltimos] = useState<FilaValidacao | null>(null);
@@ -121,6 +178,7 @@ export function TelaValidacao({ podeResolver, aoNavegar, aoGravar }: { podeResol
   const marcar = (ids: readonly string[], v: boolean) => {
     const pendentes = new Set((dados?.items ?? []).map((i) => i.id));
     setJanela(false);
+    setExcluindo(false);
     setMarcados((atual) => {
       const novo = new Set([...atual].filter((id) => pendentes.has(id)));
       for (const id of ids) {
@@ -141,7 +199,7 @@ export function TelaValidacao({ podeResolver, aoNavegar, aoGravar }: { podeResol
       rotuloVoltar="Voltar ao mapa"
       descricao={
         <p>
-          Conteúdos retirados do estoque físico de um palete porque o local real não é conhecido. Não ocupam posição nem aparecem para o cliente. Escolha uma ou várias e indique no mapa onde estão.
+          Conteúdos retirados do estoque físico de um palete porque o local real não é conhecido. Não ocupam posição nem aparecem para o cliente. Escolha uma ou várias e indique no mapa onde estão, ou exclua as que não estão mais na operação (ex.: NF já entregue).
         </p>
       }
     >
@@ -225,24 +283,57 @@ export function TelaValidacao({ podeResolver, aoNavegar, aoGravar }: { podeResol
                   Limpar seleção
                 </button>
                 {podeResolver ? (
-                  <button
-                    type="button"
-                    className="botao-primario"
-                    onClick={() => {
-                      setMensagem(null);
-                      setJanela(true);
-                    }}
-                    data-testid="validacao-colocar"
-                  >
-                    Colocar no mapa
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="botao-perigo"
+                      onClick={() => {
+                        setMensagem(null);
+                        setExcluindo(true);
+                      }}
+                      data-testid="validacao-excluir"
+                    >
+                      Excluir
+                    </button>
+                    <button
+                      type="button"
+                      className="botao-primario"
+                      onClick={() => {
+                        setMensagem(null);
+                        setJanela(true);
+                      }}
+                      data-testid="validacao-colocar"
+                    >
+                      Colocar no mapa
+                    </button>
+                  </>
                 ) : (
-                  <span className="tabela-nota">Colocar no mapa fica com o supervisor ou o administrador.</span>
+                  <span className="tabela-nota">Colocar no mapa e excluir ficam com o supervisor ou o administrador.</span>
                 )}
               </div>
             </div>
           )}
         </div>
+      )}
+      {excluindo && podeResolver && escolhidos.length > 0 && (
+        <JanelaExcluir
+          itens={escolhidos}
+          aoFechar={() => {
+            setExcluindo(false);
+          }}
+          aoConcluido={(r) => {
+            marcar(
+              escolhidos.map((i) => i.id),
+              false,
+            );
+            setMensagem({ tipo: 'ok', texto: textoResultadoAcao(r) });
+            setVersao((v) => v + 1);
+            aoGravar();
+          }}
+          aoConflito={() => {
+            setVersao((v) => v + 1);
+          }}
+        />
       )}
       {janelaAberta && (
         <JanelaModal

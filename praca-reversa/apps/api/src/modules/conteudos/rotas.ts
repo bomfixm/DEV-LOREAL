@@ -6,6 +6,7 @@ import {
   RegistrarConferenciaVolumesSchema,
   RegistrarContagemSchema,
   RegistrarReconferenciaSchema,
+  ExcluirValidacaoSchema,
   ResolverValidacaoSchema,
 } from '@praca-reversa/contracts';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -13,7 +14,7 @@ import { z } from 'zod';
 import { contextoDe, escopoAtivoDe, type Autenticacao, type Dependencias } from '../acesso/contexto.js';
 import { executarIdempotente } from '../idempotencia/executar.js';
 import { chaveIdempotencia, responder, validar } from '../idempotencia/http.js';
-import { executarAcaoConteudos, resolverValidacao } from './acoes.js';
+import { excluirValidacao, executarAcaoConteudos, resolverValidacao } from './acoes.js';
 import { registrarConferenciaVolumes } from './conferencia-tabela.js';
 import { alterarConteudo, conteudosDoPalete, registrarConteudo, registrarContagem, registrarReconferencia, type Autor } from './servico.js';
 import { filaValidacao, historicoOcorrencias, resumoValidacao } from './validacao.js';
@@ -144,6 +145,20 @@ export function registrarRotasConteudos(app: FastifyInstance, deps: Dependencias
       deps.config.appSegredo,
       { escopoId: escopo.id, usuarioId: autor.usuarioId, operacao: 'validacao.resolver', chave, payload: { corpo: request.body } },
       async (tx) => ({ status: 200, corpo: await resolverValidacao(tx, escopo, dados, autor, deps.agora()) }),
+    );
+    return responder(reply, resultado);
+  });
+
+  app.post(`${API_PREFIXO}/validacao/excluir`, { preHandler: auth.exigirPermissao('conteudo.corrigir') }, async (request, reply) => {
+    const escopo = escopoAtivoDe(request);
+    const autor = autorDe(request);
+    const chave = chaveIdempotencia(request);
+    const dados = validar(ExcluirValidacaoSchema, request.body, 'Selecione as notas, informe o motivo e confirme.');
+    const resultado = await executarIdempotente(
+      deps.db,
+      deps.config.appSegredo,
+      { escopoId: escopo.id, usuarioId: autor.usuarioId, operacao: 'validacao.excluir', chave, payload: { corpo: request.body } },
+      async (tx) => ({ status: 200, corpo: await excluirValidacao(tx, escopo, dados, autor, deps.agora()) }),
     );
     return responder(reply, resultado);
   });

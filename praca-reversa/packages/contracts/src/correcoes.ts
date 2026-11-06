@@ -56,6 +56,14 @@ export const ResolverValidacaoSchema = z.object({
 });
 export type ResolverValidacao = z.input<typeof ResolverValidacaoSchema>;
 
+/** POST /validacao/excluir — a nota saiu da operação (ex.: já entregue): sai da fila e o histórico fica. */
+export const ExcluirValidacaoSchema = z.object({
+  items: itens,
+  reason: motivo,
+  confirm: z.literal(true, { error: 'Confirme a exclusão das notas selecionadas.' }),
+});
+export type ExcluirValidacao = z.input<typeof ExcluirValidacaoSchema>;
+
 const PaleteRefSchema = z.object({ id: z.uuid(), code: z.string(), address: z.string().nullable() });
 
 export const ResultadoAcaoConteudosSchema = z.object({

@@ -144,6 +144,29 @@ test.describe('Validação urgente — barra e janela "Colocar no mapa"', () => 
     await expect(page.getByTestId('validacao-item')).toHaveCount(1);
   });
 
+  test('excluir nota já entregue: pede confirmação, tira da lista e reduz a quantidade', async ({ page }) => {
+    const s = randomUUID().replace(/\D/g, '').slice(0, 4).padEnd(4, '5');
+    await entrar(page, 'supervisor');
+    const { numeros } = await fila(page, `5${s}`, 3);
+    await abrirFila(page, `5${s}`);
+    const antes = Number(await page.getByTestId('validacao-resumo').locator('strong').innerText());
+    for (const n of numeros.slice(0, 2)) await item(page, n).getByTestId('validacao-marcar').check();
+    await page.getByTestId('validacao-excluir').click();
+    const janela = page.getByTestId('validacao-excluir-janela');
+    await expect(janela.getByTestId('janela-titulo')).toHaveText('Excluir 2 notas da validação');
+    await expect(janela.getByTestId('validacao-excluir-motivo')).toHaveValue('NF já entregue');
+    await expect(janela.getByTestId('validacao-excluir-confirmar')).toBeDisabled();
+    await capturar(page, '04-excluir');
+    await janela.getByTestId('validacao-excluir-confirmo').check();
+    await janela.getByTestId('validacao-excluir-confirmar').click();
+    await expect(janela).toHaveCount(0);
+    await expect(page.getByTestId('validacao-mensagem')).toContainText('2 conteúdo(s) excluído(s) da validação');
+    await expect(page.getByTestId('validacao-item')).toHaveCount(1);
+    await expect(item(page, numeros[2] ?? '')).toHaveCount(1);
+    await expect(page.getByTestId('validacao-resumo').locator('strong')).toHaveText(String(antes - 2));
+    await expect(page.getByTestId('validacao-barra')).toHaveCount(0);
+  });
+
   test('celular: a barra aparece ao marcar e abre a janela', async ({ page }, testInfo) => {
     test.skip(!ehCelular(testInfo), 'só no celular');
     const s = randomUUID().replace(/\D/g, '').slice(0, 4).padEnd(4, '6');

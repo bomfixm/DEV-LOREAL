@@ -19,7 +19,7 @@
  * - Ocorrência com volumes separados ou expedidos numa janela não é corrigida
  *   aqui (impacto operacional sinalizado; nada muda em silêncio).
  */
-import { compararIdentidade, type AcaoConteudosSchema, type Escopo, type ResolverValidacaoSchema, type ResultadoAcaoConteudos } from '@praca-reversa/contracts';
+import { compararIdentidade, type AcaoConteudosSchema, type Escopo, type ExcluirValidacaoSchema, type ResolverValidacaoSchema, type ResultadoAcaoConteudos } from '@praca-reversa/contracts';
 import { randomUUID } from 'node:crypto';
 import type { z } from 'zod';
 import type { Transacao } from '../../db/cliente.js';
@@ -35,6 +35,7 @@ import { quantidadesAtuais, type TipoAlvo } from './estado.js';
 
 type DadosAcao = z.output<typeof AcaoConteudosSchema>;
 type DadosResolver = z.output<typeof ResolverValidacaoSchema>;
+type DadosExcluir = z.output<typeof ExcluirValidacaoSchema>;
 type Destino = z.output<typeof ResolverValidacaoSchema>['destination'];
 
 export interface Autor {
@@ -395,6 +396,42 @@ export async function resolverValidacao(tx: Transacao, escopo: Escopo, dados: Da
     destination: { id: destino.ref.id, code: destino.ref.codigo, address: destino.ref.endereco, created: destino.criado, items: await restantes(tx, escopo.id, destino.ref.id) },
     warnings: destino.avisos,
   };
+}
+
+/** Exclui pendências da validação (ex.: NF já entregue): saem da fila e do estoque; histórico e auditoria ficam. */
+export async function excluirValidacao(tx: Transacao, escopo: Escopo, dados: DadosExcluir, autor: Autor, agora: Date): Promise<ResultadoAcaoConteudos> {
+  const ocorrencias = await carregarOcorrencias(tx, escopo.id, dados.items, 'VALIDACAO', null);
+  await exigirSemJanela(tx, escopo.id, ocorrencias);
+  const qtd = await quantidadesAtuais(
+    tx,
+    escopo.id,
+    ocorrencias.map((o) => o.id),
+  );
+  const operacaoId = randomUUID();
+  await atualizar(tx, ocorrencias, { situacao: 'CANCELADO', encerrar: { em: agora, por: autor.usuarioId, motivo: dados.reason } });
+  const ultimos = new Map<string, RefPalete>();
+  for (const o of ocorrencias) {
+    const ultimo = ultimos.get(o.palete_id) ?? (await refPalete(tx, escopo.id, o.palete_id));
+    ultimos.set(o.palete_id, ultimo);
+    await historico(tx, escopo.id, operacaoId, o, 'CANCELAMENTO', ultimo, null, 'CANCELADO', qtd.get(o.id) ?? null, dados.reason, autor.usuarioId, agora, { excluidaDaValidacao: true });
+  }
+  const { volumes, semVolumes } = somaVolumes(ocorrencias, qtd);
+  await registrarEvento(tx, {
+    acao: 'CONTEUDOS_CANCELADOS',
+    resultado: 'SUCESSO',
+    atorUsuarioId: autor.usuarioId,
+    escopoId: escopo.id,
+    alvoTipo: 'VALIDACAO',
+    detalhes: {
+      operacao: operacaoId,
+      ocorrencias: ocorrencias.length,
+      documentos: ocorrencias.slice(0, 60).map(documento).join('; ') + (ocorrencias.length > 60 ? ' …' : ''),
+      volumes,
+      motivo: dados.reason,
+    },
+    requestId: autor.requestId,
+  });
+  return { operationId: operacaoId, action: 'CANCELAR', affected: ocorrencias.length, volumes, withoutVolumes: semVolumes, origin: null, destination: null, warnings: [] };
 }
 
 export { historico as registrarHistoricoConteudo, refPalete, type Ocorrencia };

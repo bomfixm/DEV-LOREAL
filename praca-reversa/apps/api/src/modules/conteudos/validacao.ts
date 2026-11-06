@@ -51,9 +51,9 @@ export async function historicoOcorrencias(db: Db, escopoId: string, ids: readon
         FROM item_conferencia_volumes i JOIN conferencia_volumes cv ON cv.id = i.conferencia_id JOIN palete p ON p.id = cv.palete_id
         LEFT JOIN usuario u ON u.id = cv.registrada_por_id
        WHERE i.escopo_id = ${escopoId}::uuid AND coalesce(i.conteudo_id, i.vinculo_id) = ANY(${lista}::uuid[])`,
-    db.$queryRaw<{ alvo: string; em: Date; login: string | null; nome: string | null; acao: string; co: string | null; eo: string | null; cd: string | null; ed: string | null; motivo: string | null; operacao: string; volumes: number | null }[]>`
+    db.$queryRaw<{ alvo: string; em: Date; login: string | null; nome: string | null; acao: string; co: string | null; eo: string | null; cd: string | null; ed: string | null; motivo: string | null; operacao: string; volumes: number | null; situacao_anterior: string | null }[]>`
       SELECT coalesce(h.conteudo_id, h.vinculo_id)::text AS alvo, h.registrado_em AS em, u.login, u.nome, h.acao, h.codigo_origem AS co, h.endereco_origem AS eo,
-             h.codigo_destino AS cd, h.endereco_destino AS ed, h.motivo, h.operacao_id::text AS operacao, h.volumes
+             h.codigo_destino AS cd, h.endereco_destino AS ed, h.motivo, h.operacao_id::text AS operacao, h.volumes, h.situacao_anterior
         FROM historico_conteudo h LEFT JOIN usuario u ON u.id = h.autor_id
        WHERE h.escopo_id = ${escopoId}::uuid AND coalesce(h.conteudo_id, h.vinculo_id) = ANY(${lista}::uuid[])`,
   ]);
@@ -114,7 +114,7 @@ export async function historicoOcorrencias(db: Db, escopoId: string, ids: readon
           : h.acao === 'RESOLUCAO'
             ? `Validação resolvida: alocado no ${destino}`
             : h.acao === 'CANCELAMENTO'
-              ? `Registro cancelado no ${origem}${h.volumes === null ? '' : ` (${String(h.volumes)} volume(s) retirados do estoque ativo)`}`
+              ? `${h.situacao_anterior === 'VALIDACAO' ? `Excluído da validação (último conhecido: ${origem})` : `Registro cancelado no ${origem}`}${h.volumes === null ? '' : ` (${String(h.volumes)} volume(s) retirados do estoque ativo)`}`
               : `Vínculo encerrado no ${origem}`;
     add(h.alvo, {
       at: h.em.toISOString(),

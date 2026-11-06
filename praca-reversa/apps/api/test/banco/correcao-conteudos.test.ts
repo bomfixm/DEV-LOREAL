@@ -167,6 +167,35 @@ describe('Validação sem endereço e cancelamento', () => {
     expect(codigoErro(await mutar(a.app, a.sup, 'POST', `${API}/validacao/resolver`, { items: [item(v1)], destination: { kind: 'PALETE', id: p.id } }))).toBe('CONJUNTO_ALTERADO');
   });
 
+  it('excluir da validação: sai da fila com histórico, não entra no estoque, repetir não duplica e só o supervisor faz', async () => {
+    const p = await criarPalete(a);
+    const [v1, v2] = await semear(p.id, [
+      { numero: '9000901', remetente: 'Remetente A', volumes: 7 },
+      { numero: '9000902', remetente: 'Remetente B', volumes: 3 },
+    ]);
+    if (v1 === undefined || v2 === undefined) throw new Error('Semeadura incompleta.');
+    expect((await acao(a.sup, p.id, { action: 'VALIDACAO', items: [item(v1), item(v2)], reason: 'Local a confirmar (teste)' })).statusCode).toBe(200);
+    const url = `${API}/validacao/excluir`;
+    const corpo = { items: [item(v1)], reason: 'NF já entregue (teste)', confirm: true };
+    expect((await mutar(a.app, a.op, 'POST', url, corpo)).statusCode).toBe(403);
+    expect((await mutar(a.app, a.sup, 'POST', url, { items: [item(v1)], reason: 'NF já entregue (teste)' })).statusCode).toBe(400);
+
+    const k = chave();
+    const r = await mutar(a.app, a.sup, 'POST', url, corpo, k);
+    expect(r.statusCode, r.body).toBe(200);
+    expect(ResultadoAcaoConteudosSchema.parse(r.json())).toMatchObject({ action: 'CANCELAR', affected: 1, volumes: 7, origin: null, destination: null });
+    expect((await mutar(a.app, a.sup, 'POST', url, corpo, k)).statusCode).toBe(200);
+    expect(codigoErro(await mutar(a.app, a.sup, 'POST', url, corpo))).toBe('CONJUNTO_ALTERADO');
+
+    const fila = (await como(a.app, a.sup, { method: 'GET', url: `${API}/validacao` })).json<{ items: { id: string }[]; total: number; volumes: number }>();
+    expect(fila.items.map((i) => i.id)).toEqual([v2]);
+    expect(fila.volumes).toBe(3);
+    expect((await listar(p.id)).items.some((i) => i.id === v1)).toBe(false);
+    const eventos = (await como(a.app, a.sup, { method: 'GET', url: `${API}/ocorrencias/${v1}/historico` })).json<{ items: { type: string; text: string; reason: string | null }[] }>().items;
+    expect(eventos.at(-1)).toMatchObject({ type: 'CANCELAMENTO', reason: 'NF já entregue (teste)' });
+    expect(eventos.at(-1)?.text).toContain('Excluído da validação');
+  });
+
   it('cancelar uma ocorrência não afeta outra da mesma NF; o perfil máximo cancela; operador e cliente não', async () => {
     const p = await criarPalete(a);
     const [c1, c2] = await semear(p.id, [

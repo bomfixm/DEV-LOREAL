@@ -654,3 +654,7 @@ A solicitação foi ampliada de uma rua para várias ruas livremente, com atalho
 ### 6 nov. 2026 — Notas por foto: leitura pelo código de barras
 
 O prompt mandava ignorar códigos de barras e guardar as fotos. O usuário decidiu: a foto serve só para agilizar a digitação e não é guardada; leitura por IA fica fora pelo custo; só importam NF e remetente (DHL) ou delivery e remetente (L'Oréal). Como o OCR na foto inteira foi ruim nas etiquetas reais, a leitura passou a usar primeiro o código de barras, no próprio aparelho. Comum/FULL deixou de ser obrigatório: sem a escolha, os volumes ficam vazios e nada é presumido. Módulos: `packages/contracts/src/notas-foto.ts`, `apps/api/src/modules/notas-foto`, `apps/web/src/features/notas-foto`; migração `20261106160000_notas_foto_codigo_barras` (aditiva).
+
+### 6 nov. 2026 — Excluir da validação urgente
+
+A fila só permitia colocar no mapa, mas a NF pode já ter sido entregue. Novo botão Excluir (`POST /validacao/excluir`, permissão `conteudo.corrigir`): uma ou várias notas, motivo e confirmação. A nota vai para CANCELADO, sem apagar linha: histórico e auditoria ficam, e nova carga de inventário não a recoloca no estoque. Módulos: `packages/contracts/src/correcoes.ts`, `apps/api/src/modules/conteudos`, `apps/web/src/features/conteudos/TelaValidacao.tsx`.

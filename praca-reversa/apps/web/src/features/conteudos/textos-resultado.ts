@@ -26,7 +26,9 @@ export function textoResultadoAcao(r: ResultadoAcaoConteudos): string {
       : r.action === 'VALIDACAO'
         ? `${n} do palete ${r.origin?.code ?? ''} enviado(s) para a validação sem endereço — ${vol}.`
         : r.action === 'CANCELAR'
-          ? `${n} cancelado(s) no palete ${r.origin?.code ?? ''} — ${vol} retirado(s) do estoque ativo.`
+          ? r.origin === null
+            ? `${n} excluído(s) da validação — ${vol} fora do estoque. O histórico continua registrado.`
+            : `${n} cancelado(s) no palete ${r.origin.code} — ${vol} retirado(s) do estoque ativo.`
           : `${n} alocado(s) no palete ${r.destination?.code ?? ''}${r.destination?.created ? ' (palete novo)' : ''} — ${vol}.`;
   return r.warnings.length === 0 ? base : `${base} ${r.warnings.join(' ')}`;
 }

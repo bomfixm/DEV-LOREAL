@@ -493,7 +493,6 @@ model Usuario {
   separacoesCriadas        SeparacaoCliente[]        @relation("SeparacaoCriadaPor")
   notasFotoCriadas         NotaFoto[]                @relation("NotaFotoCriadaPor")
   notasFotoAtualizadas     NotaFoto[]                @relation("NotaFotoAtualizadaPor")
-  fotosNotaEnviadas        FotoNota[]                @relation("FotoNotaEnviadaPor")
   separacoesEncerradas     SeparacaoCliente[]        @relation("SeparacaoEncerradaPor")
   resolucoesSelecao        ResolucaoLinhaSelecao[]   @relation("ResolucaoSelecaoAutor")
   resolucoesAnuladas       ResolucaoLinhaSelecao[]   @relation("ResolucaoSelecaoAnuladaPor")
@@ -2868,6 +2867,8 @@ model NotaFoto {
   leituraTexto       String?  @map("leitura_texto")
   leituraNumeroBruto String?  @map("leitura_numero_bruto")
   leituraCandidatos  Json     @default("[]") @map("leitura_candidatos")
+  /// Identifica a foto de origem, só para não duplicar; a imagem não é guardada.
+  chaveFoto          String?  @map("chave_foto")
   conteudoId         String?  @map("conteudo_id") @db.Uuid
   vinculoId          String?  @map("vinculo_id") @db.Uuid
   criadoPorId        String   @map("criado_por_id") @db.Uuid
@@ -2879,32 +2880,10 @@ model NotaFoto {
   palete        Palete     @relation(fields: [paleteId], references: [id])
   criadoPor     Usuario    @relation("NotaFotoCriadaPor", fields: [criadoPorId], references: [id])
   atualizadoPor Usuario?   @relation("NotaFotoAtualizadaPor", fields: [atualizadoPorId], references: [id])
-  fotos         FotoNota[]
 
   @@index([escopoId, paleteId, situacao])
+  @@index([escopoId, paleteId, chaveFoto])
   @@map("nota_foto")
-}
-
-/// Foto de uma nota, guardada no banco (privada, autorizada por escopo).
-model FotoNota {
-  id           String   @id @db.Uuid
-  escopoId     String   @map("escopo_id") @db.Uuid
-  notaId       String   @map("nota_id") @db.Uuid
-  paleteId     String   @map("palete_id") @db.Uuid
-  nome         String
-  tipoConteudo String   @map("tipo_conteudo")
-  tamanho      Int
-  sha256       String
-  conteudo     Bytes
-  enviadoPorId String   @map("enviado_por_id") @db.Uuid
-  enviadoEm    DateTime @map("enviado_em") @db.Timestamptz(3)
-
-  nota      NotaFoto @relation(fields: [notaId], references: [id])
-  enviadoPor Usuario @relation("FotoNotaEnviadaPor", fields: [enviadoPorId], references: [id])
-
-  @@index([notaId])
-  @@index([escopoId, paleteId, sha256])
-  @@map("foto_nota")
 }
 
 /// Planilha de separação enviada pelo cliente (ex.: litígios da janela 10/11).

@@ -1,6 +1,5 @@
 import { NotasFotoPaleteSchema, ResultadoNotasFotoSchema } from '@praca-reversa/contracts';
 import type { FastifyInstance } from 'fastify';
-import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Banco } from '../../src/db/cliente.js';
 import { ID_ESCOPO_NAVEGACAO, ID_ESCOPO_PRACA, appDeTeste, bancoDeTeste, como, criarUsuario, entrar, mutar, prepararDados, type SessaoTeste } from './apoio.js';
@@ -12,13 +11,9 @@ let sup: SessaoTeste;
 let consulta: SessaoTeste;
 let outroEscopo: SessaoTeste;
 
-/** JPEG mínimo: assinatura válida, conteúdo distinto a cada chamada. */
-const foto = (marca: string) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from(marca)]);
 const url = `/api/v1/paletes/${PALETE}/notas-foto`;
 
-async function enviar(s: SessaoTeste, corpo: Buffer, chave = randomUUID()) {
-  return como(app, s, { method: 'POST', url: `${url}/fotos`, headers: { 'content-type': 'application/octet-stream', 'x-arquivo-nome': 'foto.jpg', 'idempotency-key': chave }, payload: corpo });
-}
+const enviar = (s: SessaoTeste, photoKey: string, corpo: object = {}) => mutar(app, s, 'POST', url, { photoKey, ...corpo });
 const lista = async () => NotasFotoPaleteSchema.parse((await como(app, sup, { method: 'GET', url })).json());
 const leitura = (id: string, corpo: object) => mutar(app, sup, 'POST', `/api/v1/notas-foto/${id}/leitura`, corpo);
 const salvar = (itens: object[]) => mutar(app, sup, 'PUT', url, { items: itens });
@@ -27,7 +22,7 @@ const conteudos = async () => (await como(app, sup, { method: 'GET', url: `/api/
 
 async function novaNota(marca: string) {
   const antes = new Set((await lista()).items.map((n) => n.id));
-  expect((await enviar(sup, foto(marca))).statusCode).toBe(201);
+  expect((await enviar(sup, marca)).statusCode).toBe(201);
   const n = (await lista()).items.find((x) => !antes.has(x.id));
   if (!n) throw new Error('Nota não criada.');
   return n;
@@ -53,17 +48,19 @@ afterAll(async () => {
 });
 
 describe('Notas por foto', () => {
-  it('foto salva vira rascunho fora do estoque; a mesma foto de novo não duplica; formato inválido é recusado', async () => {
+  it('foto lida vira rascunho fora do estoque, sem imagem no servidor; a mesma foto de novo não duplica', async () => {
     const antes = (await conteudos()).items.length;
     const n = await novaNota('a');
-    expect(n).toMatchObject({ documentNumber: null, volumes: null, labelKind: null, read: { state: 'PENDENTE' } });
-    expect((await enviar(sup, foto('a'))).statusCode).toBe(201);
+    expect(n).toMatchObject({ documentNumber: null, volumes: null, labelKind: null, read: { state: 'LIDA' }, photoKey: 'a' });
+    expect((await enviar(sup, 'a')).statusCode).toBe(201);
     expect((await lista()).items).toHaveLength(1);
-    expect((await enviar(sup, Buffer.from('nao e imagem'))).statusCode).toBe(415);
     expect((await conteudos()).items).toHaveLength(antes);
-    const img = await como(app, sup, { method: 'GET', url: `/api/v1/notas-foto/fotos/${n.photos[0]?.id ?? ''}` });
-    expect(img.statusCode).toBe(200);
-    expect(img.headers['content-type']).toContain('image/jpeg');
+    // Falha de leitura não impede: a linha fica vazia para digitar.
+    expect((await enviar(sup, 'b', { failed: true })).statusCode).toBe(201);
+    expect((await lista()).items.find((x) => x.photoKey === 'b')).toMatchObject({ read: { state: 'FALHOU' }, documentNumber: null });
+    // Não existe rota nem tabela de imagem.
+    const tabelas = await db.$queryRaw<{ n: bigint }[]>`SELECT count(*) AS n FROM information_schema.tables WHERE table_name = 'foto_nota'`;
+    expect(Number(tabelas[0]?.n)).toBe(0);
   });
 
   it('FULL: 1/2 não vira volumes; 100 digitado persiste e entra uma vez; incluir de novo não duplica', async () => {
@@ -121,8 +118,7 @@ describe('Notas por foto', () => {
     const r = ResultadoNotasFotoSchema.parse((await salvar([{ id: a.id, expectedVersion: a.version, changes: { delivery: '9' } }, { id: b.id, expectedVersion: b.version, changes: { delivery: '2' } }])).json());
     expect(r.results.map((x) => x.ok)).toEqual([true, false]);
 
-    expect((await enviar(consulta, foto('sem'))).statusCode).toBe(403);
-    expect((await como(app, outroEscopo, { method: 'GET', url: `/api/v1/notas-foto/fotos/${a.photos[0]?.id ?? ''}` })).statusCode).toBe(404);
+    expect((await enviar(consulta, 'sem')).statusCode).toBe(403);
     expect((await como(app, outroEscopo, { method: 'GET', url })).statusCode).toBe(404);
   });
 });

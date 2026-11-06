@@ -11,11 +11,10 @@ import {
   type NotasFotoPalete,
   type TipoEtiqueta,
 } from '@praca-reversa/contracts';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useChaves } from '../../api/chaves';
-import { enviarArquivo, enviarJson, mensagemDeFalha } from '../../api/cliente';
+import { enviarJson, mensagemDeFalha } from '../../api/cliente';
 import { useRecurso } from '../../api/use-recurso';
-import { paraEndereco } from '../../base';
 import { EstadoTela } from '../../components/Moldura';
 import { ErroFoto, lerFoto, prepararFoto } from './imagem';
 import './notas-foto.css';
@@ -23,17 +22,16 @@ import './notas-foto.css';
 interface Envio {
   chave: string;
   nome: string;
-  estado: 'enviando' | 'falhou';
+  estado: 'lendo' | 'enviando' | 'falhou';
   arquivo: File;
   mensagem: string | null;
 }
 
-const urlFoto = (id: string) => paraEndereco(`${API_PREFIXO}/notas-foto/fotos/${id}`);
-
 /**
  * Notas por foto: captura rápida no celular e complementação em tabela, em
- * qualquer aparelho. Tudo fica salvo no servidor; nada entra em estoque antes de
- * "Incluir no palete". Volumes vazios continuam vazios (nunca zero).
+ * qualquer aparelho. A foto é lida no aparelho e descartada: no servidor ficam só
+ * os dados. Nada entra em estoque antes de "Incluir no palete". Volumes vazios
+ * continuam vazios (nunca zero).
  */
 export function TelaNotasFoto({ paleteId, aoVoltar, aoGravar }: { paleteId: string; aoVoltar: () => void; aoGravar: () => void }) {
   const url = `${API_PREFIXO}/paletes/${paleteId}/notas-foto`;
@@ -46,7 +44,9 @@ export function TelaNotasFoto({ paleteId, aoVoltar, aoGravar }: { paleteId: stri
   const [avisos, setAvisos] = useState<Record<string, string>>({});
   const [resumo, setResumo] = useState<string | null>(null);
   const [ampliada, setAmpliada] = useState<string | null>(null);
-  const tentadas = useRef(new Set<string>());
+  const [previews, setPreviews] = useState<Record<string, string>>({});
+  const fotos = useRef(new Map<string, Blob>());
+  const fila = useRef<Promise<void>>(Promise.resolve());
   const rotacoes = useRef(new Map<string, number>());
   const camera = useRef<HTMLInputElement>(null);
   const galeria = useRef<HTMLInputElement>(null);
@@ -55,32 +55,51 @@ export function TelaNotasFoto({ paleteId, aoVoltar, aoGravar }: { paleteId: stri
   const dados = lista ?? (carga?.estado === 'pronto' ? carga.dados : null);
   const notas = dados?.items ?? [];
 
-  async function enviar(arquivo: File, chave: string) {
-    setEnvios((e) => [...e.filter((x) => x.chave !== chave), { chave, nome: arquivo.name, estado: 'enviando', arquivo, mensagem: null }]);
+  /** Lê no aparelho e envia só os dados. Uma foto por vez; falha na rede mantém a foto na tela para repetir. */
+  async function processar(arquivo: File, chave: string) {
+    setEnvios((e) => [...e.filter((x) => x.chave !== chave), { chave, nome: arquivo.name, estado: 'lendo', arquivo, mensagem: null }]);
     try {
       const foto = await prepararFoto(arquivo);
-      const r = await enviarArquivo(`${url}/fotos`, foto, arquivo.name.replace(/\.[^.]+$/, '') + '.jpg', NotasFotoPaleteSchema, chaves.para(chave));
+      let leitura;
+      try {
+        const r = await lerFoto(foto);
+        leitura = { rawText: r.rawText, number: r.number, numberRaw: r.numberRaw, candidates: r.candidates, sender: r.sender, reference: r.reference, labelKind: r.labelKind };
+      } catch {
+        leitura = { failed: true };
+      }
+      setEnvios((e) => e.map((x) => (x.chave === chave ? { ...x, estado: 'enviando' } : x)));
+      const r = await enviarJson('POST', url, NotasFotoPaleteSchema, { corpo: { ...leitura, photoKey: chave }, idempotencia: chaves.para(chave) });
       chaves.concluir(chave);
+      fotos.current.set(chave, foto);
+      setPreviews((p) => ({ ...p, [chave]: p[chave] ?? URL.createObjectURL(foto) }));
       setLista(r);
       setEnvios((e) => e.filter((x) => x.chave !== chave));
     } catch (e) {
       chaves.concluir(chave, e);
       const mensagem = e instanceof ErroFoto ? e.message : mensagemDeFalha(e);
-      setEnvios((lista2) => lista2.map((x) => (x.chave === chave ? { ...x, estado: 'falhou', mensagem } : x)));
+      setEnvios((l) => l.map((x) => (x.chave === chave ? { ...x, estado: 'falhou', mensagem } : x)));
     }
   }
 
-  function escolher(arquivos: FileList | null) {
-    for (const arquivo of arquivos ?? []) void enviar(arquivo, `${arquivo.name}:${String(arquivo.size)}:${String(arquivo.lastModified)}`);
+  // Uma foto por vez, sem travar a tela.
+  function enfileirar(arquivo: File) {
+    const chave = `${arquivo.name}:${String(arquivo.size)}:${String(arquivo.lastModified)}`;
+    fila.current = fila.current.then(() => processar(arquivo, chave));
   }
 
-  async function ler(nota: NotaFoto) {
-    const foto = nota.photos[0];
+  function escolher(arquivos: FileList | null) {
+    for (const arquivo of arquivos ?? []) enfileirar(arquivo);
+  }
+
+  async function girarELer(nota: NotaFoto) {
+    const foto = nota.photoKey === null ? undefined : fotos.current.get(nota.photoKey);
     if (!foto) return;
+    const rotacao = ((rotacoes.current.get(nota.id) ?? 0) + 90) % 360;
+    rotacoes.current.set(nota.id, rotacao);
     setLendo(nota.id);
     let corpo;
     try {
-      const r = await lerFoto(foto.id, API_PREFIXO, rotacoes.current.get(nota.id) ?? 0);
+      const r = await lerFoto(foto, rotacao);
       corpo = LeituraNotaFotoSchema.parse({ rawText: r.rawText, number: r.number, numberRaw: r.numberRaw, candidates: r.candidates, sender: r.sender, reference: r.reference, labelKind: r.labelKind });
     } catch {
       corpo = LeituraNotaFotoSchema.parse({ failed: true });
@@ -93,15 +112,6 @@ export function TelaNotasFoto({ paleteId, aoVoltar, aoGravar }: { paleteId: stri
       setLendo(null);
     }
   }
-
-  // Uma foto por vez, sem travar a tela; também retoma as pendentes de outro aparelho.
-  useEffect(() => {
-    if (lendo !== null) return;
-    const proxima = notas.find((n) => n.read.state === 'PENDENTE' && !tentadas.current.has(n.id));
-    if (!proxima) return;
-    tentadas.current.add(proxima.id);
-    void ler(proxima);
-  }, [lendo, dados]);
 
   const valor = <K extends keyof AlteracoesNotaFoto>(n: NotaFoto, campo: K): NotaFoto[K & keyof NotaFoto] | AlteracoesNotaFoto[K] => {
     const editado = edicoes[n.id];
@@ -162,7 +172,6 @@ export function TelaNotasFoto({ paleteId, aoVoltar, aoGravar }: { paleteId: stri
 
   const situacao = (n: NotaFoto): string => {
     if (lendo === n.id) return 'Lendo…';
-    if (n.read.state === 'PENDENTE') return 'Na fila de leitura';
     if (n.missing.length > 0) return `${n.read.state === 'FALHOU' ? 'Não foi possível ler. ' : ''}Falta: ${n.missing.join(', ')}`;
     return valor(n, 'volumes') === null ? 'Pronta (volumes não informados)' : 'Pronta para incluir';
   };
@@ -180,21 +189,21 @@ export function TelaNotasFoto({ paleteId, aoVoltar, aoGravar }: { paleteId: stri
           <input ref={galeria} type="file" accept="image/*" multiple hidden data-testid="notas-foto-galeria" onChange={(e) => { escolher(e.target.files); e.target.value = ''; }} />
           <button type="button" className="botao-primario" onClick={() => camera.current?.click()}>Tirar foto</button>
           <button type="button" className="botao-secundario" onClick={() => galeria.current?.click()}>Escolher da galeria</button>
-          <button type="button" className="botao-secundario" disabled={envios.some((x) => x.estado === 'enviando')} onClick={aoVoltar} data-testid="notas-foto-depois">Salvar e completar depois</button>
+          <button type="button" className="botao-secundario" disabled={envios.some((x) => x.estado !== 'falhou')} onClick={aoVoltar} data-testid="notas-foto-depois">Salvar e completar depois</button>
         </div>
 
         {envios.length > 0 && (
           <ul className="notas-foto-envios" data-testid="notas-foto-envios">
             {envios.map((x) => (
               <li key={x.chave}>
-                {x.estado === 'enviando' ? `Enviando ${x.nome}…` : <><strong>Não salva:</strong> {x.nome}. {x.mensagem}{' '}
-                  <button type="button" className="botao-link" onClick={() => void enviar(x.arquivo, x.chave)}>Tentar de novo</button></>}
+                {x.estado === 'lendo' ? `Lendo ${x.nome}…` : x.estado === 'enviando' ? `Salvando os dados de ${x.nome}…` : <><strong>Não salva:</strong> {x.nome}. {x.mensagem}{' '}
+                  <button type="button" className="botao-link" onClick={() => { fila.current = fila.current.then(() => processar(x.arquivo, x.chave)); }}>Tentar de novo</button></>}
               </li>
             ))}
           </ul>
         )}
 
-        {notas.length === 0 && envios.length === 0 && <p className="campo-ajuda">Fotografe as etiquetas. Cada foto salva vira uma linha para completar aqui ou no computador.</p>}
+        {notas.length === 0 && envios.length === 0 && <p className="campo-ajuda">Fotografe as etiquetas. O aparelho lê e cada foto vira uma linha para completar aqui ou no computador. A foto não fica salva.</p>}
 
         {notas.length > 0 && (
           <div className="janela-tabela-rolagem">
@@ -218,11 +227,13 @@ export function TelaNotasFoto({ paleteId, aoVoltar, aoGravar }: { paleteId: stri
                   return (
                     <tr key={n.id} data-testid="notas-foto-linha" data-numero={n.documentNumber ?? ''}>
                       <td data-rotulo="Foto">
-                        {n.photos.map((f) => (
-                          <button key={f.id} type="button" className="notas-foto-miniatura" onClick={() => { setAmpliada(f.id); }} aria-label="Ampliar a foto">
-                            <img src={urlFoto(f.id)} alt="" loading="lazy" />
+                        {n.photoKey !== null && previews[n.photoKey] !== undefined ? (
+                          <button type="button" className="notas-foto-miniatura" onClick={() => { setAmpliada(previews[n.photoKey ?? ''] ?? null); }} aria-label="Ampliar a foto">
+                            <img src={previews[n.photoKey]} alt="" />
                           </button>
-                        ))}
+                        ) : (
+                          <small>Foto não guardada</small>
+                        )}
                       </td>
                       <td data-rotulo="Número">
                         <input aria-label="Número da nota" value={(valor(n, 'documentNumber') as string | null) ?? ''} onChange={(e) => { alterar(n.id, { documentNumber: e.target.value }); }} data-testid="notas-foto-numero" />
@@ -274,7 +285,9 @@ export function TelaNotasFoto({ paleteId, aoVoltar, aoGravar }: { paleteId: stri
                           </label>
                         )}
                         <span className="notas-foto-linha-acoes">
-                          <button type="button" className="botao-link" disabled={lendo !== null} onClick={() => { rotacoes.current.set(n.id, ((rotacoes.current.get(n.id) ?? 0) + 90) % 360); void ler(n); }}>Girar e ler</button>
+                          {n.photoKey !== null && previews[n.photoKey] !== undefined && (
+                            <button type="button" className="botao-link" disabled={lendo !== null} onClick={() => void girarELer(n)}>Girar e ler</button>
+                          )}
                           <button
                             type="button"
                             className="botao-link"
@@ -310,7 +323,7 @@ export function TelaNotasFoto({ paleteId, aoVoltar, aoGravar }: { paleteId: stri
 
       {ampliada !== null && (
         <button type="button" className="notas-foto-ampliada" aria-label="Fechar a foto" onClick={() => { setAmpliada(null); }}>
-          <img src={urlFoto(ampliada)} alt="Foto da etiqueta" />
+          <img src={ampliada} alt="Foto da etiqueta" />
         </button>
       )}
     </main>

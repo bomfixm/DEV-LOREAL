@@ -3,8 +3,9 @@ import { TipoDocumentoConteudoSchema } from './conteudos.js';
 
 /**
  * Notas por foto (6 nov. 2026): fotografar as etiquetas do palete, ler NF e
- * remetente por OCR local e completar delivery e volumes numa tabela. Enquanto
- * é rascunho nada entra em estoque; a inclusão usa o cadastro real, uma vez.
+ * remetente por OCR no próprio aparelho e completar delivery e volumes numa
+ * tabela. A foto serve só para agilizar a digitação: NÃO é enviada nem guardada.
+ * Enquanto é rascunho nada entra em estoque; a inclusão usa o cadastro real, uma vez.
  *
  * "01/02" NÃO significa sempre FULL. FULL: referência do palete na sequência
  * (volumes são manuais). Etiqueta comum: volume 1 de 2 (o total é sugestão a
@@ -136,8 +137,6 @@ export function totalIndicado(tipo: TipoEtiqueta | null, referencia: string | nu
 
 const texto = (max: number) => z.string().trim().max(max);
 
-export const FotoNotaSchema = z.object({ id: z.uuid(), fileName: z.string(), size: z.number().int().nonnegative(), sentAt: z.iso.datetime() });
-
 export const ExistenteNotaFotoSchema = z.object({
   kind: z.enum(['REGISTRADO', 'IMPORTADO']),
   id: z.uuid(),
@@ -149,7 +148,8 @@ export const ExistenteNotaFotoSchema = z.object({
 export const NotaFotoSchema = z.object({
   id: z.uuid(),
   version: z.number().int().positive(),
-  photos: z.array(FotoNotaSchema),
+  /** Identifica a foto de origem no aparelho (a imagem não vai ao servidor). */
+  photoKey: z.string().nullable(),
   documentType: TipoDocumentoConteudoSchema.nullable(),
   documentNumber: z.string().nullable(),
   sender: z.string().nullable(),
@@ -160,7 +160,7 @@ export const NotaFotoSchema = z.object({
   volumes: z.number().int().nullable(),
   decision: DecisaoNotaFotoSchema.nullable(),
   read: z.object({
-    state: z.enum(['PENDENTE', 'LIDA', 'FALHOU']),
+    state: z.enum(['LIDA', 'FALHOU']),
     rawText: z.string().nullable(),
     numberRaw: z.string().nullable(),
     candidates: z.array(z.string()),
@@ -193,6 +193,9 @@ export const LeituraNotaFotoSchema = z.object({
   labelKind: TipoEtiquetaSchema.nullable().default(null),
 });
 export type LeituraNotaFoto = z.input<typeof LeituraNotaFotoSchema>;
+
+/** Nova linha a partir de uma foto lida no aparelho: só o texto e a chave (repetir não duplica). */
+export const CriarNotaFotoSchema = LeituraNotaFotoSchema.extend({ photoKey: texto(300).min(1) });
 
 const alteracoes = z
   .object({

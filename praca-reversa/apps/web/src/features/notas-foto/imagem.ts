@@ -1,7 +1,7 @@
 import { interpretarEtiqueta, type LeituraEtiqueta } from '@praca-reversa/contracts';
 import { paraEndereco } from '../../base';
 
-/** Lado maior da foto guardada: legível para a NF e pequena o bastante para o limite de envio. */
+/** Lado maior da foto usada na leitura (fica só na memória do aparelho; nunca é enviada). */
 const LADO_MAXIMO = 2000;
 const QUALIDADE = 0.85;
 
@@ -16,7 +16,7 @@ async function abrir(arquivo: Blob): Promise<ImageBitmap> {
   }
 }
 
-/** Reduz a foto para envio (JPEG, orientação correta). Falha com mensagem clara, nunca em silêncio. */
+/** Reduz a foto para a leitura (orientação correta). Falha com mensagem clara, nunca em silêncio. */
 export async function prepararFoto(arquivo: Blob): Promise<Blob> {
   const img = await abrir(arquivo);
   const escala = Math.min(1, LADO_MAXIMO / Math.max(img.width, img.height));
@@ -39,7 +39,7 @@ interface TrabalhadorOcr {
 }
 let trabalhador: Promise<TrabalhadorOcr> | null = null;
 
-/** OCR local: os arquivos ficam no próprio aplicativo (/ocr); a foto não sai para nenhum serviço. */
+/** OCR local: os arquivos ficam no próprio aplicativo (/ocr); a foto não sai do aparelho. */
 function ocr(): Promise<TrabalhadorOcr> {
   trabalhador ??= import('tesseract.js').then(({ createWorker }) =>
     createWorker('por', 1, {
@@ -88,11 +88,9 @@ export interface ResultadoOcr extends LeituraEtiqueta {
   rawText: string;
 }
 
-/** Lê a foto salva. A segunda passada (invertida) só roda se a primeira não achou o número. */
-export async function lerFoto(fotoId: string, apiPrefixo: string, rotacao = 0): Promise<ResultadoOcr> {
-  const resposta = await fetch(paraEndereco(`${apiPrefixo}/notas-foto/fotos/${fotoId}`), { credentials: 'same-origin' });
-  if (!resposta.ok) throw new ErroFoto('Não foi possível abrir a foto salva.');
-  const img = await createImageBitmap(await resposta.blob());
+/** Lê a foto aqui no aparelho. A segunda passada (invertida) só roda se a primeira não achou o número. */
+export async function lerFoto(foto: Blob, rotacao = 0): Promise<ResultadoOcr> {
+  const img = await createImageBitmap(foto);
   try {
     const leitor = await ocr();
     const primeira = (await leitor.recognize(preparar(desenhar(img, rotacao), false))).data.text;

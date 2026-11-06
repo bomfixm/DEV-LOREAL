@@ -1,26 +1,25 @@
 /**
- * Notas por foto: rascunhos e fotos ficam em tabelas próprias, fora do estoque,
- * dos totais de volumes e do cliente. A leitura (OCR) roda no navegador e chega
- * aqui como sugestão: nunca passa por cima do que a pessoa digitou. A inclusão
+ * Notas por foto: a foto fica só no aparelho (não é enviada nem guardada); aqui
+ * chegam apenas os dados lidos, em rascunho, fora do estoque, dos totais de
+ * volumes e do cliente. Leitura nunca passa por cima do que a pessoa digitou. A inclusão
  * usa o cadastro real, uma vez, e uma contagem só quando há volumes informados.
  */
 import {
   compararIdentidade,
+  type CriarNotaFotoSchema,
   type AlteracoesNotaFoto,
   type DecisaoNotaFoto,
   type Escopo,
-  type IncluirNotasFotoSchema,
   type LeituraNotaFotoSchema,
   type NotaFoto,
   type NotasFotoPalete,
   type TipoEtiqueta,
 } from '@praca-reversa/contracts';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { z } from 'zod';
 import type { Banco, Transacao } from '../../db/cliente.js';
 import { ErroHttp, naoEncontrado } from '../../http/erros.js';
 import { registrarEvento } from '../auditoria/registrar.js';
-import { tipoDoConteudo } from '../claims/evidencias.js';
 import { exigirPaleteAberto, registrarContagem, registrarConteudo } from '../conteudos/servico.js';
 
 type Db = Banco | Transacao;
@@ -102,7 +101,6 @@ export async function listarNotasFoto(db: Db, escopo: Escopo, paleteId: string):
     db.notaFoto.findMany({
       where: { escopoId: escopo.id, paleteId, situacao: 'RASCUNHO' },
       orderBy: { criadoEm: 'asc' },
-      include: { fotos: { orderBy: { enviadoEm: 'asc' }, select: { id: true, nome: true, tamanho: true, enviadoEm: true } } },
     }),
     existentesDoPalete(db, escopo.id, paleteId),
     db.notaFoto.count({ where: { escopoId: escopo.id, paleteId, situacao: { in: ['INCLUIDA', 'VINCULADA'] } } }),
@@ -116,7 +114,7 @@ export async function listarNotasFoto(db: Db, escopo: Escopo, paleteId: string):
       return {
         id: n.id,
         version: n.versao,
-        photos: n.fotos.map((f) => ({ id: f.id, fileName: f.nome, size: f.tamanho, sentAt: f.enviadoEm.toISOString() })),
+        photoKey: n.chaveFoto,
         documentType: n.tipoDocumento as NotaFoto['documentType'],
         documentNumber: n.numeroDocumento,
         sender: n.remetente,
@@ -134,20 +132,32 @@ export async function listarNotasFoto(db: Db, escopo: Escopo, paleteId: string):
   };
 }
 
-/** Foto salva = rascunho novo. A mesma foto de novo (retry, duplo clique) devolve o que já existe. */
-export async function enviarFoto(tx: Transacao, escopo: Escopo, paleteId: string, dados: { nome: string; conteudo: Buffer }, autor: Autor, agora: Date): Promise<NotasFotoPalete> {
+/** Cada foto lida vira uma linha com os dados. A mesma foto de novo (retry, duplo clique) não duplica. */
+export async function criarNota(tx: Transacao, escopo: Escopo, paleteId: string, dados: z.output<typeof CriarNotaFotoSchema>, autor: Autor, agora: Date): Promise<NotasFotoPalete> {
   const palete = await exigirPaleteAberto(tx, escopo.id, paleteId);
-  const tipo = tipoDoConteudo(dados.conteudo);
-  if (tipo === null || tipo === 'application/pdf') throw new ErroHttp(415, 'ARQUIVO_INVALIDO', 'Formato de imagem não aceito: envie JPEG, PNG ou WEBP.');
-  const sha256 = createHash('sha256').update(dados.conteudo).digest('hex');
-  const repetida = await tx.fotoNota.findFirst({ where: { escopoId: escopo.id, paleteId, sha256, nota: { situacao: { not: 'DESCARTADA' } } }, select: { id: true } });
+  const repetida = await tx.notaFoto.findFirst({ where: { escopoId: escopo.id, paleteId, chaveFoto: dados.photoKey, situacao: { not: 'DESCARTADA' } }, select: { id: true } });
   if (repetida) return listarNotasFoto(tx, escopo, paleteId);
   const notaId = randomUUID();
-  await tx.notaFoto.create({ data: { id: notaId, escopoId: escopo.id, paleteId, criadoPorId: autor.usuarioId, criadoEm: agora, atualizadoEm: agora } });
-  await tx.fotoNota.create({
-    data: { id: randomUUID(), escopoId: escopo.id, notaId, paleteId, nome: dados.nome.slice(0, 200), tipoConteudo: tipo, tamanho: dados.conteudo.length, sha256, conteudo: new Uint8Array(dados.conteudo), enviadoPorId: autor.usuarioId, enviadoEm: agora },
+  await tx.notaFoto.create({
+    data: {
+      id: notaId,
+      escopoId: escopo.id,
+      paleteId,
+      chaveFoto: dados.photoKey,
+      leituraSituacao: dados.failed ? 'FALHOU' : 'LIDA',
+      leituraTexto: dados.rawText,
+      leituraNumeroBruto: dados.numberRaw,
+      leituraCandidatos: dados.candidates,
+      numeroDocumento: dados.number,
+      remetente: dados.sender,
+      referenciaEtiqueta: dados.reference,
+      tipoEtiqueta: dados.labelKind,
+      criadoPorId: autor.usuarioId,
+      criadoEm: agora,
+      atualizadoEm: agora,
+    },
   });
-  await registrarEvento(tx, { acao: 'NOTA_FOTO_ENVIADA', resultado: 'SUCESSO', atorUsuarioId: autor.usuarioId, escopoId: escopo.id, alvoTipo: 'PALETE', alvoId: paleteId, detalhes: { palete: palete.codigo, nota: notaId, tamanho: dados.conteudo.length }, requestId: autor.requestId });
+  await registrarEvento(tx, { acao: 'NOTA_FOTO_ENVIADA', resultado: 'SUCESSO', atorUsuarioId: autor.usuarioId, escopoId: escopo.id, alvoTipo: 'PALETE', alvoId: paleteId, detalhes: { palete: palete.codigo, nota: notaId, leitura: dados.failed ? 'FALHOU' : 'LIDA' }, requestId: autor.requestId });
   return listarNotasFoto(tx, escopo, paleteId);
 }
 
@@ -238,11 +248,4 @@ export async function descartarNota(tx: Transacao, escopo: Escopo, id: string, a
   const n = await tx.notaFoto.findFirstOrThrow({ where: { id, escopoId: escopo.id } });
   if (n.situacao === 'RASCUNHO') await tx.notaFoto.update({ where: { id }, data: { situacao: 'DESCARTADA', atualizadoPorId: autor.usuarioId, atualizadoEm: agora } });
   return listarNotasFoto(tx, escopo, n.paleteId);
-}
-
-export type DadosIncluir = z.output<typeof IncluirNotasFotoSchema>;
-
-export async function lerFoto(db: Db, escopoId: string, id: string): Promise<{ conteudo: Uint8Array; tipo: string } | null> {
-  const f = await db.fotoNota.findFirst({ where: { id, escopoId }, select: { conteudo: true, tipoConteudo: true } });
-  return f ? { conteudo: f.conteudo, tipo: f.tipoConteudo } : null;
 }

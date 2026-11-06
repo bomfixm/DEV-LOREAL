@@ -40,6 +40,12 @@ test('notas por foto: foto, leitura real, FULL com 100 manual, salvar, recarrega
   await page.goto(`/paletes/${palete.id}/notas-foto`);
   await expect(page.getByTestId('tela-notas-foto')).toBeVisible();
 
+  // A foto não sai do aparelho: nenhuma requisição leva imagem.
+  const comImagem: string[] = [];
+  page.on('request', (r) => {
+    const tipo = r.headers()['content-type'] ?? '';
+    if (r.method() !== 'GET' && (tipo.includes('octet-stream') || tipo.startsWith('image/') || (r.postDataBuffer()?.length ?? 0) > 64 * 1024)) comImagem.push(r.url());
+  });
   await page.getByTestId('notas-foto-galeria').setInputFiles({ name: 'etiqueta.png', mimeType: 'image/png', buffer: await etiqueta(page, '000094123-1', '00001/00002') });
   const linha = page.getByTestId('notas-foto-linha');
   await expect(linha).toHaveCount(1, { timeout: 30_000 });
@@ -69,4 +75,5 @@ test('notas por foto: foto, leitura real, FULL com 100 manual, salvar, recarrega
   expect(nota).toHaveLength(1);
   expect(nota[0]?.count.counted).toBe('100');
   expect(nota[0]?.sender).toMatch(/Atacadao/);
+  expect(comImagem).toEqual([]);
 });

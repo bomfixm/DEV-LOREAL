@@ -18,7 +18,7 @@ Instruções de servidor, banco, migrações e backup ficam no material técnico
 
 | # | O que fazer | Onde | O que deve aparecer |
 | --- | --- | --- | --- |
-| 1 | Toque em "Buscar conteúdo" (computador) ou na aba "Busca" (celular). | Mapa da praça: painel da esquerda no computador; barra de abas embaixo no celular. | O campo "Buscar". |
+| 1 | Toque em "Buscar conteúdo" (computador) ou no botão "Buscar" (celular). | Mapa da praça: painel da esquerda no computador; botões Buscar e Opções no topo do mapa, no celular. | O campo "Buscar". |
 | 2 | Digite ou leia o SKU, código de barras, lote, devolução, NF ou o código do palete (3 caracteres ou mais). | Campo "Buscar". | Resultados em cartões, cada um com a base da informação: saldo validado, observado em conferência, declarado no palete ou documento importado. |
 | 3 | Escolha o cartão certo e toque em "Ver no mapa". | Cartão do resultado. | O palete centralizado no mapa e a janela do palete aberta sobre a página (tocar num palete do mapa também a abre). |
 | 4 | Leia o número do palete e o endereço no topo da janela, o resumo (volumes e notas/minutas) e a tabela de conteúdo. "Fechar" ou Esc fecha a janela. | Janela do palete. | Tipo, número, remetente, CNPJ (quando houver) e volumes de cada documento; "Informações adicionais" e "Detalhes completos e outras ações" ficam recolhidos. |

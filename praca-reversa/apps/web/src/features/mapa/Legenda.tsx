@@ -9,9 +9,9 @@ const ESTADOS_VOLUMES = ['CONFERIDO', 'CONFERIDO_COM_DIFERENCA'] as const;
  * conferência aparece no contorno e no marcador do rótulo. Ao abrir, mostra
  * também posições e docas.
  */
-export function Legenda({ nota = null }: { nota?: string | null }) {
+export function Legenda({ nota = null, aberta = false }: { nota?: string | null; aberta?: boolean }) {
   return (
-    <details className="legenda">
+    <details className="legenda" open={aberta || undefined}>
       <summary>
         <span className="legenda-titulo">Legenda</span>
         <span className="legenda-resumo" aria-hidden="true">

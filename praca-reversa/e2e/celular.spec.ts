@@ -10,16 +10,25 @@ const resumo = (page: Page) => page.getByTestId('janela-palete');
 const detalhe = (page: Page) => page.getByTestId('detalhe');
 
 test.describe('celular', () => {
-  test('login e interface reorganizada: mapa em tela cheia, abas e lista separada', async ({ page }) => {
+  test('login e interface reorganizada: mapa em tela cheia, sem barra de baixo; Buscar e Opções no topo', async ({ page }) => {
     await entrarNoMapa(page, 'consulta');
     await expect(page.locator('.app')).toHaveAttribute('data-layout', 'compacto');
-    await expect(page.getByRole('navigation', { name: 'Visualização' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Visualização' })).toHaveCount(0);
     await expect(page.locator('.painel-lista')).toBeHidden();
     await expect(page.locator('.painel-detalhe')).toHaveCount(0);
     const caixaMapa = await mapa(page).boundingBox();
     expect(caixaMapa?.width).toBe(page.viewportSize()?.width);
-    await page.getByRole('button', { name: /^Lista/ }).tap();
+    // Opções: gaveta com enquadramentos, "Ir para" e legenda (sem sobreposição no mapa).
+    await page.getByTestId('abrir-opcoes-celular').tap();
+    await expect(page.getByRole('button', { name: "Focar L'Oréal" })).toBeVisible();
+    await expect(page.locator('.legenda')).toBeVisible();
+    await page.getByRole('button', { name: 'Fechar opções' }).tap();
+    await expect(page.getByRole('button', { name: "Focar L'Oréal" })).toBeHidden();
+    // Buscar: painel em tela cheia, com volta ao mapa.
+    await page.getByTestId('abrir-busca-celular').tap();
     await expect(page.locator('.painel-lista')).toBeVisible();
+    await page.getByTestId('voltar-ao-mapa-celular').tap();
+    await expect(page.locator('.painel-lista')).toBeHidden();
   });
 
   test('menu da conta acessível por toque, com escopo e saída', async ({ page }) => {

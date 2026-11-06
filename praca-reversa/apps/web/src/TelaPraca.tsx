@@ -11,7 +11,7 @@ import {
 } from '@praca-reversa/contracts';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRecurso } from './api/use-recurso';
-import { IconeAtualizar, IconeBusca, IconeFechar, IconeLista, IconeMais, IconeMapa, IconeQr } from './components/Icones';
+import { IconeAtualizar, IconeBusca, IconeFechar, IconeLista, IconeMais, IconeQr } from './components/Icones';
 import { CRITERIOS_VAZIOS, gravarMemoriaBusca, lerMemoriaBusca } from './features/busca/estado';
 
 import { PainelBusca } from './features/busca/PainelBusca';
@@ -101,6 +101,8 @@ export function TelaPraca({ praca, compacto, paleteRota, permissoes, falhaAtuali
   const [filtroAplicado, setFiltroAplicado] = useState<Filtro>(FILTRO_VAZIO);
   const [ultimaLista, setUltimaLista] = useState<ListaDoServidor | null>(null);
   const [aba, setAba] = useState<Aba>('mapa');
+  // Celular: enquadramentos, "Ir para", legenda e validação urgente ficam numa gaveta que abre sob demanda.
+  const [gavetaAberta, setGavetaAberta] = useState(false);
   // A busca continua aberta ao voltar de outra página (memória da aba, por usuário e escopo).
   const [modoLargo, setModoLargo] = useState<ModoPainel>(() => (lerMemoriaBusca(chaveMemoria)?.ativo ? 'busca' : 'paletes'));
   const [destaqueBusca, setDestaqueBusca] = useState<ReadonlySet<string> | null>(null);
@@ -397,15 +399,6 @@ export function TelaPraca({ praca, compacto, paleteRota, permissoes, falhaAtuali
           }
         />
       )}
-      {compacto && pode('validacao.consultar') && (
-        <CartaoValidacao
-          compacto
-          versao={versaoDetalhe + versaoDados}
-          aoAbrir={() => {
-            aoNavegar({ tipo: 'validacao' });
-          }}
-        />
-      )}
       {!comLista && falhaAtualizacao !== null && (
         <div className="estado-erro aviso-atualizacao aviso-atualizacao--mapa" role="alert">
           <p>Não foi possível atualizar a praça: {falhaAtualizacao}</p>
@@ -439,6 +432,18 @@ export function TelaPraca({ praca, compacto, paleteRota, permissoes, falhaAtuali
             <h2 id="titulo-lista" className="painel-titulo">
               {modo === 'busca' ? 'Buscar produtos, paletes e documentos' : 'Paletes'}
             </h2>
+            {compacto && modo === 'busca' && (
+              <button
+                type="button"
+                className="botao-secundario botao-compacto"
+                onClick={() => {
+                  trocarAba('mapa');
+                }}
+                data-testid="voltar-ao-mapa-celular"
+              >
+                Voltar ao mapa
+              </button>
+            )}
             {compacto && modo === 'paletes' && pode('palete.cadastrar') && (
               <button
                 type="button"
@@ -533,7 +538,7 @@ export function TelaPraca({ praca, compacto, paleteRota, permissoes, falhaAtuali
           </aside>
         )}
 
-        <section className="area-mapa" aria-label="Mapa da praça">
+        <section className="area-mapa" aria-label="Mapa da praça" data-gaveta={compacto ? (gavetaAberta ? 'aberta' : 'fechada') : undefined}>
           {layout === null ? (
             <div className="estado-vazio estado-tela" data-testid="sem-layout">
               <p>Nenhum layout ativo neste escopo. Os paletes aparecem somente na lista.</p>
@@ -576,7 +581,21 @@ export function TelaPraca({ praca, compacto, paleteRota, permissoes, falhaAtuali
                 aoCentralizar={centralizarSelecionado}
                 aoFocarArea={(codigo) => mapaRef.current?.focarElemento(codigo)}
                 extra={
-                  comLista ? null : (
+                  compacto ? (
+                    <>
+                      {pode('validacao.consultar') && (
+                        <CartaoValidacao
+                          compacto
+                          versao={versaoDetalhe + versaoDados}
+                          aoAbrir={() => {
+                            setGavetaAberta(false);
+                            aoNavegar({ tipo: 'validacao' });
+                          }}
+                        />
+                      )}
+                      <Legenda nota={null} aberta />
+                    </>
+                  ) : comLista ? null : (
                     <>
                     <FiltroMapa
                       filtro={filtro}
@@ -609,7 +628,46 @@ export function TelaPraca({ praca, compacto, paleteRota, permissoes, falhaAtuali
                   )
                 }
               />
-              <Legenda nota={comLista ? null : notaLayout} />
+              {!compacto && <Legenda nota={comLista ? null : notaLayout} />}
+              {compacto && (
+                <div className="mapa-atalhos" role="group" aria-label="Buscar e opções">
+                  <button
+                    type="button"
+                    className="botao-mapa botao-mapa--texto"
+                    onClick={() => {
+                      setGavetaAberta(false);
+                      trocarAba('busca');
+                    }}
+                    data-testid="abrir-busca-celular"
+                    data-tutorial="aba-busca"
+                  >
+                    <IconeBusca />
+                    <span className="botao-mapa-rotulo">Buscar</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="botao-mapa botao-mapa--texto"
+                    aria-expanded={gavetaAberta}
+                    onClick={() => {
+                      setGavetaAberta((a) => !a);
+                    }}
+                    data-testid="abrir-opcoes-celular"
+                  >
+                    <IconeMais />
+                    <span className="botao-mapa-rotulo">Opções</span>
+                  </button>
+                </div>
+              )}
+              {compacto && gavetaAberta && (
+                <button
+                  type="button"
+                  className="gaveta-fundo"
+                  aria-label="Fechar opções"
+                  onClick={() => {
+                    setGavetaAberta(false);
+                  }}
+                />
+              )}
             </>
           )}
           {praca.scope.demo && (
@@ -773,44 +831,6 @@ export function TelaPraca({ praca, compacto, paleteRota, permissoes, falhaAtuali
         </JanelaModal>
       )}
 
-      {compacto && (
-        <nav className="abas" aria-label="Visualização">
-          <button
-            type="button"
-            className="aba"
-            aria-pressed={aba === 'mapa' && !detalheAberto}
-            onClick={() => {
-              trocarAba('mapa');
-            }}
-          >
-            <IconeMapa />
-            Mapa
-          </button>
-          <button
-            type="button"
-            className="aba"
-            aria-pressed={aba === 'lista' && !detalheAberto}
-            onClick={() => {
-              trocarAba('lista');
-            }}
-          >
-            <IconeLista />
-            Lista ({paletes.length})
-          </button>
-          <button
-            type="button"
-            className="aba"
-            aria-pressed={aba === 'busca' && !detalheAberto}
-            onClick={() => {
-              trocarAba('busca');
-            }}
-            data-tutorial="aba-busca"
-          >
-            <IconeBusca />
-            Busca
-          </button>
-        </nav>
-      )}
       {leitorAberto && (
         <Suspense fallback={null}>
         <LeituraPraca

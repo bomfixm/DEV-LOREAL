@@ -4158,3 +4158,231 @@
     color: inherit;
   }
 }
+
+/* ---------- Celular (de pé e deitado): mapa em tela cheia, Buscar e Opções ---------- */
+@media screen and (max-width: 1023.98px) {
+  /* A barra de baixo (Mapa, Lista, Busca) saiu: o mapa ocupa a tela toda. */
+  .abas {
+    display: none;
+  }
+
+  .mapa-atalhos {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 4;
+    display: flex;
+    gap: 8px;
+  }
+
+  .mapa-atalhos .botao-mapa {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 14px;
+    min-height: 44px;
+  }
+
+  .mapa-atalhos .botao-mapa-rotulo {
+    position: static;
+    width: auto;
+    height: auto;
+    clip: auto;
+    overflow: visible;
+  }
+
+  /* Gaveta de baixo para cima com tudo o que antes ficava sobreposto ao mapa. */
+  .area-mapa[data-gaveta] .ferramentas-mapa {
+    display: none;
+  }
+
+  .area-mapa[data-gaveta='aberta'] .ferramentas-mapa {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    z-index: 8;
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 12px;
+    max-height: 78dvh;
+    overflow-y: auto;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+    border: 1px solid var(--borda);
+    border-radius: 18px 18px 0 0;
+    background: var(--superficie);
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.28);
+  }
+
+  .area-mapa[data-gaveta] .gaveta-fundo {
+    position: fixed;
+    inset: 0;
+    z-index: 7;
+    border: 0;
+    background: rgba(0, 0, 0, 0.35);
+  }
+
+  .area-mapa[data-gaveta='aberta'] .ferramentas-mapa > * {
+    position: static;
+    inset: auto;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+  }
+
+  .area-mapa[data-gaveta='aberta'] .enquadramentos-mapa {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .area-mapa[data-gaveta='aberta'] .seletor-zona,
+  .area-mapa[data-gaveta='aberta'] .seletor-zona select {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  /* Legenda: dentro da gaveta, aberta e com o conteúdo à vista (antes era uma caixa alta e vazia). */
+  .area-mapa[data-gaveta='aberta'] .legenda {
+    display: block;
+    height: auto;
+    max-height: none;
+    padding: 12px 14px;
+    overflow: visible;
+  }
+
+  .area-mapa[data-gaveta='aberta'] .legenda ul {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .area-mapa[data-gaveta] .cartao-validacao {
+    position: static;
+    width: 100%;
+    margin: 0;
+  }
+
+  /* Zoom e centralizar: coluna menor na lateral, sem cobrir os atalhos. */
+  .area-mapa .controles-mapa {
+    top: 8px;
+    right: 8px;
+    gap: 6px;
+  }
+
+  .area-mapa .controles-mapa .botao-mapa {
+    min-width: 40px;
+    min-height: 40px;
+  }
+}
+
+/* Celular deitado: menos altura gasta no topo; os atalhos ficam numa linha só. */
+@media screen and (max-width: 1023.98px) and (orientation: landscape) and (max-height: 540px) {
+  .topo {
+    min-height: 0;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .mapa-atalhos {
+    top: 6px;
+    left: 6px;
+  }
+
+  .mapa-atalhos .botao-mapa {
+    min-height: 38px;
+  }
+
+  .area-mapa[data-gaveta='aberta'] .ferramentas-mapa {
+    left: auto;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: min(420px, 55vw);
+    max-height: none;
+    border-radius: 18px 0 0 18px;
+    box-shadow: -8px 0 28px rgba(0, 0, 0, 0.28);
+  }
+}
+
+@media screen and (max-width: 1023.98px) {
+  .area-mapa[data-gaveta='aberta'] .ferramentas-mapa {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .area-mapa[data-gaveta='aberta'] .legenda[open] > summary {
+    margin-bottom: 4px;
+  }
+}
+
+@media screen and (max-width: 1023.98px) {
+  .area-mapa[data-gaveta='aberta'] .legenda li {
+    min-height: 0;
+    padding: 0;
+    font-size: 0.82rem;
+    line-height: 1.25;
+  }
+
+  .area-mapa[data-gaveta='aberta'] .legenda ul {
+    gap: 6px;
+  }
+}
+
+@media screen and (max-width: 1023.98px) {
+  .area-mapa[data-gaveta='aberta'] .ferramentas-mapa {
+    max-width: none;
+    right: 0;
+    left: 0;
+  }
+
+  /* Ordem na gaveta: o que se usa mais fica em cima; a legenda, por último. */
+  .area-mapa[data-gaveta='aberta'] .ferramentas-mapa > .enquadramentos-mapa {
+    order: 1;
+  }
+
+  .area-mapa[data-gaveta='aberta'] .ferramentas-mapa > .seletor-zona {
+    order: 2;
+  }
+
+  .area-mapa[data-gaveta='aberta'] .ferramentas-mapa > .cartao-validacao {
+    order: 3;
+    height: auto;
+    min-height: 0;
+    padding: 10px 12px;
+  }
+
+  .area-mapa[data-gaveta='aberta'] .ferramentas-mapa > .legenda {
+    order: 4;
+  }
+}
+
+/* Deitado: a gaveta vira painel lateral (vence as regras de largura total acima). */
+@media screen and (max-width: 1023.98px) and (orientation: landscape) and (max-height: 540px) {
+  .area-mapa[data-gaveta='aberta'] .ferramentas-mapa {
+    left: auto;
+    right: 0;
+    width: min(420px, 55vw);
+  }
+}
+
+@media screen and (max-width: 1023.98px) {
+  /* Nada na gaveta encolhe: o que não couber rola (antes o cartão da validação saía cortado). */
+  .area-mapa[data-gaveta='aberta'] .ferramentas-mapa > * {
+    flex: none;
+  }
+
+  /* Busca em tela cheia: "Voltar ao mapa" não aperta o título. */
+  .principal[data-aba] > .painel-lista .painel-lista-topo {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .principal[data-aba] > .painel-lista .painel-lista-topo > .botao-secundario {
+    margin-left: auto;
+    white-space: nowrap;
+  }
+}

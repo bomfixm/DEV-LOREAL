@@ -83,7 +83,7 @@ test.describe('Tutorial de primeiro uso', () => {
     await expect(page.getByTestId('tutorial-exemplo')).toContainText('DEMO-101');
     await balaoNaoCobre(page);
     // Computador: a caixa de pesquisa já está no topo do mapa; celular: aba Busca.
-    if (celular) await page.getByRole('button', { name: 'Busca', exact: true }).click();
+    if (celular) await page.getByTestId('abrir-busca-celular').click();
     await expect(balao).toContainText('Digite DEMO-101 no campo "Buscar"');
     await expect(page.getByTestId('tutorial-estado')).toHaveAttribute('data-feito', 'nao');
     await page.getByTestId('campo-busca').fill('DEMO-101');

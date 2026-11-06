@@ -45,8 +45,8 @@ export const GUIAS: readonly GuiaTarefa[] = [
     semPermissao: 'Sem acesso à unidade/cliente, fale com o administrador.',
     passos: [
       {
-        fazer: 'Toque em "Buscar conteúdo" (computador) ou na aba "Busca" (celular).',
-        onde: 'Mapa da praça: painel da esquerda no computador; barra de abas embaixo no celular.',
+        fazer: 'Toque em "Buscar conteúdo" (computador) ou no botão "Buscar" (celular).',
+        onde: 'Mapa da praça: painel da esquerda no computador; botões Buscar e Opções no topo do mapa, no celular.',
         aparece: 'O campo "Buscar".',
       },
       {

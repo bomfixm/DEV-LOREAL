@@ -23,7 +23,7 @@ async function chamar(page: Page, caminho: string, corpo: unknown): Promise<APIR
 }
 
 async function abrirPesquisa(page: Page, celular: boolean): Promise<void> {
-  if (celular) await page.getByRole('button', { name: 'Busca', exact: true }).click();
+  if (celular) await page.getByTestId('abrir-busca-celular').click();
   else if (await page.getByTestId('painel-busca-botao').isVisible()) await page.getByTestId('painel-busca-botao').click();
 }
 

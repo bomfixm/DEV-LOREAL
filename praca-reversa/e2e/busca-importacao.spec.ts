@@ -270,7 +270,7 @@ test.describe('busca e importação', () => {
 
     await page.goto('/');
     await aguardarMapa(page);
-    await page.getByRole('button', { name: 'Busca', exact: true }).click();
+    await page.getByTestId('abrir-busca-celular').click();
     await page.getByTestId('campo-busca').fill(sku);
     await expect(page.getByTestId('resultado-busca')).toHaveCount(1);
     const larguras = await page.getByTestId('painel-busca').evaluate((el) => ({ rolagem: el.scrollWidth, visivel: el.clientWidth }));
@@ -281,7 +281,7 @@ test.describe('busca e importação', () => {
     await page.goBack();
     await expect(page.getByTestId('janela-palete')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Mapa', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await page.getByRole('button', { name: 'Busca', exact: true }).click();
+    await page.getByTestId('abrir-busca-celular').click();
     await expect(page.getByTestId('campo-busca')).toHaveValue(sku);
     await expect(page.getByTestId('resultado-busca')).toHaveCount(1);
 
@@ -301,7 +301,7 @@ test.describe('busca e importação', () => {
     await trocarUsuario(page, 'consultaCadastro');
     await page.goto('/');
     await aguardarMapa(page);
-    await page.getByRole('button', { name: 'Busca', exact: true }).click();
+    await page.getByTestId('abrir-busca-celular').click();
     await expect(page.getByTestId('campo-busca')).toHaveValue('');
   });
 });

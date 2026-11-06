@@ -63,7 +63,7 @@ export function TelaNotasFoto({ paleteId, aoVoltar, aoGravar }: { paleteId: stri
       let leitura;
       try {
         const r = await lerFoto(foto);
-        leitura = { rawText: r.rawText, number: r.number, numberRaw: r.numberRaw, candidates: r.candidates, sender: r.sender, reference: r.reference, labelKind: r.labelKind };
+        leitura = { rawText: r.rawText, number: r.number, numberRaw: r.numberRaw, candidates: r.candidates, sender: r.sender, delivery: r.delivery, fromBarcode: r.fromBarcode, reference: r.reference, labelKind: r.labelKind };
       } catch {
         leitura = { failed: true };
       }
@@ -100,7 +100,7 @@ export function TelaNotasFoto({ paleteId, aoVoltar, aoGravar }: { paleteId: stri
     let corpo;
     try {
       const r = await lerFoto(foto, rotacao);
-      corpo = LeituraNotaFotoSchema.parse({ rawText: r.rawText, number: r.number, numberRaw: r.numberRaw, candidates: r.candidates, sender: r.sender, reference: r.reference, labelKind: r.labelKind });
+      corpo = LeituraNotaFotoSchema.parse({ rawText: r.rawText, number: r.number, numberRaw: r.numberRaw, candidates: r.candidates, sender: r.sender, delivery: r.delivery, fromBarcode: r.fromBarcode, reference: r.reference, labelKind: r.labelKind });
     } catch {
       corpo = LeituraNotaFotoSchema.parse({ failed: true });
     }
@@ -172,8 +172,11 @@ export function TelaNotasFoto({ paleteId, aoVoltar, aoGravar }: { paleteId: stri
 
   const situacao = (n: NotaFoto): string => {
     if (lendo === n.id) return 'Lendo…';
-    if (n.missing.length > 0) return `${n.read.state === 'FALHOU' ? 'Não foi possível ler. ' : ''}Falta: ${n.missing.join(', ')}`;
-    return valor(n, 'volumes') === null ? 'Pronta (volumes não informados)' : 'Pronta para incluir';
+    const semLeitura = n.documentNumber === null && n.delivery === null && n.sender === null;
+    if (n.read.state === 'FALHOU' || semLeitura) return `Não consegui ler esta foto: digite os dados. Falta: ${n.missing.join(', ')}`;
+    const conferir = n.read.fromBarcode ? '' : ' Lido do texto: confira com a etiqueta.';
+    if (n.missing.length > 0) return `Falta: ${n.missing.join(', ')}.${conferir}`;
+    return `${valor(n, 'volumes') === null ? 'Pronta (volumes não informados).' : 'Pronta para incluir.'}${conferir}`;
   };
 
   return (

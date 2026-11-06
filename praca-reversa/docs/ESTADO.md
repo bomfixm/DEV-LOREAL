@@ -2,6 +2,14 @@
 
 Atualizado em 27 de outubro de 2026.
 
+## Notas por foto — 6 de novembro de 2026
+
+Janela do palete → "Adicionar notas por foto": a foto é lida no próprio aparelho e só os dados vão para `nota_foto`; a imagem nunca é enviada nem guardada. Leitura: primeiro código de barras (DHL: NF e volume; L'Oréal: delivery de 8 dígitos), depois OCR local por partes (tesseract.js), com releitura dos dígitos da linha Dlv. Obrigatórios para incluir: NF ou Delivery, e remetente.
+
+Verificações: tipos e ESLint dos arquivos alterados, testes de regras e de banco de notas por foto, E2E `notas-foto.spec.ts` e teste local em Chrome de computador com duas fotos reais (uma de cada tipo; fora do repositório), ambas corretas.
+
+Limites: nota escrita à mão não é lida e é digitada; sem teste em celular real; poucas amostras reais. Recorte manual e juntar fotos ficaram de fora.
+
 ## Espelhos operacionais — 5 de novembro de 2026
 
 Implementado localmente: rota `/espelhos`, botão no mapa e entrada no menu (só no computador; o celular não mostra esse item, decisão de 6 nov. 2026); seleção múltipla de ruas, atalhos para ruas ímpares/pares/todas, seleção do lado dos endereços e paletes individuais com busca. Prévia com o conteúdo atual do mesmo serviço do detalhe, restrita ao escopo e à permissão `etiqueta.imprimir`. A4 paisagem com moldura original SF-164133/01, continuação automática, impressão pelo navegador e Salvar como PDF. Até 250 paletes por lote; falta de endereço, quantidade ou conferência permanece explícita. Sem alterações de estoque ou migrações próprias.

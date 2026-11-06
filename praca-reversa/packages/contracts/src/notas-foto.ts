@@ -34,6 +34,8 @@ export interface LeituraEtiqueta {
   /** Mais de um número possível: nenhum é escolhido, a revisão decide. */
   candidates: string[];
   sender: string | null;
+  /** Delivery da etiqueta L'Oréal ("Dlv: 89341358"). */
+  delivery: string | null;
   /** Referência x/y como lida, normalizada ("1/2"). */
   reference: string | null;
   /** Só com evidência explícita no texto; sem ela, null (a revisão pede). */
@@ -102,10 +104,32 @@ export function interpretarEtiqueta(texto: string): LeituraEtiqueta {
     if (proxima !== undefined) sender = limparNome(proxima);
   }
 
+  // Etiqueta L'Oréal: "Cl: NOME" é o remetente e "Dlv: 89341358" é a delivery (o OCR confunde o "C" de Cl e o "l" de Dlv).
+  if (sender === null) {
+    for (const linha of linhas) {
+      const m = /(?:^|[^\p{L}])[CG][lI1i]\s*:\s*(.+)$/u.exec(linha);
+      const valor = limparNome(m?.[1] ?? '');
+      if (valor !== '' && pareceEmpresa(valor)) {
+        sender = valor;
+        break;
+      }
+    }
+  }
+  let delivery: string | null = null;
+  for (const linha of linhas) {
+    const m = /\bD\s*[lIi1!|]+\s*v\s*[:.]?\s*(\d[\d ]{5,12}\d)/i.exec(linha);
+    if (m?.[1] !== undefined) {
+      delivery = m[1].replace(/\s/g, '');
+      break;
+    }
+  }
+
   // Referência x/y: a barra de data (dd/mm/aaaa) fica de fora.
   const referencias = new Set<string>();
   for (const linha of linhas) {
     if (/emiss|\bdata\b/i.test(linha)) continue;
+    // O OCR lê o CEP com barra ("202/0450"): não é fração.
+    if (/\bCEP\b/i.test(linha)) continue;
     for (const m of linha.matchAll(/(?<![\d/])(\d{1,5})\s*\/\s*(\d{1,5})(?![\d/])/g)) {
       const x = Number(m[1]);
       const y = Number(m[2]);
@@ -116,16 +140,31 @@ export function interpretarEtiqueta(texto: string): LeituraEtiqueta {
 
   // Tipo só com evidência explícita: a presença de uma fração não indica FULL.
   const inteiro = linhas.join(' ');
-  const labelKind: TipoEtiqueta | null = /\bFULL\b/i.test(inteiro) ? 'FULL' : /\b(?:VOLUMES?|VOL\.)(?=\s|:|\d|$)/i.test(inteiro) ? 'COMUM' : null;
+  const labelKind: TipoEtiqueta | null = /\bFULL\b/i.test(inteiro) ? 'FULL' : null;
 
   return {
     number: unico ?? null,
     numberRaw: achado?.bruto ?? null,
     candidates: candidatos.length > 1 ? candidatos : [],
     sender: sender === '' ? null : sender,
+    delivery,
     reference,
     labelKind,
   };
+}
+
+/**
+ * Códigos de barras da etiqueta: quando legíveis, valem mais que o texto.
+ * DHL: "12040854711-1-1545732-24-LOU-22" = NF 1545732, volume 22 de 24.
+ * L'Oréal: a delivery é o código de 8 dígitos (Load e Carton têm 10 e 20).
+ */
+export function interpretarCodigos(valores: readonly string[]): { number: string | null; reference: string | null; delivery: string | null; raw: string | null } {
+  for (const v of valores) {
+    const m = /^\d{6,}-\d+-(\d{3,})-(\d+)-[A-Z]{2,5}-(\d+)$/.exec(v.trim());
+    if (m) return { number: semZeros(m[1] ?? ''), reference: `${String(Number(m[3]))}/${String(Number(m[2]))}`, delivery: null, raw: v.trim() };
+  }
+  const delivery = valores.map((v) => v.trim()).find((v) => /^\d{8}$/.test(v));
+  return { number: null, reference: null, delivery: delivery ?? null, raw: delivery ?? null };
 }
 
 /** Total indicado na etiqueta: só na comum. Em FULL "1/2" é sequência, não quantidade; é sugestão, nunca o físico. */
@@ -164,6 +203,8 @@ export const NotaFotoSchema = z.object({
     rawText: z.string().nullable(),
     numberRaw: z.string().nullable(),
     candidates: z.array(z.string()),
+    /** Veio do código de barras (exato). */
+    fromBarcode: z.boolean(),
   }),
   /** Mesma nota já no palete: pede decisão, nunca soma. */
   existing: z.array(ExistenteNotaFotoSchema),
@@ -189,6 +230,9 @@ export const LeituraNotaFotoSchema = z.object({
   numberRaw: texto(60).nullable().default(null),
   candidates: z.array(texto(60)).max(10).default([]),
   sender: texto(200).nullable().default(null),
+  delivery: texto(60).nullable().default(null),
+  /** Número ou delivery vieram do código de barras (exatos); senão, do texto: pedir conferência. */
+  fromBarcode: z.boolean().default(false),
   reference: texto(30).nullable().default(null),
   labelKind: TipoEtiquetaSchema.nullable().default(null),
 });

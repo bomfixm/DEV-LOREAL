@@ -2867,6 +2867,8 @@ model NotaFoto {
   leituraTexto       String?  @map("leitura_texto")
   leituraNumeroBruto String?  @map("leitura_numero_bruto")
   leituraCandidatos  Json     @default("[]") @map("leitura_candidatos")
+  /// O identificador veio do código de barras (exato); senão, do texto (conferir).
+  leituraCodigoBarras Boolean @default(false) @map("leitura_codigo_barras")
   /// Identifica a foto de origem, só para não duplicar; a imagem não é guardada.
   chaveFoto          String?  @map("chave_foto")
   conteudoId         String?  @map("conteudo_id") @db.Uuid

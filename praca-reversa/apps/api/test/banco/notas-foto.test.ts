@@ -68,10 +68,8 @@ describe('Notas por foto', () => {
     await leitura(n.id, { number: '94123', numberRaw: '000094123-1', sender: 'Atacadao S.A', reference: '1/2', rawText: 'x' });
     const lida = (await lista()).items[0];
     expect(lida).toMatchObject({ documentNumber: '94123', sender: 'Atacadao S.A', labelReference: '1/2', volumes: null, labelKind: null });
-    expect(lida?.missing).toContain('Etiqueta comum ou FULL');
-    const pendente = await incluir([n.id]);
-    expect(pendente.results[0]).toMatchObject({ ok: false });
-    expect((await conteudos()).items.some((i) => i.documentNumber === '94123')).toBe(false);
+    // Só NF (ou delivery) e remetente são obrigatórios; o tipo da etiqueta é opcional.
+    expect(lida?.missing).toEqual([]);
 
     await salvar([{ id: n.id, expectedVersion: lida?.version ?? 1, changes: { labelKind: 'FULL', volumes: 100 } }]);
     expect((await lista()).items[0]).toMatchObject({ labelKind: 'FULL', volumes: 100, missing: [] });
@@ -81,6 +79,22 @@ describe('Notas por foto', () => {
     expect(achadas).toHaveLength(1);
     expect(achadas[0]?.count.counted).toBe('100');
     expect((await lista()).items).toHaveLength(0);
+  });
+
+  it('etiqueta com Dlv: delivery e remetente bastam; a delivery entra no palete e repetida pede decisão', async () => {
+    const n = await novaNota('loreal');
+    await leitura(n.id, { sender: 'Cliente Teste', delivery: '89341358', fromBarcode: true, rawText: 'x' });
+    const lida = (await lista()).items[0];
+    expect(lida).toMatchObject({ documentNumber: null, delivery: '89341358', sender: 'Cliente Teste', missing: [] });
+    expect(lida?.read.fromBarcode).toBe(true);
+    expect((await incluir([n.id])).results[0]).toMatchObject({ ok: true });
+    const registro = (await como(app, sup, { method: 'GET', url: `/api/v1/paletes/${PALETE}/conteudos` })).json<{ items: { delivery: string | null; sender: string | null }[] }>();
+    expect(registro.items.filter((i) => i.delivery === '89341358')).toHaveLength(1);
+
+    const repetida = await novaNota('loreal-2');
+    await leitura(repetida.id, { sender: 'Cliente Teste', delivery: '89341358', fromBarcode: true, rawText: 'x' });
+    expect((await lista()).items[0]?.existing).toHaveLength(1);
+    expect((await lista()).items[0]?.missing.length).toBeGreaterThan(0);
   });
 
   it('leitura atrasada não desfaz o que a pessoa digitou; volumes vazios ficam vazios e incluem sem contagem', async () => {

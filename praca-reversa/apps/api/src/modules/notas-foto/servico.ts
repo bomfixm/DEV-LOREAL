@@ -46,18 +46,19 @@ interface Existente {
   id: string;
   tipo: string | null;
   numero: string;
+  delivery: string | null;
   cnpj: string | null;
   remetente: string | null;
 }
 
 async function existentesDoPalete(db: Db, escopoId: string, paleteId: string): Promise<Existente[]> {
   const [registrados, importados] = await Promise.all([
-    db.conteudoPalete.findMany({ where: { escopoId, paleteId, situacao: 'ATIVO', numeroDocumento: { not: null } }, select: { id: true, tipoDocumento: true, numeroDocumento: true, cnpjRemetente: true, remetente: true } }),
-    db.vinculoDocumentoPalete.findMany({ where: { escopoId, paleteId, situacao: 'ATIVO' }, select: { id: true, tipoDocumento: true, numeroDocumento: true, linhaInventario: { select: { remetente: true } } } }),
+    db.conteudoPalete.findMany({ where: { escopoId, paleteId, situacao: 'ATIVO' }, select: { id: true, tipoDocumento: true, numeroDocumento: true, delivery: true, cnpjRemetente: true, remetente: true } }),
+    db.vinculoDocumentoPalete.findMany({ where: { escopoId, paleteId, situacao: 'ATIVO' }, select: { id: true, tipoDocumento: true, numeroDocumento: true, delivery: true, linhaInventario: { select: { remetente: true } } } }),
   ]);
   return [
-    ...registrados.map((r): Existente => ({ kind: 'REGISTRADO', id: r.id, tipo: r.tipoDocumento, numero: r.numeroDocumento ?? '', cnpj: r.cnpjRemetente, remetente: r.remetente })),
-    ...importados.map((v): Existente => ({ kind: 'IMPORTADO', id: v.id, tipo: v.tipoDocumento, numero: v.numeroDocumento, cnpj: null, remetente: v.linhaInventario.remetente })),
+    ...registrados.map((r): Existente => ({ kind: 'REGISTRADO', id: r.id, tipo: r.tipoDocumento, numero: r.numeroDocumento ?? '', delivery: r.delivery, cnpj: r.cnpjRemetente, remetente: r.remetente })),
+    ...importados.map((v): Existente => ({ kind: 'IMPORTADO', id: v.id, tipo: v.tipoDocumento, numero: v.numeroDocumento, delivery: v.delivery, cnpj: null, remetente: v.linhaInventario.remetente })),
   ];
 }
 
@@ -67,26 +68,32 @@ interface LinhaNota {
   remetente: string | null;
   tipoEtiqueta: string | null;
   decisao: string | null;
+  delivery: string | null;
+  referenciaEtiqueta: string | null;
 }
 
 /** Mesma nota no palete: nunca é decidido sozinho (sem CNPJ a foto não prova que é a mesma). */
 function coincidencias(n: LinhaNota, existentes: readonly Existente[]): NotaFoto['existing'] {
-  if (n.numeroDocumento === null) return [];
-  const numero = semZeros(n.numeroDocumento);
+  // Etiqueta L'Oréal não traz NF: a comparação é pela delivery.
+  const numero = n.numeroDocumento === null ? null : semZeros(n.numeroDocumento);
+  const delivery = n.numeroDocumento === null && n.delivery !== null ? semZeros(n.delivery) : null;
+  if (numero === null && delivery === null) return [];
   return existentes.flatMap((e) => {
-    if (semZeros(e.numero) !== numero) return [];
-    // O número já bate: a comparação decide só por remetente; o tipo da foto costuma estar vazio.
-    const r = compararIdentidade({ tipo: e.tipo, numero: e.numero, cnpj: null, remetente: n.remetente }, { tipo: e.tipo, numero: e.numero, cnpj: e.cnpj, remetente: e.remetente });
+    const bate = numero !== null ? e.numero !== '' && semZeros(e.numero) === numero : e.delivery !== null && semZeros(e.delivery) === delivery;
+    if (!bate) return [];
+    // O identificador já bate: a comparação decide só por remetente; o tipo da foto costuma estar vazio.
+    const chave = e.numero === '' ? (e.delivery ?? '') : e.numero;
+    const r = compararIdentidade({ tipo: 'NF', numero: chave, cnpj: null, remetente: n.remetente }, { tipo: 'NF', numero: chave, cnpj: e.cnpj, remetente: e.remetente });
     if (r === 'DIFERENTE') return [];
-    return [{ kind: e.kind, id: e.id, label: `${e.tipo ?? 'Documento'} ${e.numero} · ${e.remetente ?? 'remetente não informado'}`, incomplete: true }];
+    return [{ kind: e.kind, id: e.id, label: `${e.tipo ?? 'Documento'} ${chave} · ${e.remetente ?? 'remetente não informado'}`, incomplete: true }];
   });
 }
 
 function faltando(n: LinhaNota, existentes: NotaFoto['existing']): string[] {
   const falta: string[] = [];
-  if (n.numeroDocumento === null) falta.push('Número');
+  // DHL traz NF; L'Oréal traz delivery: basta um dos dois.
+  if (n.numeroDocumento === null && n.delivery === null) falta.push('Número ou Delivery');
   if (n.remetente === null) falta.push('Remetente');
-  if (n.tipoEtiqueta === null) falta.push('Etiqueta comum ou FULL');
   if (existentes.length > 0 && n.decisao === null) falta.push('Decidir: a nota já está no palete');
   return falta;
 }
@@ -123,7 +130,7 @@ export async function listarNotasFoto(db: Db, escopo: Escopo, paleteId: string):
         delivery: n.delivery,
         volumes: n.volumes,
         decision: n.decisao as DecisaoNotaFoto | null,
-        read: { state: n.leituraSituacao as NotaFoto['read']['state'], rawText: n.leituraTexto, numberRaw: n.leituraNumeroBruto, candidates: n.leituraCandidatos as string[] },
+        read: { state: n.leituraSituacao as NotaFoto['read']['state'], rawText: n.leituraTexto, numberRaw: n.leituraNumeroBruto, candidates: n.leituraCandidatos as string[], fromBarcode: n.leituraCodigoBarras },
         existing,
         missing: faltando(n, existing),
         createdAt: n.criadoEm.toISOString(),
@@ -148,8 +155,10 @@ export async function criarNota(tx: Transacao, escopo: Escopo, paleteId: string,
       leituraTexto: dados.rawText,
       leituraNumeroBruto: dados.numberRaw,
       leituraCandidatos: dados.candidates,
+      leituraCodigoBarras: dados.fromBarcode,
       numeroDocumento: dados.number,
       remetente: dados.sender,
+      delivery: dados.delivery,
       referenciaEtiqueta: dados.reference,
       tipoEtiqueta: dados.labelKind,
       criadoPorId: autor.usuarioId,
@@ -180,8 +189,10 @@ export async function registrarLeitura(tx: Transacao, escopo: Escopo, notaId: st
       leituraTexto: dados.rawText,
       leituraNumeroBruto: dados.numberRaw,
       leituraCandidatos: dados.candidates,
+      leituraCodigoBarras: dados.fromBarcode,
       atualizadoEm: agora,
       referenciaEtiqueta: dados.reference,
+      ...(livre('delivery') && dados.delivery !== null ? { delivery: dados.delivery } : {}),
       ...(livre('documentNumber') && dados.number !== null ? { numeroDocumento: dados.number } : {}),
       ...(livre('sender') && dados.sender !== null ? { remetente: dados.sender } : {}),
       ...(livre('labelKind') && dados.labelKind !== null ? { tipoEtiqueta: dados.labelKind } : {}),

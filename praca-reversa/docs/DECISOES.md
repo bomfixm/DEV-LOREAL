@@ -650,3 +650,7 @@ Data; decisão alterada; nova decisão; motivo; origem da alteração; arquivos/
 ### 5 nov. 2026 — Espelhos com seleção múltipla
 
 A solicitação foi ampliada de uma rua para várias ruas livremente, com atalhos por paridade do número da rua, seleção do lado dos endereços e escolha de paletes. Mantida a mesma stack, sem migração de banco. A emissão consulta o conteúdo atual com permissão de impressão e escopo no servidor; imprimir não registra conferência nem altera estoque. Módulos: espelhos (contratos/API/interface), navegação e rotas. A moldura vem do formulário original; quantidade ausente e conferência pendente permanecem explícitas. Critérios operacionais em DESCOBERTA.md.
+
+### 6 nov. 2026 — Notas por foto: leitura pelo código de barras
+
+O prompt mandava ignorar códigos de barras e guardar as fotos. O usuário decidiu: a foto serve só para agilizar a digitação e não é guardada; leitura por IA fica fora pelo custo; só importam NF e remetente (DHL) ou delivery e remetente (L'Oréal). Como o OCR na foto inteira foi ruim nas etiquetas reais, a leitura passou a usar primeiro o código de barras, no próprio aparelho. Comum/FULL deixou de ser obrigatório: sem a escolha, os volumes ficam vazios e nada é presumido. Módulos: `packages/contracts/src/notas-foto.ts`, `apps/api/src/modules/notas-foto`, `apps/web/src/features/notas-foto`; migração `20261106160000_notas_foto_codigo_barras` (aditiva).

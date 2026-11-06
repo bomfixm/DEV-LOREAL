@@ -31,6 +31,11 @@ interface Props {
   aoSelecionar: (id: string) => void;
   /** Posição escolhida no mapa (sem palete por cima). */
   aoEscolherPosicao?: (posicaoId: string) => void;
+  /** Espelhos: clicar no título da rua e no rótulo "F01" escolhe o bloco/a fileira. */
+  aoEscolherBloco?: (codigo: string) => void;
+  aoEscolherFileira?: (fileiraId: string) => void;
+  /** Espelhos: paletes marcados (brancos). */
+  selecaoMultipla?: ReadonlySet<string> | null;
   aoMudarVisao: (visao: VisaoMapa) => void;
 }
 
@@ -38,7 +43,7 @@ interface Props {
  * Integra o Leaflet ao React: o mapa é criado uma vez por layout e recebe
  * dados, seleção e filtro sem ser recriado, preservando a câmera.
  */
-export function MapaPraca({ ref, layout, paletes, selecionadoId, idsVisiveis, margens, sobrepostos, aoSelecionar, aoEscolherPosicao, aoMudarVisao }: Props) {
+export function MapaPraca({ ref, layout, paletes, selecionadoId, idsVisiveis, margens, sobrepostos, aoSelecionar, aoEscolherPosicao, aoEscolherBloco, aoEscolherFileira, selecaoMultipla = null, aoMudarVisao }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controladorRef = useRef<ControladorMapa | null>(null);
   const layoutAtual = useEffectEvent(() => layout);
@@ -47,6 +52,14 @@ export function MapaPraca({ ref, layout, paletes, selecionadoId, idsVisiveis, ma
   });
   const escolherPosicao = useEffectEvent((id: string) => {
     aoEscolherPosicao?.(id);
+  });
+  const temBloco = useEffectEvent(() => aoEscolherBloco !== undefined);
+  const temFileira = useEffectEvent(() => aoEscolherFileira !== undefined);
+  const escolherBloco = useEffectEvent((codigo: string) => {
+    aoEscolherBloco?.(codigo);
+  });
+  const escolherFileira = useEffectEvent((id: string) => {
+    aoEscolherFileira?.(id);
   });
   const mudarVisao = useEffectEvent((visao: VisaoMapa) => {
     aoMudarVisao(visao);
@@ -86,6 +99,8 @@ export function MapaPraca({ ref, layout, paletes, selecionadoId, idsVisiveis, ma
       aoEscolherPosicao: (id) => {
         escolherPosicao(id);
       },
+      ...(temBloco() ? { aoEscolherBloco: (codigo: string) => { escolherBloco(codigo); } } : {}),
+      ...(temFileira() ? { aoEscolherFileira: (id: string) => { escolherFileira(id); } } : {}),
       aoMudarVisao: (visao) => {
         mudarVisao(visao);
       },
@@ -113,6 +128,10 @@ export function MapaPraca({ ref, layout, paletes, selecionadoId, idsVisiveis, ma
   useEffect(() => {
     controladorRef.current?.selecionar(selecionadoId);
   }, [layout, paletes, selecionadoId]);
+
+  useEffect(() => {
+    controladorRef.current?.definirSelecaoMultipla(selecaoMultipla);
+  }, [layout, paletes, selecaoMultipla]);
 
   useEffect(() => {
     controladorRef.current?.definirVisiveis(idsVisiveis);

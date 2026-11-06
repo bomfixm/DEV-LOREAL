@@ -50,6 +50,10 @@ export interface EventosMapa {
   aoSelecionar(id: string): void;
   /** Posição desenhada escolhida (sem palete por cima): abre o detalhe da posição. */
   aoEscolherPosicao?(posicaoId: string): void;
+  /** Seleção por rua (espelhos): o título do bloco vira botão. */
+  aoEscolherBloco?(codigo: string): void;
+  /** Seleção por fileira (espelhos): o rótulo "F01" vira botão. */
+  aoEscolherFileira?(fileiraId: string): void;
   aoMudarVisao(visao: VisaoMapa): void;
 }
 
@@ -148,6 +152,8 @@ export class ControladorMapa {
   private rotulaveis: Rotulavel[] = [];
   private selecionado: string | null = null;
   private visiveis: ReadonlySet<string> | null = null;
+  /** Seleção múltipla (espelhos): paletes marcados em branco. */
+  private multipla: ReadonlySet<string> | null = null;
   private nivel: NivelDetalhe = 0;
   private margens: MargensMapa;
   /** Área principal (L'Oréal): enquadrada ao abrir e em "Focar L'Oréal". */
@@ -301,6 +307,12 @@ export class ControladorMapa {
     if (id !== null) this.formas.get(id)?.bringToFront();
   }
 
+  /** Seleção múltipla (espelhos): os paletes marcados ficam brancos; `null` desliga. */
+  definirSelecaoMultipla(ids: ReadonlySet<string> | null): void {
+    this.multipla = ids;
+    this.aplicarClasses();
+  }
+
   /** Paletes que correspondem ao filtro da lista; os demais ficam esmaecidos. */
   definirVisiveis(ids: ReadonlySet<string> | null): void {
     this.visiveis = ids;
@@ -405,14 +417,16 @@ export class ControladorMapa {
   }
 
   /** Rótulo ancorado no canto superior esquerdo do espaço reservado e limitado a ele. */
-  private rotuloEmCaixa(classe: string, texto: string, caixa: Retangulo): L.Marker {
-    const el = elemento('div', `pr-rotulo-caixa ${classe}`);
+  private rotuloEmCaixa(classe: string, texto: string, caixa: Retangulo, aoClicar?: () => void): L.Marker {
+    const el = elemento('div', `pr-rotulo-caixa ${classe}${aoClicar ? ' pr-rotulo-clicavel' : ''}`);
     el.append(elemento('span', 'pr-rotulo-texto', texto));
     el.style.setProperty('--largura-ud', String(caixa.width));
     el.style.setProperty('--altura-ud', String(caixa.height));
     el.title = texto;
     this.rotulosEmCaixa.push(el);
-    return L.marker(this.latLng({ x: caixa.x, y: caixa.y }), { interactive: false, keyboard: false, icon: icone(el) });
+    const marcador = L.marker(this.latLng({ x: caixa.x, y: caixa.y }), { interactive: aoClicar !== undefined, keyboard: false, icon: icone(el) });
+    if (aoClicar) marcador.on('click', aoClicar);
+    return marcador;
   }
 
   private desenharBase(): void {
@@ -426,11 +440,13 @@ export class ControladorMapa {
     const ordem = { ZONA: 0, BLOCO: 1, CORREDOR: 2, DOCA: 2 } as const;
     for (const e of [...this.layout.elements].sort((a, b) => ordem[a.kind] - ordem[b.kind])) {
       L.rectangle(this.limitesDe(e), { ...fixo, className: classesElemento(e) }).addTo(base);
-      if (e.labelBox) this.rotuloEmCaixa(`pr-titulo pr-titulo--${e.kind}`, e.label, e.labelBox).addTo(base);
+      const blocoClicavel = e.kind === 'BLOCO' && this.eventos.aoEscolherBloco !== undefined;
+      if (e.labelBox) this.rotuloEmCaixa(`pr-titulo pr-titulo--${e.kind}`, e.label, e.labelBox, blocoClicavel ? () => { this.eventos.aoEscolherBloco?.(e.code); } : undefined).addTo(base);
     }
 
     for (const fileira of this.layout.rows) {
-      this.rotuloEmCaixa('pr-rotulo-fileira', fileira.label, fileira.labelBox).addTo(base);
+      const fileiraClicavel = this.eventos.aoEscolherFileira !== undefined;
+      this.rotuloEmCaixa('pr-rotulo-fileira', fileira.label, fileira.labelBox, fileiraClicavel ? () => { this.eventos.aoEscolherFileira?.(fileira.id); } : undefined).addTo(base);
     }
 
     for (const posicao of this.layout.positions) {
@@ -494,17 +510,19 @@ export class ControladorMapa {
     return raiz;
   }
 
-  private classesPalete(id: string): { selecionado: boolean; esmaecido: boolean } {
+  private classesPalete(id: string): { selecionado: boolean; esmaecido: boolean; espelho: boolean } {
     return {
       selecionado: id === this.selecionado,
+      espelho: this.multipla?.has(id) === true,
       esmaecido: this.visiveis !== null && !this.visiveis.has(id),
     };
   }
 
   private aplicarClasses(): void {
     for (const [id, forma] of this.formas) {
-      const { selecionado, esmaecido } = this.classesPalete(id);
+      const { selecionado, esmaecido, espelho } = this.classesPalete(id);
       const caminho = forma.getElement();
+      caminho?.classList.toggle('pr-palete--espelho', espelho);
       caminho?.classList.toggle('pr-palete--selecionado', selecionado);
       caminho?.classList.toggle('pr-palete--esmaecido', esmaecido);
     }
@@ -513,7 +531,8 @@ export class ControladorMapa {
 
   private aplicarClassesRotulo(el: HTMLElement, paleteId: string | null): void {
     if (paleteId === null) return;
-    const { selecionado, esmaecido } = this.classesPalete(paleteId);
+    const { selecionado, esmaecido, espelho } = this.classesPalete(paleteId);
+    el.classList.toggle('pr-rotulo-palete--espelho', espelho);
     el.classList.toggle('pr-rotulo-palete--selecionado', selecionado);
     el.classList.toggle('pr-rotulo-palete--esmaecido', esmaecido);
   }

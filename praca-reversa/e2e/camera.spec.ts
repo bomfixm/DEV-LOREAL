@@ -61,8 +61,9 @@ async function prepararCenario(page: Page, testInfo: TestInfo, nome: string) {
 }
 
 async function abrirLeitorNoMapa(page: Page, testInfo: TestInfo): Promise<void> {
+  // O "Ler QR" do mapa saiu do celular (6 nov. 2026); a leitura por câmera continua no computador.
+  test.skip(sufixo(testInfo) === '2', 'Sem Ler QR no mapa do celular.');
   await page.goto('/');
-  if (sufixo(testInfo) === '2') await page.getByRole('button', { name: /^Lista/ }).click();
   await page.getByTestId('ler-codigo-praca').click();
   await expect(page.getByTestId('leitor-camera')).toHaveAttribute('data-estado', 'lendo', { timeout: 20_000 });
 }

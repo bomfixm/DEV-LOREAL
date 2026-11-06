@@ -174,9 +174,21 @@ export async function aguardarMapaParado(page: Page): Promise<void> {
     .toBe(true);
 }
 
+/** No celular o seletor fica na gaveta "Opções" (abre e fecha em volta da escolha). */
 export async function focarArea(page: Page, nome: string): Promise<void> {
+  const opcoes = page.getByTestId('abrir-opcoes-celular');
+  const celular = await opcoes.isVisible().catch(() => false);
+  if (celular) await opcoes.click();
   await page.getByLabel('Ir para bloco ou zona').selectOption({ label: nome });
+  if (celular) await page.getByRole('button', { name: 'Fechar opções' }).click({ position: { x: 10, y: 10 } });
   await aguardarMapaParado(page);
+}
+
+/** Abre um palete pelo código usando a busca (no celular não há mais a lista de paletes). */
+export async function abrirPaleteNaBusca(page: Page, codigo: string): Promise<void> {
+  await page.getByTestId('abrir-busca-celular').click();
+  await page.getByTestId('campo-busca').fill(codigo);
+  await page.getByTestId('resultado-abrir').first().click();
 }
 
 export async function centroDaCaixa(locator: Locator): Promise<{ x: number; y: number }> {

@@ -280,7 +280,8 @@ test.describe('busca e importação', () => {
     // O voltar do aparelho fecha a janela e mostra o mapa.
     await page.goBack();
     await expect(page.getByTestId('janela-palete')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Mapa', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('abrir-opcoes-celular')).toBeVisible();
+    await expect(page.locator('.painel-lista')).toBeHidden();
     await page.getByTestId('abrir-busca-celular').click();
     await expect(page.getByTestId('campo-busca')).toHaveValue(sku);
     await expect(page.getByTestId('resultado-busca')).toHaveCount(1);

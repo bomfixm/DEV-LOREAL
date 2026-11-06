@@ -295,8 +295,7 @@ test.describe('cadastro, mapa, etiqueta e QR', () => {
     test.skip(!isMobile, 'Fluxo de celular.');
     await entrar(page, 'operador');
     const livre = posicaoLivre(await obterPraca(page), 'F04');
-    await page.getByRole('button', { name: /^Lista/ }).tap();
-    await page.getByRole('button', { name: 'Novo palete' }).tap();
+    await irParaPagina(page, 'Cadastrar palete');
     await page.getByLabel('Código da posição').fill(livre.code);
     await expect(page.getByTestId('situacao-posicao')).toContainText('Livre');
     await page.getByRole('button', { name: 'Cadastrar palete' }).tap();

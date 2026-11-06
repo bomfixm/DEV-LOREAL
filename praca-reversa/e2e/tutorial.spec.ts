@@ -226,8 +226,8 @@ test.describe('Ajuda por tarefa', () => {
     await entrar(page, 'operadorDemo');
     await aguardarMapa(page);
     if (ehCelular(testInfo) || mostrarListaPaletesNoMapa) {
-      // No celular a ajuda do mapa fica na aba "Lista" (o mapa ocupa a tela).
-      if (ehCelular(testInfo)) await page.getByRole('button', { name: /^Lista/ }).click();
+      // No celular a ajuda do mapa fica no painel do botão "Buscar" (o mapa ocupa a tela).
+      if (ehCelular(testInfo)) await page.getByTestId('abrir-busca-celular').click();
       const ajudaMapa = page.getByTestId('ajuda-consultar').first();
       await ajudaMapa.locator('summary').click();
       await expect(ajudaMapa).toContainText('Toque em "Buscar conteúdo"');

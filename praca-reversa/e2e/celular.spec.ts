@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { aguardarMapaParado, centro, centroDaCaixa, entrarNoMapa, focarArea, forma, mapa, obterPraca, pinca, verMais, zoom } from './apoio';
+import { aguardarMapaParado, centro, centroDaCaixa, entrarNoMapa, focarArea, forma, mapa, obterPraca, pinca, verMais, zoom, abrirPaleteNaBusca } from './apoio';
 
 test.skip(({ isMobile }) => !isMobile, 'Fluxos do layout de celular.');
 
@@ -22,7 +22,7 @@ test.describe('celular', () => {
     await page.getByTestId('abrir-opcoes-celular').tap();
     await expect(page.getByRole('button', { name: "Focar L'Oréal" })).toBeVisible();
     await expect(page.locator('.legenda')).toBeVisible();
-    await page.getByRole('button', { name: 'Fechar opções' }).tap();
+    await page.getByRole('button', { name: 'Fechar opções' }).tap({ position: { x: 10, y: 10 } });
     await expect(page.getByRole('button', { name: "Focar L'Oréal" })).toBeHidden();
     // Buscar: painel em tela cheia, com volta ao mapa.
     await page.getByTestId('abrir-busca-celular').tap();
@@ -74,11 +74,9 @@ test.describe('celular', () => {
     expect(new URL(page.url()).pathname).toBe('/paletes/00000000-0000-4000-8000-000000000002');
   });
 
-  test('escolher na lista abre a janela; ao fechar, o palete está centralizado no mapa', async ({ page }) => {
+  test('escolher na busca abre a janela; ao fechar, o palete está centralizado no mapa', async ({ page }) => {
     await entrarNoMapa(page, 'consulta');
-    await page.getByRole('button', { name: /^Lista/ }).tap();
-    await page.getByLabel('Código, posição ou link do QR').fill('PAL-DEMO-001');
-    await page.locator('.item-palete[data-codigo="PAL-DEMO-001"]').tap();
+    await abrirPaleteNaBusca(page, 'PAL-DEMO-001');
     await expect(page.locator('.painel-lista')).toBeHidden();
     await expect(resumo(page).getByTestId('janela-titulo')).toHaveText('Palete PAL-DEMO-001');
     await resumo(page).getByTestId('janela-fechar').tap();
@@ -118,7 +116,9 @@ test.describe('celular', () => {
     await page.getByRole('button', { name: 'Ampliar' }).tap();
     await expect.poll(() => zoom(page)).toBeGreaterThan(z);
     await aguardarMapaParado(page);
+    await page.getByTestId('abrir-opcoes-celular').tap();
     await page.getByRole('button', { name: 'Ver praça completa' }).tap();
+    await page.getByRole('button', { name: 'Fechar opções' }).tap({ position: { x: 10, y: 10 } });
     await aguardarMapaParado(page);
     await focarArea(page, 'Fileira 12 · FB02');
     await forma(page, 'PAL-DEMO-004').tap();

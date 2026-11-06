@@ -151,8 +151,8 @@ test.describe('capturas etapa 09 @captura', () => {
     test.setTimeout(120_000);
     await instalarCameraFalsa(page);
     await entrar(page, 'supervisorDemo');
+    test.skip(true, 'Sem Ler QR no mapa do celular (6 nov. 2026).');
     await page.goto('/');
-    await page.getByRole('button', { name: /^Lista/ }).click();
     await page.getByTestId('ler-codigo-praca').click();
     await mostrarNaCamera(page, await imagemDoCodigo('12000000001011', 'Code128'));
     await expect(page.getByTestId('produto-lido')).toBeVisible({ timeout: 30_000 });

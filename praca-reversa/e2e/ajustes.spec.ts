@@ -2,7 +2,7 @@ import { expect, test, type APIResponse, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { mostrarListaPaletesNoMapa } from '../apps/web/src/features/mapa/configuracao';
-import { aguardarMapa, ehCelular, entrar, forma, obterPraca } from './apoio';
+import { abrirPaleteNaBusca, aguardarMapa, ehCelular, entrar, forma, obterPraca } from './apoio';
 
 /**
  * Ajustes de 08/10/2026, no escopo de cadastro do E2E (dados fictícios):
@@ -91,9 +91,7 @@ async function percurso(page: Page, celular: boolean, capturas: boolean): Promis
   // Ao entrar na praça nada fica selecionado; escolher o palete abre a janela dele.
   await expect(page.getByTestId('janela-palete')).toHaveCount(0);
   if (celular) {
-    await page.getByRole('button', { name: /^Lista/ }).click();
-    await page.getByLabel('Código, posição ou link do QR').fill(p.code);
-    await page.locator(`.item-palete[data-codigo="${p.code}"]`).click();
+    await abrirPaleteNaBusca(page, p.code);
   } else {
     await forma(page, p.code).dispatchEvent('click');
   }

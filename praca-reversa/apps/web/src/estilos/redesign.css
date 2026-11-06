@@ -4129,3 +4129,32 @@
     gap: 3px;
   }
 }
+
+/* Separação do cliente: palete roxo no mapa e nota destacada na janela. */
+@media screen {
+  .mapa-praca .pr-palete.pr-palete--separacao {
+    fill: #7c3aed !important;
+    fill-opacity: 1 !important;
+  }
+
+  .pr-rotulo-palete--separacao,
+  .pr-rotulo-palete--separacao .pr-rotulo-endereco,
+  .pr-rotulo-palete--separacao .pr-rotulo-codigo,
+  .pr-rotulo-palete--separacao .pr-rotulo-estado {
+    color: #fff !important;
+  }
+
+  .amostra--separacao {
+    background: #7c3aed;
+  }
+
+  .janela-tabela tr.janela-linha--separacao > td {
+    background: #7c3aed;
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .janela-tabela tr.janela-linha--separacao > td * {
+    color: inherit;
+  }
+}

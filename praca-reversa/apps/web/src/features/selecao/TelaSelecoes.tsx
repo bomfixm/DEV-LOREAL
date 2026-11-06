@@ -5,6 +5,7 @@ import { IconeAtualizar, IconeMais } from '../../components/Icones';
 import { Pagina } from '../../components/Moldura';
 import type { Navegar } from '../../rotas';
 import { formatarDataHora } from '../../utils/datas';
+import { useSeparacaoCliente } from '../separacao/PainelSeparacao';
 import { ROTULOS_MODALIDADE } from './rotulos';
 
 const TAMANHO = 20;
@@ -15,7 +16,8 @@ const TAMANHO = 20;
  * inventários de referência. Importar e conciliar não reservam nem alteram
  * estoque.
  */
-export function TelaSelecoes({ permissoes, aoNavegar }: { permissoes: readonly Permissao[]; aoNavegar: Navegar }) {
+export function TelaSelecoes({ permissoes, aoNavegar, aoGravar }: { permissoes: readonly Permissao[]; aoNavegar: Navegar; aoGravar: () => void }) {
+  const separacao = useSeparacaoCliente(permissoes, aoGravar);
   const [pagina, setPagina] = useState(1);
   const { carga, recarregar } = useRecurso(`${API_PREFIXO}/selecoes?pagina=${String(pagina)}&tamanho=${String(TAMANHO)}`, PaginaSelecoesSchema);
   const dados = carga?.estado === 'pronto' ? carga.dados : null;
@@ -38,10 +40,11 @@ export function TelaSelecoes({ permissoes, aoNavegar }: { permissoes: readonly P
       }
     >
       <div className="acoes-linha">
+        {separacao.botao}
         {executar.includes('SELECAO_CLIENTE') && (
           <button
             type="button"
-            className="botao-primario"
+            className="botao-secundario"
             onClick={() => {
               aoNavegar({ tipo: 'nova-importacao', importar: 'SELECAO_CLIENTE' });
             }}
@@ -74,6 +77,7 @@ export function TelaSelecoes({ permissoes, aoNavegar }: { permissoes: readonly P
           </button>
         )}
       </div>
+      {separacao.lista}
       {carga?.estado === 'erro' && (
         <div className="estado-erro" role="alert">
           <p>Não foi possível carregar as seleções. {carga.mensagem}</p>

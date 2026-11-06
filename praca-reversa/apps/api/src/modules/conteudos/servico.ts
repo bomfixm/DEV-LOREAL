@@ -29,6 +29,7 @@ import { randomUUID } from 'node:crypto';
 import type { z } from 'zod';
 import type { Banco, Transacao } from '../../db/cliente.js';
 import { ErroHttp, naoEncontrado } from '../../http/erros.js';
+import { chavesEmSeparacao, chaveNota } from '../separacao/servico.js';
 import { registrarEvento } from '../auditoria/registrar.js';
 import { registrarMovimentacaoRelevante, registrarReconferenciaCompleta, relogioDoPalete } from '../paletes/relogio.js';
 import { linhasAtuaisDosVinculos } from '../importacao/linhas-vigentes.js';
@@ -224,6 +225,9 @@ export async function conteudosDoPalete(db: Db, escopoId: string, paleteId: stri
   const ocorrencias = await ocorrenciasAtivas(db, escopoId, [paleteId]);
   const conferencia = await calcularConferencia(db, escopoId, ocorrencias, [paleteId]);
   for (const i of items) i.check = conferencia.porItem.get(i.id) ?? null;
+  // Notas pedidas numa separação ativa do cliente: destacadas na janela do palete.
+  const emSeparacao = await chavesEmSeparacao(db, escopoId);
+  for (const i of items) if (i.documentNumber !== null && emSeparacao.has(chaveNota(i.documentNumber))) i.clientSeparation = true;
   return {
     palletId: paleteId,
     items,

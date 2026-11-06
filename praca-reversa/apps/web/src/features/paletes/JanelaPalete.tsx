@@ -337,8 +337,11 @@ function TabelaConteudo({ itens }: { itens: readonly ConteudoPalete[] }) {
   // Ordem estável para achar o documento: tipo e número (comparação numérica); sem número por último.
   // Notas que não constam da versão atual do inventário vão para o fim (a validar no piso).
   const foraDaVersao = (g: { parcelas: readonly ConteudoPalete[] }) => g.parcelas.every((x) => x.latestInventory === 'NAO_CONSTA');
+  const naSeparacao = (g: { parcelas: readonly ConteudoPalete[] }) => g.parcelas.some((x) => x.clientSeparation === true);
   const grupos = agruparDocumentos(itens).sort(
     (a, b) =>
+      // Nota pedida na separação do cliente vem primeiro.
+      Number(naSeparacao(b)) - Number(naSeparacao(a)) ||
       Number(foraDaVersao(a)) - Number(foraDaVersao(b)) ||
       Number(a.numero === null) - Number(b.numero === null) ||
       (a.tipo ?? '').localeCompare(b.tipo ?? '', 'pt-BR') ||
@@ -378,9 +381,12 @@ function TabelaConteudo({ itens }: { itens: readonly ConteudoPalete[] }) {
             {visiveis.map((g) => {
               const primeiro = g.parcelas[0];
               return (
-                <tr key={g.chave} data-testid="janela-linha" data-numero={g.numero ?? ''}>
+                <tr key={g.chave} data-testid="janela-linha" data-numero={g.numero ?? ''} data-separacao={naSeparacao(g) ? 'sim' : undefined} className={naSeparacao(g) ? 'janela-linha--separacao' : undefined}>
                   <td data-rotulo="Tipo">{g.tipo ?? vazio}</td>
-                  <td data-rotulo="Número">{g.numero ?? vazio}</td>
+                  <td data-rotulo="Número">
+                    {g.numero ?? vazio}
+                    {naSeparacao(g) && <span className="janela-selo-separacao"> · Separar</span>}
+                  </td>
                   <td data-rotulo="Remetente" className="janela-remetente">
                     {primeiro?.sender ?? vazio}
                   </td>

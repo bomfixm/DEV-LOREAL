@@ -387,6 +387,7 @@ model Escopo {
   janelas              JanelaDevolucao[]
   inventarios          InventarioReferencia[]
   selecoes             SelecaoCliente[]
+  separacoes           SeparacaoCliente[]
   informacoesDocumento InformacaoDocumento[]
   controlePlanilha     ControlePlanilha?
   publicacoesPlanilha  PublicacaoPlanilha[]
@@ -488,6 +489,8 @@ model Usuario {
   conteudosAtualizados     ConteudoPalete[]          @relation("ConteudoAtualizadoPor")
   contagensVolumes         ContagemVolumes[]         @relation("ContagemVolumesPor")
   selecoesCriadas          SelecaoCliente[]          @relation("SelecaoCriadaPor")
+  separacoesCriadas        SeparacaoCliente[]        @relation("SeparacaoCriadaPor")
+  separacoesEncerradas     SeparacaoCliente[]        @relation("SeparacaoEncerradaPor")
   resolucoesSelecao        ResolucaoLinhaSelecao[]   @relation("ResolucaoSelecaoAutor")
   resolucoesAnuladas       ResolucaoLinhaSelecao[]   @relation("ResolucaoSelecaoAnuladaPor")
   encaminhamentosSelecao   VinculoSelecaoReserva[]   @relation("EncaminhamentoSelecaoAutor")
@@ -2832,6 +2835,59 @@ model LinhaSelecao {
   @@unique([escopoId, id])
   @@index([escopoId, chaveDocumento])
   @@map("linha_selecao")
+}
+
+/// Planilha de separação enviada pelo cliente (ex.: litígios da janela 10/11).
+/// Enquanto ATIVA, os paletes com as notas dela ficam roxos no mapa. O cruzamento
+/// é feito na leitura pelo número: acompanha nota movida e palete renumerado.
+/// Não reserva, não libera e não altera estoque.
+model SeparacaoCliente {
+  id             String    @id @db.Uuid
+  escopoId       String    @map("escopo_id") @db.Uuid
+  nomeArquivo    String    @map("nome_arquivo")
+  sha256         String
+  janela         String?
+  /// Todas as colunas da planilha, na ordem em que vieram.
+  cabecalhos     Json
+  /// ATIVA ou ENCERRADA.
+  situacao       String    @default("ATIVA")
+  criadoPorId    String    @map("criado_por_id") @db.Uuid
+  criadoEm       DateTime  @map("criado_em") @db.Timestamptz(3)
+  encerradoPorId String?   @map("encerrado_por_id") @db.Uuid
+  encerradoEm    DateTime? @map("encerrado_em") @db.Timestamptz(3)
+
+  escopo       Escopo                 @relation(fields: [escopoId], references: [id])
+  criadoPor    Usuario                @relation("SeparacaoCriadaPor", fields: [criadoPorId], references: [id])
+  encerradoPor Usuario?               @relation("SeparacaoEncerradaPor", fields: [encerradoPorId], references: [id])
+  notas        SeparacaoClienteNota[]
+
+  @@index([escopoId, situacao])
+  @@map("separacao_cliente")
+}
+
+/// Uma linha da planilha de separação, com os valores como vieram.
+model SeparacaoClienteNota {
+  id                String  @id @db.Uuid
+  escopoId          String  @map("escopo_id") @db.Uuid
+  separacaoId       String  @map("separacao_id") @db.Uuid
+  linhaArquivo      Int     @map("linha_arquivo")
+  numeroDocumento   String  @map("numero_documento")
+  /// Número sem zeros à esquerda: é por ele que a nota é procurada nos paletes.
+  chave             String
+  tipoDocumento     String? @map("tipo_documento")
+  delivery          String?
+  volumes           String?
+  remetente         String?
+  paleteInformado   String? @map("palete_informado")
+  enderecoInformado String? @map("endereco_informado")
+  /// Tudo o que veio na linha: coluna → valor.
+  valores           Json
+
+  separacao SeparacaoCliente @relation(fields: [separacaoId], references: [id])
+
+  @@unique([separacaoId, linhaArquivo])
+  @@index([escopoId, chave])
+  @@map("separacao_cliente_nota")
 }
 
 /// Resolução explícita de uma identificação ambígua (candidato escolhido e

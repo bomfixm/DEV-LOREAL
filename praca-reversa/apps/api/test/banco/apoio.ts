@@ -54,6 +54,8 @@ const TABELAS = [
   'resolucao_linha_selecao',
   'linha_selecao',
   'selecao_cliente',
+  'separacao_cliente_nota',
+  'separacao_cliente',
   'descricao_caixa_documento',
   'conteudo_documento_palete',
   'informacao_documento',

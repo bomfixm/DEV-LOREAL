@@ -323,7 +323,7 @@ function AreaAutenticada({
   } else if (rota.tipo === 'nova-importacao') {
     conteudo = importacaoExecucao ? <TelaNovaImportacao permissoes={sessao.permissions} inicial={rota.importar} aoNavegar={navegar} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
   } else if (rota.tipo === 'selecoes') {
-    conteudo = pode('selecao.consultar') ? <TelaSelecoes permissoes={sessao.permissions} aoNavegar={navegar} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
+    conteudo = pode('selecao.consultar') ? <TelaSelecoes permissoes={sessao.permissions} aoNavegar={navegar} aoGravar={dadosAlterados} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
   } else if (rota.tipo === 'selecao') {
     conteudo = pode('selecao.consultar') ? (
       <TelaSelecao key={rota.id} id={rota.id} situacao={rota.situacao} permissoes={sessao.permissions} aoNavegar={navegar} aoGravar={dadosAlterados} />

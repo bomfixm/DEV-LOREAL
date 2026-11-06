@@ -86,6 +86,8 @@ export type ContagemConteudo = z.infer<typeof ContagemConteudoSchema>;
 
 export const ConteudoPaleteSchema = z.object({
   id: z.uuid(),
+  /** Nota pedida numa separação ativa do cliente: vem primeiro e destacada na janela. */
+  clientSeparation: z.boolean().optional(),
   kind: TipoConteudoSchema,
   sender: z.string().nullable(),
   documentType: z.string().nullable(),

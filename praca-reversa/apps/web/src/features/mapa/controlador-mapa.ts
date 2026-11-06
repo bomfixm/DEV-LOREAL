@@ -235,7 +235,7 @@ export class ControladorMapa {
       const forma = L.rectangle(this.limitesDe(area), {
         // Preenchimento: neutro = estoque, lilás = separação para agenda (reservado); conferência no contorno e no rótulo.
         // Reconferência vencida (20 dias): laranja adicional; agenda, conferência e seleção continuam com seus marcadores.
-        className: `pr-palete pr-palete--${estadoExibido(palete).chave}${palete.activeCountId !== null ? ' pr-palete--em-conferencia' : ''}${palete.flowState === 'RESERVADO' ? ' pr-palete--agenda' : ''}${palete.reconference?.due === true ? ' pr-palete--reconferencia' : ''}`,
+        className: `pr-palete pr-palete--${estadoExibido(palete).chave}${palete.activeCountId !== null ? ' pr-palete--em-conferencia' : ''}${palete.flowState === 'RESERVADO' ? ' pr-palete--agenda' : ''}${palete.reconference?.due === true ? ' pr-palete--reconferencia' : ''}${palete.clientSeparation === true ? ' pr-palete--separacao' : ''}`,
         bubblingMouseEvents: false,
       });
       forma.on('click', () => {
@@ -466,7 +466,7 @@ export class ControladorMapa {
 
   private criarRotuloPalete(palete: PaleteResumo): HTMLElement {
     const { chave, rotulo } = estadoExibido(palete);
-    const raiz = elemento('div', `pr-rotulo-palete pr-rotulo-palete--${chave}`);
+    const raiz = elemento('div', `pr-rotulo-palete pr-rotulo-palete--${chave}${palete.clientSeparation === true ? ' pr-rotulo-palete--separacao' : ''}`);
     const posicao = palete.positionId === null ? undefined : this.posicoes.get(palete.positionId);
     // Endereço operacional em destaque; código do palete e código técnico da posição ficam como apoio.
     raiz.title = `${palete.code} · ${palete.positionCode ?? ''}`;

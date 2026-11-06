@@ -93,6 +93,10 @@ export function Legenda({ nota = null }: { nota?: string | null }) {
           );
         })}
         <li>
+          <span className="amostra amostra--separacao" aria-hidden="true" />
+          Roxo: tem nota da separação do cliente
+        </li>
+        <li>
           <span className="amostra amostra--selecionado" aria-hidden="true" />
           Palete selecionado
         </li>

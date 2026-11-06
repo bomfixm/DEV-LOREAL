@@ -83,6 +83,8 @@ const PaleteResumoBaseSchema = z.object({
   volumeCheck: ConferenciaVolumesPaleteSchema.nullable().default(null),
   /** Identificador legado (ex.: PR-000001) quando o código passou a ser o número operacional. */
   legacyCode: z.string().min(1).nullable().default(null),
+  /** Tem nota de uma separação ativa do cliente: fica roxo no mapa. */
+  clientSeparation: z.boolean().optional(),
 });
 export type PaleteResumo = z.infer<typeof PaleteResumoBaseSchema>;
 

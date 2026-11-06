@@ -1,6 +1,8 @@
 import type { Banco, Transacao } from '../../db/cliente.js';
 
 export type AcaoAuditoria =
+  | 'SEPARACAO_CLIENTE_ENVIADA'
+  | 'SEPARACAO_CLIENTE_ENCERRADA'
   | 'LOGIN_SUCESSO'
   | 'LOGIN_FALHA'
   | 'LOGIN_BLOQUEADO'

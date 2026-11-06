@@ -645,3 +645,8 @@ Pedido `PROMPT-CLAUDE-PRACA-REVERSA-TERMOS-PRIVACIDADE-E-SEGURANCA.txt` (27/10).
 ## Registrar mudança
 
 Data; decisão alterada; nova decisão; motivo; origem da alteração; arquivos/módulos afetados; verificações; impacto no piloto. Quando uma decisão substituir outra, indicar explicitamente qual foi substituída. Evitar repetir a conversa inteira.
+
+
+### 5 nov. 2026 — Espelhos com seleção múltipla
+
+A solicitação foi ampliada de uma rua para várias ruas livremente, com atalhos por paridade do número da rua, seleção do lado dos endereços e escolha de paletes. Mantida a mesma stack, sem migração de banco. A emissão consulta o conteúdo atual com permissão de impressão e escopo no servidor; imprimir não registra conferência nem altera estoque. Módulos: espelhos (contratos/API/interface), navegação e rotas. A moldura vem do formulário original; quantidade ausente e conferência pendente permanecem explícitas. Critérios operacionais em DESCOBERTA.md.

@@ -597,6 +597,7 @@ export function TelaPraca({ praca, compacto, paleteRota, permissoes, falhaAtuali
                     </>
                   ) : comLista ? null : (
                     <>
+                    {pode('etiqueta.imprimir') && <button type="button" className="botao-mapa botao-mapa--texto" onClick={() => { aoNavegar({ tipo: 'espelhos' }); }}>Imprimir espelhos</button>}
                     <FiltroMapa
                       filtro={filtro}
                       estadoFiltro={estadoFiltro}

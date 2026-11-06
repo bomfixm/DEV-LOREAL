@@ -294,3 +294,13 @@ Escolher um grupo delimitado e identificável de paletes e um responsável opera
 Entrada no piloto: ID e localização; acesso individual; saldo/histórico persistidos; contagem e movimentos testados; regra de unidade; responsável pela reconciliação; backup e procedimento de recuperação. Conferência dos demais paletes pode continuar pelo processo atual e ser incorporada gradualmente.
 
 Saída do piloto: comparar mapa e registros com o físico, verificar movimentos, obter validação das tratativas e documentar ajustes antes de ampliar a praça. Uma melhora percebida deve ser acompanhada dos números e evidências que a sustentam.
+
+
+## Espelhos operacionais — 5 nov. 2026
+
+- Solicitação: botão Imprimir espelhos; seleção livre de várias ruas (ex.: 11 e 16), atalhos para ruas ímpares/pares e todas, com marcação individual posterior; também paletes específicos. Visita do cliente informada para 10/11.
+- Há duas escolhas explícitas: número da rua (atalhos 11/13/15 ou 12/14/16) e lado dos endereços dentro das ruas selecionadas (A101/A103 ou A102/A104). A Grade é selecionável separadamente.
+- Fonte: conteúdo ativo consultado pelo mesmo serviço da janela do palete; paletes ativos em estoque/reservados, no escopo autorizado. Endereço da posição atual somente quando confirmado; paletes sem endereço confirmado podem ser escolhidos individualmente, identificados como pendentes.
+- Quantidades: VOLUMES = previsto informado; LIDO = contagem registrada, inclusive zero. Ausência continua “—”. Não presumir previsto a partir de contado. Observação informa conferência real, conferência informada do inventário, contagem registrada ou pendência, com a data da fonte, nunca a data da impressão como conferência.
+- Moldura extraída do formulário original SF-164133/01 enviado pelo usuário, sem os textos de preenchimento. Prévia e impressão A4 paisagem pelo navegador, inclusive Salvar como PDF. Texto segue selecionável, até 250 paletes por lote, continuação em novas folhas quando necessário.
+- Impressão física e aprovação visual da operação ainda precisam ser feitas na impressora usada no piso.

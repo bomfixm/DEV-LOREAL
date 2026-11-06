@@ -77,7 +77,7 @@ export function Cabecalho({ sessao, rota, barraLateral = false, secao = null, pe
   }, []);
   const demo = sessao?.activeScope?.demo ?? false;
   const itens = sessao?.activeScope
-    ? ITENS_MENU.filter((i) => (i.permissoes.length === 0 || i.permissoes.some((p) => sessao.permissions.includes(p))) && !i.ativo(rota))
+    ? ITENS_MENU.filter((i) => (i.permissoes.length === 0 || i.permissoes.some((p) => sessao.permissions.includes(p))) && i.soComputador !== true && !i.ativo(rota))
     : [];
 
   return (

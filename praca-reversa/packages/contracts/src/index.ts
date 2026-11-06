@@ -37,3 +37,4 @@ export * from './conferencia-volumes.js';
 export * from './correcoes.js';
 export * from './documentos.js';
 export * from './separacao.js';
+export * from './espelhos.js';

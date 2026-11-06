@@ -20,6 +20,7 @@ import { registrarRotasConferencia } from './modules/conferencia/rotas.js';
 import { registrarRotasConteudos } from './modules/conteudos/rotas.js';
 import { registrarRotasPaineis } from './modules/paineis/rotas.js';
 import { registrarRotasBusca } from './modules/busca/rotas.js';
+import { registrarRotasEspelhos } from './modules/espelhos/rotas.js';
 import { registrarRotasEtiquetas } from './modules/etiquetas/rotas.js';
 import { LIMITE_EXPORTACAO_PADRAO, LIMITES_IMPORTACAO_PADRAO, LIMITES_PLANILHA_PADRAO } from './modules/importacao/campos.js';
 import { registrarRotasImportacao } from './modules/importacao/rotas.js';
@@ -199,6 +200,7 @@ export async function criarApp(opcoes: OpcoesApp): Promise<FastifyInstance> {
         registrarRotasProdutos(privado, deps, auth);
         registrarRotasLayout(privado, deps, auth);
         registrarRotasEtiquetas(privado, deps, auth);
+        registrarRotasEspelhos(privado, deps, auth);
         registrarRotasAdmin(privado, deps, auth);
         registrarRotasAjuda(privado, deps, auth);
         registrarRotasIndicadores(privado, deps, auth);

@@ -22,6 +22,7 @@ import { TelaPraca } from './TelaPraca';
 // Páginas carregadas sob demanda: o mapa abre sem o código de cadastro e de etiquetas (QR).
 const TelaAcesso = lazy(() => import('./features/acesso/TelaAcesso').then((m) => ({ default: m.TelaAcesso })));
 const TelaNovoPalete = lazy(() => import('./features/cadastro/TelaNovoPalete').then((m) => ({ default: m.TelaNovoPalete })));
+const TelaEspelhos = lazy(() => import('./features/espelhos/TelaEspelhos').then((m) => ({ default: m.TelaEspelhos })));
 const TelaEtiquetas = lazy(() => import('./features/etiquetas/TelaEtiquetas').then((m) => ({ default: m.TelaEtiquetas })));
 const TelaLayout = lazy(() => import('./features/layout/TelaLayout').then((m) => ({ default: m.TelaLayout })));
 const TelaRegistrarConteudo = lazy(() => import('./features/conteudos/TelaRegistrarConteudo').then((m) => ({ default: m.TelaRegistrarConteudo })));
@@ -444,6 +445,8 @@ function AreaAutenticada({
   } else if (rota.tipo === 'selecao-teste-solicitacao') {
     conteudo =
       pode('selecao_teste.solicitar') || pode('selecao_teste.responder') ? <TelaSolicitacaoTeste key={rota.id} id={rota.id} aoNavegar={navegar} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
+  } else if (rota.tipo === 'espelhos') {
+    conteudo = pode('etiqueta.imprimir') ? <TelaEspelhos aoVoltar={voltarAoMapa} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
   } else if (rota.tipo === 'etiquetas') {
     conteudo = pode('etiqueta.imprimir') ? <TelaEtiquetas ids={rota.ids} aoVoltar={voltarAoMapa} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
   } else {

@@ -1,0 +1,33 @@
+ .espelhos-selecao { display: grid; gap: 16px; max-width: 800px; padding: 20px; border: 1px solid var(--cor-borda, #bbb); border-radius: 12px; }
+.espelhos-paletes { display: grid; gap: 10px; max-height: 280px; overflow: auto; padding: 12px 0; }
+.espelhos-imprimir { margin: 24px 0; }
+.espelhos-folhas { display: grid; gap: 24px; overflow: auto; padding-bottom: 24px; }
+.espelho-folha { position: relative; box-sizing: border-box; width: 287mm; height: 199mm; padding: 9mm 13mm 16mm; background: white; color: #111; font-family: Arial, sans-serif; box-shadow: 0 2px 8px #0002; }
+.espelho-interior { box-sizing: border-box; height: 100%; border-radius: 12mm; background: transparent; padding: 17mm 6mm 8mm; position: relative; }
+.espelho-folha h2 { text-align: center; font: bold 26pt Arial; margin: 0 0 3mm; color: black; }
+.espelho-folha h3 { text-align: center; font: bold 17pt Arial; margin: 0 0 9mm; color: black; }
+.espelho-folha table { width: 100%; table-layout: fixed; border-collapse: collapse; font: bold 9pt/1.3 Arial; color: black; }
+.espelho-folha th { background: #282828; color: white; font-size: 8pt; padding: 4mm 1mm; }
+.espelho-folha td { padding: 2mm 1mm; min-height: 11mm; }
+.espelho-folha th, .espelho-folha td { border: .25mm solid #555; text-align: center; overflow-wrap: anywhere; white-space: normal; }
+.espelho-folha footer { position: absolute; bottom: 3mm; left: 6mm; right: 6mm; font: 7pt/1.4 Arial; }
+.espelho-marca { position: absolute; bottom: 3mm; left: 17mm; color: #d40511; font: italic 900 19pt Arial; }
+.espelho-demo { display: block; color: #b00000; text-align: center; font-size: 10pt; margin-top: -9mm; margin-bottom: 3mm; }
+.espelho-continuacao { text-align: center; margin: -7mm 0 3mm; font-size: 8pt; }
+@page espelhos { size: A4 landscape; margin: 5mm; }
+@media print {
+  body:has(.tela-espelhos) { margin: 0 !important; }
+  body:has(.tela-espelhos) .app { height: auto; overflow: visible; }
+  body:has(.tela-espelhos) .menu-lateral, body:has(.tela-espelhos) nav, body:has(.tela-espelhos) .rodape { display: none !important; }
+  .tela-espelhos { padding: 0 !important; margin: 0 !important; }
+  .espelhos-folhas { display: block; overflow: visible; padding: 0; }
+  .espelho-folha { page: espelhos; break-inside: avoid; break-after: page; box-shadow: none; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .espelho-folha:last-child { break-after: auto; }
+}
+
+.espelhos-selecao fieldset { min-width: 0; }
+@media print { body:has(.tela-espelhos) .barra-lateral { display: none !important; } body:has(.tela-espelhos) .app-coluna { height: auto !important; overflow: visible !important; display: block !important; } }
+
+.espelhos-ruas { display: flex; flex-wrap: wrap; gap: 16px; padding: 12px 0; }
+
+.espelho-moldura { position: absolute; inset: 0; width: 100%; height: 100%; }

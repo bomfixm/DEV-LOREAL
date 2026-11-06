@@ -7,10 +7,13 @@ export interface ItemMenu {
   /** Basta uma das permissões. */
   permissoes: readonly Permissao[];
   ativo: (rota: Rota) => boolean;
+  /** Não aparece no menu da conta do celular (ex.: impressão de espelhos). */
+  soComputador?: boolean;
 }
 
 /** Páginas do menu da conta, exibidas conforme as permissões do escopo ativo. */
 export const ITENS_MENU: readonly ItemMenu[] = [
+  { rotulo: 'Imprimir espelhos', rota: { tipo: 'espelhos' }, permissoes: ['etiqueta.imprimir'], ativo: (r) => r.tipo === 'espelhos', soComputador: true },
   { rotulo: 'Mapa da praça', rota: { tipo: 'praca' }, permissoes: ['praca.consultar'], ativo: (r) => r.tipo === 'praca' || r.tipo === 'palete' },
   { rotulo: 'Cadastrar palete', rota: { tipo: 'novo-palete' }, permissoes: ['palete.cadastrar'], ativo: (r) => r.tipo === 'novo-palete' },
   { rotulo: 'Registrar conteúdo', rota: { tipo: 'novo-conteudo' }, permissoes: ['palete.cadastrar'], ativo: (r) => r.tipo === 'novo-conteudo' },

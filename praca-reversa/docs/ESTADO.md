@@ -2,6 +2,14 @@
 
 Atualizado em 27 de outubro de 2026.
 
+## Espelhos operacionais — 5 de novembro de 2026
+
+Implementado localmente: rota `/espelhos`, botão no mapa e entrada no menu (só no computador; o celular não mostra esse item, decisão de 6 nov. 2026); seleção múltipla de ruas, atalhos para ruas ímpares/pares/todas, seleção do lado dos endereços e paletes individuais com busca. Prévia com o conteúdo atual do mesmo serviço do detalhe, restrita ao escopo e à permissão `etiqueta.imprimir`. A4 paisagem com moldura original SF-164133/01, continuação automática, impressão pelo navegador e Salvar como PDF. Até 250 paletes por lote; falta de endereço, quantidade ou conferência permanece explícita. Sem alterações de estoque ou migrações próprias.
+
+Verificações: `npm run typecheck` aprovado; `npm run build` aprovado e build da interface atualizado após os ajustes; ESLint nos arquivos alterados aprovado (lint global interrompido por consumo/tempo, sem resultado global); `npx vitest run --project unidade espelhos paginas.test.ts` — 4 testes aprovados; `npx vitest run --project banco apps/api/test/banco/espelhos.test.ts` — 1 teste aprovado com PostgreSQL, incluindo permissão, conteúdo atual, zeros à esquerda, ausência de contagem, filtro e recusa de seleção indisponível. Primeiras tentativas do banco falharam por conexão/migração do ambiente de teste; repetição aprovada. `npx playwright test e2e/espelhos.spec.ts --project computador --project celular` — 2 aprovados (seleção múltipla/atalhos/lados/paletes, prévia invalidada após mudar seleção, paginação com 31 notas longas sem sobreposição). Navegador de teste atualizado; primeiras tentativas sem o executável e um seletor do próprio teste foram corrigidos. PDF verificado com 3 páginas A4 paisagem, sem página extra; captura e PDF em `test-results/espelhos-…-computador/` (dados fictícios, fluxo visual com respostas simuladas; dados/permissões verificados separadamente com PostgreSQL). Moldura original e prévia inspecionadas visualmente.
+
+Limites: geração consultada no momento da prévia; para incorporar alterações posteriores, gerar novamente. Endereços não confirmados não entram na seleção por rua, mas seus paletes podem ser escolhidos individualmente. Impressora física e ambiente publicado não verificados; não houve publicação. Critérios e decisões em DESCOBERTA.md e DECISOES.md.
+
 ## Implementação
 
 | Etapa | Situação |

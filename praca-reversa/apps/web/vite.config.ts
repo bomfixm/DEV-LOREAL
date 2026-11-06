@@ -66,6 +66,8 @@ export default defineConfig({
         // API, downloads e anexos nunca são guardados pelo service worker: sem
         // conexão, a interface informa a falta de dados.
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest,txt,wasm}'],
+        // OCR das notas por foto: baixado só por quem usa, fora do cache inicial.
+        globIgnores: ['ocr/**'],
         // Decodificador WebAssembly da câmera (~1,1 MB).
         maximumFileSizeToCacheInBytes: 3 * 1_048_576,
         // O index.html só responde navegações da interface: nunca a API,

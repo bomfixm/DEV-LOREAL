@@ -757,6 +757,7 @@ export function TelaPraca({ praca, compacto, paleteRota, permissoes, falhaAtuali
           }}
           aoAbrirValidacao={pode('validacao.consultar') ? () => { aoNavegar({ tipo: 'validacao' }); } : null}
           aoImportarBipagem={pode('palete.cadastrar') && aberto(selecionado) ? () => { aoNavegar({ tipo: 'bipagem', id: selecionado.id }); } : null}
+          aoNotasFoto={pode('palete.cadastrar') && aberto(selecionado) ? () => { aoNavegar({ tipo: 'notas-foto', id: selecionado.id }); } : null}
           aoRegistrarConteudo={pode('palete.cadastrar') && aberto(selecionado) ? () => { aoNavegar({ tipo: 'novo-conteudo', palete: selecionado.id }); } : null}
           aoImprimir={pode('etiqueta.imprimir') ? () => { aoNavegar({ tipo: 'etiquetas', ids: [selecionado.id] }); } : null}
           detalhesCompletos={

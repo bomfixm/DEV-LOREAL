@@ -22,3 +22,6 @@ amostras/
 
 # Saída do build da Vercel
 .vercel/
+
+# Copiados de node_modules no build (scripts/copiar-ocr.mjs).
+apps/web/public/ocr/

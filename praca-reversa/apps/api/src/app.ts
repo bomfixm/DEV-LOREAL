@@ -34,6 +34,7 @@ import { registrarRotasProdutos } from './modules/produtos/rotas.js';
 import { registrarRotasSaude } from './modules/saude/rotas.js';
 import { registrarRotasSelecao } from './modules/selecao/rotas.js';
 import { registrarRotasSeparacao } from './modules/separacao/rotas.js';
+import { registrarRotasNotasFoto } from './modules/notas-foto/rotas.js';
 import { registrarRotasPlanilha } from './modules/planilha/rotas.js';
 import { registrarRotasSelecaoTeste } from './modules/selecao-teste/rotas.js';
 import { registrarRotasDocumentos, registrarRotasDocumentosPublicos } from './modules/documentos/rotas.js';
@@ -197,6 +198,7 @@ export async function criarApp(opcoes: OpcoesApp): Promise<FastifyInstance> {
         registrarRotasJanelas(privado, deps, auth);
         registrarRotasSelecao(privado, deps, auth);
         registrarRotasSeparacao(privado, deps, auth);
+        registrarRotasNotasFoto(privado, deps, auth);
         registrarRotasProdutos(privado, deps, auth);
         registrarRotasLayout(privado, deps, auth);
         registrarRotasEtiquetas(privado, deps, auth);

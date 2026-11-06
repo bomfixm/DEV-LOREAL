@@ -89,6 +89,7 @@ export function secaoDaRota(rota: Rota): { titulo: string; descricao: string } {
     case 'novo-palete':
     case 'bipagem':
     case 'bipagem-escolher':
+    case 'notas-foto':
     case 'novo-conteudo':
       return { titulo: 'Recebimento', descricao: 'Palete, conteúdo recebido (remetente, nota e Delivery) e conferência de volumes.' };
     case 'volumes':

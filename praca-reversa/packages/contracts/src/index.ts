@@ -38,3 +38,4 @@ export * from './correcoes.js';
 export * from './documentos.js';
 export * from './separacao.js';
 export * from './espelhos.js';
+export * from './notas-foto.js';

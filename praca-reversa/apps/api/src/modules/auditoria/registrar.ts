@@ -1,6 +1,8 @@
 import type { Banco, Transacao } from '../../db/cliente.js';
 
 export type AcaoAuditoria =
+  | 'NOTA_FOTO_ENVIADA'
+  | 'NOTA_FOTO_INCLUIDA'
   | 'SEPARACAO_CLIENTE_ENVIADA'
   | 'SEPARACAO_CLIENTE_ENCERRADA'
   | 'LOGIN_SUCESSO'

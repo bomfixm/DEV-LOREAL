@@ -104,8 +104,8 @@ export interface ContextoClaim {
 }
 
 /** Páginas próprias de um palete (movimentações). */
-export type AcaoPalete = 'mover' | 'transferir' | 'historico' | 'retirar' | 'bipagem' | 'volumes';
-const ACOES_PALETE: readonly AcaoPalete[] = ['mover', 'transferir', 'historico', 'retirar', 'bipagem', 'volumes'];
+export type AcaoPalete = 'mover' | 'transferir' | 'historico' | 'retirar' | 'bipagem' | 'volumes' | 'notas-foto';
+const ACOES_PALETE: readonly AcaoPalete[] = ['mover', 'transferir', 'historico', 'retirar', 'bipagem', 'volumes', 'notas-foto'];
 
 const DATA = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 /** Filtros aceitos na rota dos relatórios (os demais são descartados); validados de novo pela API. */
@@ -309,6 +309,7 @@ export function caminhoDe(rota: Rota): string {
     case 'retirar':
     case 'bipagem':
     case 'volumes':
+    case 'notas-foto':
       return `/paletes/${rota.id}/${rota.tipo}`;
     case 'novo-palete':
       return rota.posicao ? `/paletes/novo?posicao=${rota.posicao}` : '/paletes/novo';

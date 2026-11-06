@@ -101,7 +101,7 @@ async function inventarioAtivo(db: Db, escopoId: string): Promise<ConteudosPalet
 }
 
 /** Palete do escopo que pode receber conteúdo (nem arquivado nem expedido). */
-async function exigirPaleteAberto(tx: Transacao, escopoId: string, paleteId: string): Promise<{ id: string; codigo: string }> {
+export async function exigirPaleteAberto(tx: Transacao, escopoId: string, paleteId: string): Promise<{ id: string; codigo: string }> {
   const [p] = await tx.$queryRaw<{ id: string; codigo: string; arquivado: boolean; fluxo: string }[]>`
     SELECT id::text, codigo, arquivado_em IS NOT NULL AS arquivado, estado_fluxo::text AS fluxo
       FROM palete WHERE id = ${paleteId}::uuid AND escopo_id = ${escopoId}::uuid FOR UPDATE`;
@@ -242,9 +242,9 @@ export async function conteudosDoPalete(db: Db, escopoId: string, paleteId: stri
 }
 
 /** Registra um conteúdo novo no palete (sem contagem: aguardando conferência). */
-export async function registrarConteudo(tx: Transacao, escopo: Escopo, paleteId: string, dados: DadosNovo, autor: Autor, agora: Date): Promise<ConteudosPalete> {
+export async function registrarConteudo(tx: Transacao, escopo: Escopo, paleteId: string, dados: DadosNovo, autor: Autor, agora: Date, idFixo?: string): Promise<ConteudosPalete> {
   const palete = await exigirPaleteAberto(tx, escopo.id, paleteId);
-  const id = randomUUID();
+  const id = idFixo ?? randomUUID();
   await tx.conteudoPalete.create({
     data: {
       id,

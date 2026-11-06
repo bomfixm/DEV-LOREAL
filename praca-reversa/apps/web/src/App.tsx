@@ -55,6 +55,7 @@ const TelaRelatorios = lazy(() => import('./features/indicadores/TelaRelatorios'
 const TelaRetirarVazio = lazy(() => import('./features/movimentos/TelaRetirarVazio').then((m) => ({ default: m.TelaRetirarVazio })));
 const TelaBipagem = lazy(() => import('./features/paletes/TelaBipagem').then((m) => ({ default: m.TelaBipagem })));
 // Complemento: seleção do cliente, conciliação e inventários de referência.
+const TelaNotasFoto = lazy(() => import('./features/notas-foto/TelaNotasFoto').then((m) => ({ default: m.TelaNotasFoto })));
 const TelaSelecoes = lazy(() => import('./features/selecao/TelaSelecoes').then((m) => ({ default: m.TelaSelecoes })));
 const TelaSelecao = lazy(() => import('./features/selecao/TelaSelecao').then((m) => ({ default: m.TelaSelecao })));
 const TelaValidacao = lazy(() => import('./features/conteudos/TelaValidacao').then((m) => ({ default: m.TelaValidacao })));
@@ -280,6 +281,8 @@ function AreaAutenticada({
     conteudo = pode('documentos.administrar') ? <TelaDocumentos aoVoltar={voltarAoMapa} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
   } else if (rota.tipo === 'planilha') {
     conteudo = pode('praca.consultar') ? <TelaPlanilha aoVoltar={voltarAoMapa} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
+  } else if (rota.tipo === 'notas-foto') {
+    conteudo = pode('palete.cadastrar') ? <TelaNotasFoto key={rota.id} paleteId={rota.id} aoVoltar={voltarAoMapa} aoGravar={dadosAlterados} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
   } else if (rota.tipo === 'bipagem-escolher') {
     conteudo = pode('palete.cadastrar') ? <TelaBipagem key="mapa" paleteId={null} sessao={sessao} aoNavegar={navegar} aoGravar={dadosAlterados} /> : <SemPermissao aoVoltar={voltarAoMapa} />;
   } else if (rota.tipo === 'bipagem') {

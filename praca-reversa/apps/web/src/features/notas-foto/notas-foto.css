@@ -1,0 +1,15 @@
+/* Notas por foto: captura rápida no celular e complementação em tabela. */
+.notas-foto-topo h2 { margin: 0; }
+.notas-foto-topo p { margin: 2px 0 12px; }
+.notas-foto-acoes { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; }
+.notas-foto-acoes > button { min-height: 46px; }
+.notas-foto-envios { display: grid; gap: 6px; margin: 0 0 14px; padding: 10px 14px; border: 1px solid var(--borda); border-radius: 10px; list-style: none; }
+.notas-foto-miniatura { display: inline-block; width: 64px; height: 64px; margin: 0 4px 4px 0; padding: 0; overflow: hidden; border: 1px solid var(--borda); border-radius: 8px; background: none; cursor: zoom-in; }
+.notas-foto-miniatura img { width: 100%; height: 100%; object-fit: cover; }
+.notas-foto-tabela input, .notas-foto-tabela select { width: 100%; min-width: 96px; min-height: 40px; box-sizing: border-box; }
+.notas-foto-tabela small { display: block; margin-top: 4px; }
+.notas-foto-decisao { display: block; margin-top: 6px; }
+.notas-foto-linha-acoes { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; }
+.notas-foto-rodape { margin-top: 14px; justify-content: flex-end; }
+.notas-foto-ampliada { position: fixed; inset: 0; z-index: 1200; display: flex; align-items: center; justify-content: center; padding: 12px; border: 0; background: rgb(0 0 0 / 0.85); cursor: zoom-out; }
+.notas-foto-ampliada img { max-width: 100%; max-height: 100%; object-fit: contain; }

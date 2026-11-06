@@ -242,6 +242,7 @@ interface PropsPalete {
   aoCentralizar: () => void;
   aoConferirVolumes: (() => void) | null;
   aoImportarBipagem: (() => void) | null;
+  aoNotasFoto: (() => void) | null;
   aoRegistrarConteudo: (() => void) | null;
   aoImprimir: (() => void) | null;
   /** Detalhes completos (situação, conferência, liberação, movimentações, cadastro): o detalhe existente, sem o cabeçalho. */
@@ -609,6 +610,11 @@ export function JanelaPalete(props: PropsPalete) {
           <button type="button" className="botao-secundario" onClick={props.aoImportarBipagem} data-testid="acao-bipagem">
             <IconeArquivo />
             Importar bipagem
+          </button>
+        )}
+        {props.aoNotasFoto !== null && (
+          <button type="button" className="botao-secundario" onClick={props.aoNotasFoto} data-testid="acao-notas-foto">
+            Adicionar notas por foto
           </button>
         )}
         {props.aoRegistrarConteudo !== null && (

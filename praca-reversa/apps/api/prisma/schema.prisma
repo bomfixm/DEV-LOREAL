@@ -388,6 +388,7 @@ model Escopo {
   inventarios          InventarioReferencia[]
   selecoes             SelecaoCliente[]
   separacoes           SeparacaoCliente[]
+  notasFoto            NotaFoto[]
   informacoesDocumento InformacaoDocumento[]
   controlePlanilha     ControlePlanilha?
   publicacoesPlanilha  PublicacaoPlanilha[]
@@ -490,6 +491,9 @@ model Usuario {
   contagensVolumes         ContagemVolumes[]         @relation("ContagemVolumesPor")
   selecoesCriadas          SelecaoCliente[]          @relation("SelecaoCriadaPor")
   separacoesCriadas        SeparacaoCliente[]        @relation("SeparacaoCriadaPor")
+  notasFotoCriadas         NotaFoto[]                @relation("NotaFotoCriadaPor")
+  notasFotoAtualizadas     NotaFoto[]                @relation("NotaFotoAtualizadaPor")
+  fotosNotaEnviadas        FotoNota[]                @relation("FotoNotaEnviadaPor")
   separacoesEncerradas     SeparacaoCliente[]        @relation("SeparacaoEncerradaPor")
   resolucoesSelecao        ResolucaoLinhaSelecao[]   @relation("ResolucaoSelecaoAutor")
   resolucoesAnuladas       ResolucaoLinhaSelecao[]   @relation("ResolucaoSelecaoAnuladaPor")
@@ -886,6 +890,7 @@ model Palete {
   conteudosDocumento     ConteudoDocumentoPalete[]
   lotesBipagem           LoteImportacao[]
   conteudos              ConteudoPalete[]
+  notasFoto              NotaFoto[]
   contagensVolumes       ContagemVolumes[]
   reconferencias         ReconferenciaPalete[]
   eventosVolumes         EventoVolumesJanela[]
@@ -2835,6 +2840,71 @@ model LinhaSelecao {
   @@unique([escopoId, id])
   @@index([escopoId, chaveDocumento])
   @@map("linha_selecao")
+}
+
+/// Nota fotografada no palete (rascunho): fora do estoque e dos totais até a
+/// inclusão confirmada, que usa o cadastro real uma vez. Leitura é sugestão:
+/// campos em `camposEditados` nunca são sobrescritos por ela.
+model NotaFoto {
+  id                 String   @id @db.Uuid
+  escopoId           String   @map("escopo_id") @db.Uuid
+  paleteId           String   @map("palete_id") @db.Uuid
+  /// RASCUNHO, INCLUIDA, VINCULADA (só a foto, na nota existente) ou DESCARTADA.
+  situacao           String   @default("RASCUNHO")
+  versao             Int      @default(1)
+  tipoDocumento      String?  @map("tipo_documento")
+  numeroDocumento    String?  @map("numero_documento")
+  remetente          String?
+  /// COMUM ou FULL; nulo = pendente (uma fração não indica FULL).
+  tipoEtiqueta       String?  @map("tipo_etiqueta")
+  referenciaEtiqueta String?  @map("referencia_etiqueta")
+  delivery           String?
+  /// Volumes confirmados pela pessoa; nulo = não informado (nunca zero).
+  volumes            Int?
+  decisao            String?
+  camposEditados     Json     @default("[]") @map("campos_editados")
+  /// PENDENTE, LIDA ou FALHOU.
+  leituraSituacao    String   @default("PENDENTE") @map("leitura_situacao")
+  leituraTexto       String?  @map("leitura_texto")
+  leituraNumeroBruto String?  @map("leitura_numero_bruto")
+  leituraCandidatos  Json     @default("[]") @map("leitura_candidatos")
+  conteudoId         String?  @map("conteudo_id") @db.Uuid
+  vinculoId          String?  @map("vinculo_id") @db.Uuid
+  criadoPorId        String   @map("criado_por_id") @db.Uuid
+  criadoEm           DateTime @map("criado_em") @db.Timestamptz(3)
+  atualizadoPorId    String?  @map("atualizado_por_id") @db.Uuid
+  atualizadoEm       DateTime @map("atualizado_em") @db.Timestamptz(3)
+
+  escopo        Escopo     @relation(fields: [escopoId], references: [id])
+  palete        Palete     @relation(fields: [paleteId], references: [id])
+  criadoPor     Usuario    @relation("NotaFotoCriadaPor", fields: [criadoPorId], references: [id])
+  atualizadoPor Usuario?   @relation("NotaFotoAtualizadaPor", fields: [atualizadoPorId], references: [id])
+  fotos         FotoNota[]
+
+  @@index([escopoId, paleteId, situacao])
+  @@map("nota_foto")
+}
+
+/// Foto de uma nota, guardada no banco (privada, autorizada por escopo).
+model FotoNota {
+  id           String   @id @db.Uuid
+  escopoId     String   @map("escopo_id") @db.Uuid
+  notaId       String   @map("nota_id") @db.Uuid
+  paleteId     String   @map("palete_id") @db.Uuid
+  nome         String
+  tipoConteudo String   @map("tipo_conteudo")
+  tamanho      Int
+  sha256       String
+  conteudo     Bytes
+  enviadoPorId String   @map("enviado_por_id") @db.Uuid
+  enviadoEm    DateTime @map("enviado_em") @db.Timestamptz(3)
+
+  nota      NotaFoto @relation(fields: [notaId], references: [id])
+  enviadoPor Usuario @relation("FotoNotaEnviadaPor", fields: [enviadoPorId], references: [id])
+
+  @@index([notaId])
+  @@index([escopoId, paleteId, sha256])
+  @@map("foto_nota")
 }
 
 /// Planilha de separação enviada pelo cliente (ex.: litígios da janela 10/11).

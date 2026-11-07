@@ -25,6 +25,7 @@ const ROTULOS_ACAO: Record<string, string> = {
   LOGIN_FALHA: 'Falha de login',
   LOGIN_BLOQUEADO: 'Login bloqueado por tentativas',
   LOGOUT: 'Saída',
+  LOGOUT_TODOS: 'Saída de todos os aparelhos',
   ESCOPO_ALTERADO: 'Troca de escopo',
   ACESSO_NEGADO: 'Acesso negado',
   USUARIO_CRIADO: 'Usuário criado',

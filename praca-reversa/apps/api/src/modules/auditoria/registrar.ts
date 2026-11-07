@@ -9,6 +9,7 @@ export type AcaoAuditoria =
   | 'LOGIN_FALHA'
   | 'LOGIN_BLOQUEADO'
   | 'LOGOUT'
+  | 'LOGOUT_TODOS'
   | 'ESCOPO_ALTERADO'
   | 'ACESSO_NEGADO'
   | 'USUARIO_CRIADO'

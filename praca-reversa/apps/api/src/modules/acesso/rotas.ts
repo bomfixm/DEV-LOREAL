@@ -13,6 +13,7 @@ import {
 } from './contexto.js';
 import { escoposDoUsuario } from './escopos.js';
 import { hashParaContaInexistente, verificarSenha } from './senhas.js';
+import { revogarSessoesDoUsuario } from './sessoes.js';
 
 const CREDENCIAIS_INVALIDAS = 'Usuário ou senha inválidos.';
 
@@ -84,6 +85,22 @@ export function registrarRotasSessao(app: FastifyInstance, deps: Dependencias): 
       resultado: 'SUCESSO',
       atorUsuarioId: contexto.sessao.usuario.id,
       escopoId: contexto.escopoAtivo?.id ?? null,
+      requestId: request.id,
+    });
+    return reply.code(204).send();
+  });
+
+  // Encerra TODAS as sessões abertas do usuário (inclusive esta), em qualquer aparelho.
+  app.delete(`${API_PREFIXO}/sessao/todas`, async (request, reply) => {
+    const contexto = contextoDe(request);
+    const encerradas = await revogarSessoesDoUsuario(deps.db, contexto.sessao.usuario.id, 'LOGOUT_TODOS', new Date());
+    limparCookie(reply, deps.config);
+    await registrarEvento(deps.db, {
+      acao: 'LOGOUT_TODOS',
+      resultado: 'SUCESSO',
+      atorUsuarioId: contexto.sessao.usuario.id,
+      escopoId: contexto.escopoAtivo?.id ?? null,
+      detalhes: { sessoesEncerradas: encerradas },
       requestId: request.id,
     });
     return reply.code(204).send();

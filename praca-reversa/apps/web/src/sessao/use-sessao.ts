@@ -18,7 +18,8 @@ export type EstadoSessao =
 
 export interface AcoesSessao {
   entrar: (login: string, senha: string) => Promise<string | null>;
-  sair: () => Promise<void>;
+  /** `todos`: encerra também as sessões abertas em outros aparelhos. */
+  sair: (todos?: boolean) => Promise<void>;
   trocarEscopo: (escopoId: string) => Promise<string | null>;
   verificar: () => void;
 }
@@ -100,7 +101,8 @@ export function useSessao(): [EstadoSessao, AcoesSessao] {
         return mensagemDeFalha(erro);
       }
     },
-    sair: async () => {
+    sair: async (todos = false) => {
+      if (todos && !window.confirm('Isso encerra a sua conta neste e em todos os outros aparelhos e navegadores. Continuar?')) return;
       const locais = pendenciasLocais();
       const outras = await consultarOutrasAbas();
       if (locais > 0 || outras.pendencias.length > 0) {
@@ -114,7 +116,7 @@ export function useSessao(): [EstadoSessao, AcoesSessao] {
         if (!seguir) return;
       }
       try {
-        await enviarJson('DELETE', URL_SESSAO, z.null(), { ignorar401: true });
+        await enviarJson('DELETE', todos ? `${URL_SESSAO}/todas` : URL_SESSAO, z.null(), { ignorar401: true });
       } catch {
         // Mesmo sem resposta, o estado privado da interface é descartado.
       }

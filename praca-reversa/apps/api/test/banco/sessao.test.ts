@@ -179,6 +179,32 @@ describe('sessão atual, expiração e logout', () => {
     expect(ErroApiSchema.parse(reutilizada.json()).error.code).toBe('SESSAO_EXPIRADA');
   });
 
+  it('"sair de todos os aparelhos" encerra todas as sessões do usuário e só as dele', async () => {
+    const celular = await entrar(app, maria);
+    const computador = await entrar(app, maria);
+    const joao = await criarUsuario(db, 'joao.todos', [[ID_ESCOPO_PRACA, 'CONSULTA']]);
+    const sessaoJoao = await entrar(app, joao);
+
+    const semToken = await como(app, celular, { method: 'DELETE', url: '/api/v1/sessao/todas', semCsrf: true });
+    expect(semToken.statusCode).toBe(403);
+
+    const saida = await como(app, celular, { method: 'DELETE', url: '/api/v1/sessao/todas' });
+    expect(saida.statusCode).toBe(204);
+    expect(String(saida.headers['set-cookie'])).toMatch(/pr_sessao=;/);
+
+    for (const s of [celular, computador]) {
+      const r = await como(app, s, { method: 'GET', url: '/api/v1/praca' });
+      expect(r.statusCode).toBe(401);
+    }
+    expect((await como(app, sessaoJoao, { method: 'GET', url: '/api/v1/praca' })).statusCode).toBe(200);
+
+    const revogadas = await db.sessao.findMany({ where: { usuarioId: maria.id } });
+    expect(revogadas).toHaveLength(2);
+    expect(revogadas.every((r) => r.revogadaEm !== null && r.motivoRevogacao === 'LOGOUT_TODOS')).toBe(true);
+    const evento = await db.eventoAuditoria.findFirstOrThrow({ where: { acao: 'LOGOUT_TODOS', atorUsuarioId: maria.id } });
+    expect(evento.detalhes).toEqual({ sessoesEncerradas: 2 });
+  });
+
   it('conta desativada perde a sessão aberta', async () => {
     const sessao = await entrar(app, maria);
     await db.usuario.update({ where: { id: maria.id }, data: { ativo: false } });

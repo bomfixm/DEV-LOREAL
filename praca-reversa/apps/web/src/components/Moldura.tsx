@@ -44,7 +44,7 @@ interface PropsCabecalho {
   acaoPrincipal?: ReactNode;
   aoNavegar: Navegar;
   aoTrocarEscopo: (escopoId: string) => Promise<string | null>;
-  aoSair: () => void;
+  aoSair: (todos?: boolean) => void;
 }
 
 
@@ -227,6 +227,17 @@ export function Cabecalho({ sessao, rota, barraLateral = false, secao = null, pe
               }}
             >
               Sair
+            </button>
+            <button
+              type="button"
+              className="botao-secundario"
+              onClick={() => {
+                fecharMenu();
+                aoSair(true);
+              }}
+              data-testid="menu-sair-todos"
+            >
+              Sair de todos os aparelhos
             </button>
             <LinksDocumentos
               aoAbrir={(documento) => {

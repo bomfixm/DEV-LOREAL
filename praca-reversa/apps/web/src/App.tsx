@@ -492,9 +492,9 @@ function AreaAutenticada({
         }
         aoNavegar={navegar}
         aoTrocarEscopo={acoes.trocarEscopo}
-        aoSair={() => {
+        aoSair={(todos) => {
           encerrarTutorial();
-          void acoes.sair();
+          void acoes.sair(todos);
         }}
       />
       {sessao.activeScope !== null && naPraca && <OfertaTutorial usuarioId={usuarioId} aoComecar={comecarTutorial} />}

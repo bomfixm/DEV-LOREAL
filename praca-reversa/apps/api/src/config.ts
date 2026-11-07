@@ -19,7 +19,10 @@ const AmbienteSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, 'DATABASE_URL precisa ser uma URL PostgreSQL.'),
   /** Usuário do banco só com leitura/gravação de linhas (scripts/seguranca/usuario-aplicacao.mjs). Sem valor, o servidor usa DATABASE_URL. */
-  DATABASE_URL_APLICACAO: z.string().regex(/^postgres(ql)?:\/\//, 'DATABASE_URL_APLICACAO precisa ser uma URL PostgreSQL.').optional(),
+  DATABASE_URL_APLICACAO: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().regex(/^postgres(ql)?:\/\//, 'DATABASE_URL_APLICACAO precisa ser uma URL PostgreSQL.').optional(),
+  ),
   APP_SEGREDO: z.string().min(32, 'APP_SEGREDO precisa de pelo menos 32 caracteres.'),
   COOKIE_SEGURO: booleano.optional(),
   SESSAO_INATIVIDADE_MINUTOS: z.coerce.number().int().min(5).max(24 * 60).default(120),
@@ -218,6 +221,15 @@ export function lerConfiguracao(env: NodeJS.ProcessEnv, argv: readonly string[])
   const ambiente = AmbienteSchema.parse(portaArgumento === undefined ? env : { ...env, PORT: portaArgumento });
   if (ambiente.APP_AMBIENTE === 'producao' && ambiente.APP_SEGREDO.includes('TROQUE')) {
     throw new Error('APP_SEGREDO ainda contém o valor de exemplo.');
+  }
+  // O usuário da aplicação precisa apontar para o MESMO banco que DATABASE_URL: quem troca DATABASE_URL
+  // (testes, restauração, outro ambiente) sem trocar esta variável cairia, em silêncio, no banco errado.
+  if (ambiente.DATABASE_URL_APLICACAO !== undefined) {
+    const dono = new URL(ambiente.DATABASE_URL);
+    const app = new URL(ambiente.DATABASE_URL_APLICACAO);
+    if (dono.host !== app.host || dono.pathname !== app.pathname) {
+      throw new Error('DATABASE_URL_APLICACAO aponta para outro servidor ou banco que DATABASE_URL. Ajuste as duas ou remova DATABASE_URL_APLICACAO.');
+    }
   }
   // WEB_DIST relativo vale a partir da raiz do repositório (o servidor estático exige caminho absoluto).
   const pastaInterface = ambiente.WEB_DIST === undefined ? INTERFACE_PADRAO : resolve(RAIZ_REPOSITORIO, ambiente.WEB_DIST);

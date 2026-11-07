@@ -41,6 +41,7 @@ const TelaJanelas = lazy(() => import('./features/janelas/TelaJanelas').then((m)
 const TelaJanela = lazy(() => import('./features/janelas/TelaJanela').then((m) => ({ default: m.TelaJanela })));
 const TelaFormularioJanela = lazy(() => import('./features/janelas/TelaFormularioJanela').then((m) => ({ default: m.TelaFormularioJanela })));
 const TelaReserva = lazy(() => import('./features/janelas/TelaReserva').then((m) => ({ default: m.TelaReserva })));
+const TelaSeguranca = lazy(() => import('./features/acesso/TelaSeguranca').then((m) => ({ default: m.TelaSeguranca })));
 const TelaAplicativo = lazy(() => import('./pwa/TelaAplicativo').then((m) => ({ default: m.TelaAplicativo })));
 const TelaExpedicao = lazy(() => import('./features/janelas/TelaExpedicao').then((m) => ({ default: m.TelaExpedicao })));
 // Etapa 10: ajuda, tutorial, indicadores, relatórios e retirada de palete vazio.
@@ -262,6 +263,8 @@ function AreaAutenticada({
     );
   } else if (rota.tipo === 'aplicativo') {
     conteudo = <TelaAplicativo aoVoltar={voltarAoMapa} />;
+  } else if (rota.tipo === 'seguranca') {
+    conteudo = <TelaSeguranca aoVoltar={voltarAoMapa} />;
   } else if (rota.tipo === 'ajuda') {
     conteudo = <TelaAjuda guia={rota.guia} />;
   } else if (rota.tipo === 'indicadores') {

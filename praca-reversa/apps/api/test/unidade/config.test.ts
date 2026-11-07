@@ -28,6 +28,16 @@ describe('configuração', () => {
     expect(() => lerConfiguracao({ ...BASE, APP_SEGREDO: 'TROQUE_ESTE_SEGREDO_POR_UM_VALOR_ALEATORIO' }, [])).toThrow(/exemplo/);
   });
 
+  it('usuário limitado da aplicação: usado se existir, vazio vale como ausente, e outro banco é recusado', () => {
+    const app = 'postgresql://praca_app:x@127.0.0.1:5433/praca_reversa_dev';
+    expect(lerConfiguracao({ ...BASE, DATABASE_URL_APLICACAO: app }, []).databaseUrl).toBe(app);
+    expect(lerConfiguracao({ ...BASE, DATABASE_URL_APLICACAO: '' }, []).databaseUrl).toBe(BASE.DATABASE_URL);
+    expect(lerConfiguracao(BASE, []).databaseUrl).toBe(BASE.DATABASE_URL);
+    // Quem troca DATABASE_URL (testes, restauração) e esquece esta variável cairia no banco errado.
+    expect(() => lerConfiguracao({ ...BASE, DATABASE_URL: 'postgresql://u:p@127.0.0.1:5433/praca_reversa_e2e', DATABASE_URL_APLICACAO: app }, [])).toThrow(/outro servidor ou banco/);
+    expect(() => lerConfiguracao({ ...BASE, DATABASE_URL_APLICACAO: 'postgresql://praca_app:x@10.0.0.9:5433/praca_reversa_dev' }, [])).toThrow(/outro servidor ou banco/);
+  });
+
   it('--porta prevalece sobre um PORT genérico do ambiente (npm run dev)', () => {
     expect(lerConfiguracao({ ...BASE, PORT: '5173' }, ['--porta=3000']).port).toBe(3000);
     expect(lerConfiguracao({ ...BASE, PORT: '4310' }, []).port).toBe(4310);

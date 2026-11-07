@@ -60,6 +60,7 @@ export type Rota =
   | { tipo: 'acesso' }
   | { tipo: 'etiquetas'; ids: string[] }
   | { tipo: 'aplicativo' }
+  | { tipo: 'seguranca' }
   | { tipo: 'ajuda'; guia: IdTarefa | null }
   /** `aba` ausente = Visão geral; trocar de aba mantém o período. */
   | { tipo: 'indicadores'; inicio: string | null; fim: string | null; aba?: AbaIndicadores }
@@ -232,6 +233,7 @@ export function lerRota(caminho: string, busca: string): Rota {
   if (partes.length === 1 && primeira === 'layout') return { tipo: 'layout' };
   if (partes.length === 1 && primeira === 'acesso') return { tipo: 'acesso' };
   if (partes.length === 1 && primeira === 'aplicativo') return { tipo: 'aplicativo' };
+  if (partes.length === 1 && primeira === 'seguranca') return { tipo: 'seguranca' };
   if (partes.length === 1 && primeira === 'ajuda') {
     const guia = parametros.get('guia');
     return { tipo: 'ajuda', guia: ehTarefa(guia) ? guia : null };
@@ -339,6 +341,8 @@ export function caminhoDe(rota: Rota): string {
       return '/acesso';
     case 'aplicativo':
       return '/aplicativo';
+    case 'seguranca':
+      return '/seguranca';
     case 'ajuda':
       return rota.guia ? `/ajuda?guia=${rota.guia}` : '/ajuda';
     case 'indicadores': {

@@ -31,6 +31,7 @@ function usuarioAdmin(u: {
   nome: string;
   ativo: boolean;
   criadoEm: Date;
+  segundoFator?: { ativadoEm: Date | null } | null;
   vinculo: { perfil: UsuarioAdmin['role']; ativo: boolean; aprovaFinanceiro: boolean; selecaoClienteTeste: boolean };
 }): UsuarioAdmin {
   return {
@@ -42,6 +43,7 @@ function usuarioAdmin(u: {
     membershipActive: u.vinculo.ativo,
     financialApproval: u.vinculo.aprovaFinanceiro,
     clientSelectionTest: u.vinculo.selecaoClienteTeste,
+    twoFactor: Boolean(u.segundoFator?.ativadoEm),
     createdAt: u.criadoEm.toISOString(),
   };
 }
@@ -49,7 +51,7 @@ function usuarioAdmin(u: {
 async function vinculoNoEscopo(tx: Transacao, usuarioId: string, escopoId: string) {
   const vinculo = await tx.vinculo.findUnique({
     where: { usuarioId_escopoId: { usuarioId, escopoId } },
-    include: { usuario: true },
+    include: { usuario: { include: { segundoFator: true } } },
   });
   // Usuário sem vínculo no escopo ativo responde como inexistente.
   if (!vinculo) throw naoEncontrado('Usuário não encontrado neste escopo.');
@@ -68,7 +70,7 @@ export function registrarRotasAdmin(app: FastifyInstance, deps: Dependencias, au
     const escopo = escopoAtivoDe(request);
     const vinculos = await deps.db.vinculo.findMany({
       where: { escopoId: escopo.id },
-      include: { usuario: true },
+      include: { usuario: { include: { segundoFator: true } } },
       orderBy: { usuario: { login: 'asc' } },
     });
     return {
@@ -235,6 +237,7 @@ export function registrarRotasAdmin(app: FastifyInstance, deps: Dependencias, au
         const usuario = await tx.usuario.update({
           where: { id: alvoId },
           data: { ativo: dados.data.active, desativadoEm: dados.data.active ? null : agora, versao: { increment: 1 } },
+          include: { segundoFator: true },
         });
         const sessoesRevogadas = dados.data.active ? 0 : await revogarSessoesDoUsuario(tx, alvoId, 'CONTA_DESATIVADA', agora);
         await registrarEvento(tx, {
@@ -251,6 +254,52 @@ export function registrarRotasAdmin(app: FastifyInstance, deps: Dependencias, au
           status: 200,
           corpo: usuarioAdmin({
             ...usuario,
+            vinculo: { perfil: vinculo.perfil, ativo: vinculo.ativo, aprovaFinanceiro: vinculo.aprovaFinanceiro, selecaoClienteTeste: vinculo.selecaoClienteTeste },
+          }),
+        };
+      },
+    );
+    return responder(reply, resultado);
+  });
+
+  // Quem perdeu o celular e os códigos de recuperação: o administrador remove o segundo fator
+  // (a pessoa cadastra de novo ao entrar). Mesmas regras de alcance da desativação de conta.
+  app.post(`${API_PREFIXO}/admin/usuarios/:id/segundo-fator/redefinir`, administrar, async (request, reply) => {
+    const contexto = contextoDe(request);
+    const escopo = escopoAtivoDe(request);
+    const chave = chaveIdempotencia(request);
+    const parametros = ParametrosUsuarioSchema.safeParse(request.params);
+    if (!parametros.success) throw requisicaoInvalida('Usuário inválido.');
+    const alvoId = parametros.data.id;
+
+    const resultado = await executarIdempotente(
+      deps.db,
+      deps.config.appSegredo,
+      { escopoId: escopo.id, usuarioId: contexto.sessao.usuario.id, operacao: 'admin.redefinir_segundo_fator', chave, payload: { alvoId } },
+      async (tx): Promise<Resposta> => {
+        const vinculo = await vinculoNoEscopo(tx, alvoId, escopo.id);
+        const outrosEscopos = await tx.vinculo.findMany({ where: { usuarioId: alvoId, ativo: true, escopoId: { not: escopo.id } }, select: { escopoId: true } });
+        const administrados = new Set(contexto.escopos.filter((e) => e.role === 'ADMINISTRADOR').map((e) => e.id));
+        if (outrosEscopos.some((v) => !administrados.has(v.escopoId))) {
+          throw new ErroHttp(403, 'ACESSO_NEGADO', 'A conta tem acesso a escopos que você não administra.');
+        }
+        const removidos = await tx.segundoFator.deleteMany({ where: { usuarioId: alvoId } });
+        // Sessões abertas continuam; a próxima entrada deixa de pedir código até a pessoa cadastrar de novo.
+        await registrarEvento(tx, {
+          acao: 'SEGUNDO_FATOR_REDEFINIDO',
+          resultado: 'SUCESSO',
+          atorUsuarioId: contexto.sessao.usuario.id,
+          escopoId: escopo.id,
+          alvoTipo: 'USUARIO',
+          alvoId,
+          detalhes: { tinhaSegundoFator: removidos.count > 0 },
+          requestId: request.id,
+        });
+        return {
+          status: 200,
+          corpo: usuarioAdmin({
+            ...vinculo.usuario,
+            segundoFator: null,
             vinculo: { perfil: vinculo.perfil, ativo: vinculo.ativo, aprovaFinanceiro: vinculo.aprovaFinanceiro, selecaoClienteTeste: vinculo.selecaoClienteTeste },
           }),
         };

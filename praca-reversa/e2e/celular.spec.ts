@@ -35,7 +35,7 @@ test.describe('celular', () => {
     await entrarNoMapa(page, 'consulta');
     await page.getByTestId('menu-conta').locator('summary').tap();
     await expect(page.getByLabel('Unidade / cliente')).toBeVisible();
-    await page.getByRole('button', { name: 'Sair' }).tap();
+    await page.getByRole('button', { name: 'Sair', exact: true }).tap();
     await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible();
     await expect(page.locator('path[data-palete-id]')).toHaveCount(0);
   });

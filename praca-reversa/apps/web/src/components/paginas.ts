@@ -70,6 +70,8 @@ export const ITENS_MENU: readonly ItemMenu[] = [
   // Termos e privacidade: minutas, referência da aprovação humana e publicação (27 out. 2026).
   { rotulo: 'Termos e privacidade', rota: { tipo: 'documentos' }, permissoes: ['documentos.administrar'], ativo: (r) => r.tipo === 'documentos' },
   // Sem dados da operação: disponível para todos (etapa 09).
+  // Verificação em duas etapas da própria conta (7 nov. 2026): disponível para todos.
+  { rotulo: 'Segurança da conta', rota: { tipo: 'seguranca' }, permissoes: [], ativo: (r) => r.tipo === 'seguranca' },
   { rotulo: 'Aplicativo e aparelho', rota: { tipo: 'aplicativo' }, permissoes: [], ativo: (r) => r.tipo === 'aplicativo' },
   // Etapa 10: tutorial e guias por tarefa.
   { rotulo: 'Ajuda e tutorial', rota: { tipo: 'ajuda', guia: null }, permissoes: [], ativo: (r) => r.tipo === 'ajuda' },

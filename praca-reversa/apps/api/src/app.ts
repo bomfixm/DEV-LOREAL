@@ -14,6 +14,7 @@ import { registrarRotasOperacoes, registrarRotasVersao, type ConfigAplicativo } 
 import { LimitadorTentativas, type RegraLimite } from './modules/acesso/limitador.js';
 import { registrarRotasLogin, registrarRotasSessao } from './modules/acesso/rotas.js';
 import { hashParaContaInexistente } from './modules/acesso/senhas.js';
+import { ServicoSegundoFator } from './modules/acesso/segundo-fator.js';
 import { ServicoSessoes } from './modules/acesso/sessoes.js';
 import { registrarRotasAdmin } from './modules/admin/rotas.js';
 import { registrarRotasAjuda } from './modules/ajuda/rotas.js';
@@ -91,6 +92,7 @@ export async function criarApp(opcoes: OpcoesApp): Promise<FastifyInstance> {
       },
       agora,
     ),
+    segundoFator: new ServicoSegundoFator(opcoes.db, opcoes.config.appSegredo, agora),
     limiteLoginPorConta: new LimitadorTentativas(opcoes.db, 'CONTA', limites.porConta, opcoes.config.appSegredo, relogio),
     limiteLoginPorIp: new LimitadorTentativas(opcoes.db, 'IP', limites.porIp, opcoes.config.appSegredo, relogio),
     importacao: { ...LIMITES_IMPORTACAO_PADRAO, ...opcoes.limitesImportacao },

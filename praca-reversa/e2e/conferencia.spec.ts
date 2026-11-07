@@ -114,7 +114,7 @@ test.describe('conferência e reconciliação', () => {
     await entrar(page, 'supervisor');
     const { palete, codigoUnidade, codigoCaixa } = await prepararCenario(page, testInfo, 'C1');
     await page.getByTestId('menu-conta').locator('summary').click();
-    await page.getByRole('button', { name: 'Sair' }).click();
+    await page.getByRole('button', { name: 'Sair', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible();
 
     // Operador abre o palete pelo link do QR.
@@ -306,7 +306,7 @@ test.describe('conferência e reconciliação', () => {
     await entrar(page, 'supervisor');
     const { palete } = await prepararCenario(page, testInfo, 'Q1');
     await page.getByTestId('menu-conta').locator('summary').click();
-    await page.getByRole('button', { name: 'Sair' }).click();
+    await page.getByRole('button', { name: 'Sair', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible();
     await entrar(page, 'consultaCadastro');
     await abrirPalete(page, palete.id);

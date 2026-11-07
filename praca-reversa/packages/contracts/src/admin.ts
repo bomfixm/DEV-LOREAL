@@ -47,6 +47,8 @@ export const UsuarioAdminSchema = z.object({
   membershipActive: z.boolean(),
   financialApproval: z.boolean(),
   clientSelectionTest: z.boolean().default(false),
+  /** Verificação em duas etapas ativa na conta. */
+  twoFactor: z.boolean().default(false),
   createdAt: z.iso.datetime(),
 });
 export type UsuarioAdmin = z.infer<typeof UsuarioAdminSchema>;

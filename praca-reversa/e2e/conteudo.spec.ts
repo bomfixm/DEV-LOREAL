@@ -38,7 +38,7 @@ test.describe('Registrar conteúdo e conferência de volumes', () => {
     const menuConta = page.getByTestId('menu-conta');
     await expect(menuConta.getByRole('button', { name: 'Registrar conteúdo' })).toHaveCount(0);
     await expect(menuConta.getByTestId('seletor-tema')).toHaveCount(0);
-    await expect(menuConta.getByRole('button', { name: 'Sair' })).toBeVisible();
+    await expect(menuConta.getByRole('button', { name: 'Sair', exact: true })).toBeVisible();
     await expect(menuConta.getByText('Catálogo de SKU')).toHaveCount(0);
 
     // Rotas antigas ("Novo produto" e catálogo de SKU) levam ao "Registrar conteúdo", sem SKU.

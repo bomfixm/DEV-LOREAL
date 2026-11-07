@@ -306,8 +306,27 @@ export type EscopoComPerfil = z.infer<typeof EscopoComPerfilSchema>;
 export const LoginSchema = z.object({
   login: z.string().trim().min(1).max(64),
   senha: z.string().min(1).max(256),
+  /** Código de 6 dígitos do aplicativo autenticador, ou código de recuperação; só para quem ativou o segundo fator. */
+  codigo: z.string().trim().min(6).max(16).optional(),
 });
 export type Login = z.infer<typeof LoginSchema>;
+
+/** Código de erro (HTTP 401) quando a senha está certa mas falta o código do segundo fator. */
+export const ERRO_SEGUNDO_FATOR_NECESSARIO = 'SEGUNDO_FATOR_NECESSARIO';
+
+export const SegundoFatorSituacaoSchema = z.object({
+  enabled: z.boolean(),
+  recoveryCodesLeft: z.number().int().min(0),
+});
+export type SegundoFatorSituacao = z.infer<typeof SegundoFatorSituacaoSchema>;
+
+export const SegundoFatorInicioSchema = z.object({ secret: z.string().min(16), otpauthUri: z.string().startsWith('otpauth://totp/') });
+export type SegundoFatorInicio = z.infer<typeof SegundoFatorInicioSchema>;
+
+export const CodigoSegundoFatorSchema = z.object({ code: z.string().trim().min(6).max(16) });
+export const SegundoFatorAtivadoSchema = z.object({ recoveryCodes: z.array(z.string().min(1)).min(1) });
+export type SegundoFatorAtivado = z.infer<typeof SegundoFatorAtivadoSchema>;
+export const DesativarSegundoFatorSchema = z.object({ password: z.string().min(1).max(256), code: z.string().trim().min(6).max(16) });
 
 export const SessaoSchema = z.object({
   user: z.object({ id: z.uuid(), login: z.string().min(1), name: z.string().min(1) }),

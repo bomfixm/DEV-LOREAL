@@ -105,7 +105,7 @@ test.describe('PWA', () => {
     await expect(page.locator('path[data-palete-id]').first()).toBeAttached();
 
     await page.getByTestId('menu-conta').locator('summary').click();
-    await page.getByRole('button', { name: 'Sair' }).click();
+    await page.getByRole('button', { name: 'Sair', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible();
     await context.setOffline(true);
     await page.reload();

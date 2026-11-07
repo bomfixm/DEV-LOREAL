@@ -98,7 +98,7 @@ async function prepararCenario(page: Page, testInfo: TestInfo, nome: string) {
 
 async function trocarUsuario(page: Page, quem: keyof Credenciais): Promise<void> {
   await abrirMenuConta(page);
-  await page.getByRole('button', { name: 'Sair' }).click();
+  await page.getByRole('button', { name: 'Sair', exact: true }).click();
   const { login, senha } = credenciais()[quem];
   await page.getByLabel('Usuário').fill(login);
   await page.getByLabel('Senha', { exact: true }).fill(senha);

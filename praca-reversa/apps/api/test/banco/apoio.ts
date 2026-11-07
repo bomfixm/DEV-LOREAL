@@ -102,6 +102,7 @@ const TABELAS = [
   'evento_auditoria',
   'registro_idempotencia',
   'tentativa_login',
+  'segundo_fator',
   'historico_layout',
   'sequencia_palete',
   'codigo_barras',

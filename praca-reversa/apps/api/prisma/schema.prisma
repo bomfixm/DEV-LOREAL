@@ -415,6 +415,7 @@ model Usuario {
   atualizadoEm DateTime  @updatedAt @map("atualizado_em") @db.Timestamptz(3)
   desativadoEm DateTime? @map("desativado_em") @db.Timestamptz(3)
 
+  segundoFator      SegundoFator?
   vinculos          Vinculo[]
   sessoes           Sessao[]
   eventos           EventoAuditoria[]
@@ -605,6 +606,22 @@ model Vinculo {
 
 /// Sessão no servidor. O cookie contém um identificador opaco; aqui fica só o
 /// SHA-256 dele. O token anti-CSRF é derivado do identificador (HMAC) e não é guardado.
+/// Verificação em duas etapas (TOTP) por usuário. O segredo fica cifrado (AES-256-GCM, chave derivada de APP_SEGREDO);
+/// os códigos de recuperação ficam só como HMAC. `ativadoEm` nulo = cadastro iniciado e ainda não confirmado.
+model SegundoFator {
+  usuarioId          String    @id @map("usuario_id") @db.Uuid
+  segredoCifrado     String    @map("segredo_cifrado")
+  ativadoEm          DateTime? @map("ativado_em") @db.Timestamptz(3)
+  /// Último intervalo de 30 s aceito: impede reusar o mesmo código.
+  ultimoPasso        Int?      @map("ultimo_passo")
+  codigosRecuperacao String[]  @default([]) @map("codigos_recuperacao")
+  criadoEm           DateTime  @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@map("segundo_fator")
+}
+
 model Sessao {
   id              String    @id @default(uuid()) @db.Uuid
   tokenHash       String    @unique @map("token_hash")

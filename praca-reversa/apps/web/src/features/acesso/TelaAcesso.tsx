@@ -28,6 +28,9 @@ const ROTULOS_ACAO: Record<string, string> = {
   LOGIN_BLOQUEADO: 'Login bloqueado por tentativas',
   LOGOUT: 'Saída',
   LOGOUT_TODOS: 'Saída de todos os aparelhos',
+  SEGUNDO_FATOR_ATIVADO: 'Verificação em duas etapas ativada',
+  SEGUNDO_FATOR_DESATIVADO: 'Verificação em duas etapas desativada',
+  SEGUNDO_FATOR_REDEFINIDO: 'Verificação em duas etapas redefinida pelo administrador',
   ESCOPO_ALTERADO: 'Troca de escopo',
   ACESSO_NEGADO: 'Acesso negado',
   USUARIO_CRIADO: 'Usuário criado',
@@ -101,6 +104,15 @@ export function TelaAcesso({ sessao, aoVoltar }: Props) {
       (chave) => enviarJson('PUT', `${URL_USUARIOS}/${u.id}/vinculo`, UsuarioAdminSchema, { corpo, idempotencia: chave }),
       (r) =>
         `Vínculo de ${r.login} atualizado: ${ROTULOS_PERFIL[r.role]}, ${r.membershipActive ? 'ativo' : 'inativo'}${r.financialApproval ? ', com aprovação financeira de claims' : ''}${r.clientSelectionTest ? ', com acesso à Seleção cliente — teste' : ''}.`,
+    );
+  }
+
+  function redefinirSegundoFator(u: UsuarioAdmin) {
+    if (!window.confirm(`Remover a verificação em duas etapas de ${u.login}? A pessoa entra só com a senha até cadastrar de novo.`)) return;
+    void executar(
+      `2fa-redefinir:${u.id}`,
+      (chave) => enviarJson('POST', `${URL_USUARIOS}/${u.id}/segundo-fator/redefinir`, UsuarioAdminSchema, { corpo: {}, idempotencia: chave }),
+      (r) => `Duas etapas de ${r.login} removidas. Peça para cadastrar de novo em "Segurança da conta".`,
     );
   }
 
@@ -287,6 +299,20 @@ export function TelaAcesso({ sessao, aoVoltar }: Props) {
                       >
                         {u.accountActive ? 'Desativar conta' : 'Reativar conta'}
                       </button>
+                      <span data-testid="situacao-2fa-usuario">Duas etapas: {u.twoFactor ? 'ativada' : 'desativada'}</span>
+                      {u.twoFactor && !proprio && (
+                        <button
+                          type="button"
+                          className="botao-secundario"
+                          disabled={ocupado !== null}
+                          onClick={() => {
+                            redefinirSegundoFator(u);
+                          }}
+                          data-testid="redefinir-2fa"
+                        >
+                          Redefinir duas etapas (perdeu o celular)
+                        </button>
+                      )}
                     </div>
                   </li>
                 );

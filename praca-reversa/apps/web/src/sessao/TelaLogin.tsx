@@ -1,11 +1,12 @@
 import { useState, type SubmitEvent } from 'react';
 import { LinksDocumentos } from '../components/LinksDocumentos';
+import { PEDE_CODIGO } from './use-sessao';
 
 interface Props {
   aviso: string | null;
   /** Destino interno (já validado) aberto depois do login. */
   retorno: string;
-  aoEntrar: (login: string, senha: string) => Promise<string | null>;
+  aoEntrar: (login: string, senha: string, codigo?: string) => Promise<string | null>;
   /** Instalação, aparelho e versões (sem dados da operação). */
   aoAbrirAplicativo: () => void;
 }
@@ -22,6 +23,8 @@ export function TelaLogin({ aviso, retorno, aoEntrar, aoAbrirAplicativo }: Props
   const destino = descreverRetorno(retorno);
   const [login, setLogin] = useState('');
   const [senha, setSenha] = useState('');
+  const [codigo, setCodigo] = useState('');
+  const [pedirCodigo, setPedirCodigo] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -32,12 +35,22 @@ export function TelaLogin({ aviso, retorno, aoEntrar, aoAbrirAplicativo }: Props
       setErro('Informe usuário e senha.');
       return;
     }
+    if (pedirCodigo && codigo.trim() === '') {
+      setErro('Digite o código de 6 dígitos do aplicativo autenticador.');
+      return;
+    }
     setEnviando(true);
     setErro(null);
-    const falha = await aoEntrar(login, senha);
-    if (falha !== null) {
+    const falha = await aoEntrar(login, senha, pedirCodigo ? codigo : undefined);
+    if (falha === PEDE_CODIGO) {
+      // Senha certa: falta só o segundo fator. A senha fica na tela para reenviar junto com o código.
+      setPedirCodigo(true);
+      setCodigo('');
+      setEnviando(false);
+    } else if (falha !== null) {
       setErro(falha);
-      setSenha('');
+      if (pedirCodigo) setCodigo('');
+      else setSenha('');
       setEnviando(false);
     }
   }
@@ -88,6 +101,24 @@ export function TelaLogin({ aviso, retorno, aoEntrar, aoAbrirAplicativo }: Props
             }}
           />
         </label>
+        {pedirCodigo && (
+          <label className="campo">
+            <span className="campo-rotulo">Código do aplicativo autenticador</span>
+            <input
+              name="codigo"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              spellCheck={false}
+              placeholder="6 dígitos (ou código de recuperação)"
+              value={codigo}
+              onChange={(e) => {
+                setCodigo(e.target.value);
+              }}
+              data-testid="campo-codigo"
+            />
+          </label>
+        )}
         <button type="submit" className="botao-primario" disabled={enviando} aria-busy={enviando}>
           {enviando ? 'Entrando…' : 'Entrar'}
         </button>

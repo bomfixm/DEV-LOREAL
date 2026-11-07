@@ -18,6 +18,7 @@ import type { ConfigPlanilha } from '../protecao/configuracao.js';
 import { termosPendentes } from '../documentos/servico.js';
 import { escoposDoUsuario } from './escopos.js';
 import type { LimitadorTentativas } from './limitador.js';
+import type { ServicoSegundoFator } from './segundo-fator.js';
 import type { ServicoSessoes, SessaoValida } from './sessoes.js';
 import { iguaisEmTempoConstante, tokenCsrf } from './tokens.js';
 
@@ -47,6 +48,7 @@ export interface Dependencias {
   config: ConfigAcesso;
   agora: () => Date;
   sessoes: ServicoSessoes;
+  segundoFator: ServicoSegundoFator;
   limiteLoginPorConta: LimitadorTentativas;
   limiteLoginPorIp: LimitadorTentativas;
   /** Limites de arquivo e processamento da importação (configuráveis). */

@@ -1,4 +1,4 @@
-import { API_PREFIXO, SessaoSchema, type Sessao } from '@praca-reversa/contracts';
+import { API_PREFIXO, ERRO_SEGUNDO_FATOR_NECESSARIO, SessaoSchema, type Sessao } from '@praca-reversa/contracts';
 import { useCallback, useEffect, useState } from 'react';
 import { z } from 'zod';
 import { FalhaRequisicao, aoSessaoPerdida, definirTokenCsrf, enviarJson, mensagemDeFalha, obterJson } from '../api/cliente';
@@ -10,6 +10,9 @@ import { aoSessaoEncerradaEmOutraAba, avisarSessaoEncerrada, consultarOutrasAbas
 
 const URL_SESSAO = `${API_PREFIXO}/sessao`;
 
+/** Devolvido por `entrar` quando a senha está certa e a conta pede o código do segundo fator. */
+export const PEDE_CODIGO = ERRO_SEGUNDO_FATOR_NECESSARIO;
+
 export type EstadoSessao =
   | { estado: 'verificando' }
   | { estado: 'anonimo'; aviso: string | null }
@@ -17,7 +20,8 @@ export type EstadoSessao =
   | { estado: 'erro'; mensagem: string; semResposta: boolean };
 
 export interface AcoesSessao {
-  entrar: (login: string, senha: string) => Promise<string | null>;
+  /** Devolve null (entrou), PEDE_CODIGO (falta o código do segundo fator) ou a mensagem de falha. */
+  entrar: (login: string, senha: string, codigo?: string) => Promise<string | null>;
   /** `todos`: encerra também as sessões abertas em outros aparelhos. */
   sair: (todos?: boolean) => Promise<void>;
   trocarEscopo: (escopoId: string) => Promise<string | null>;
@@ -93,11 +97,13 @@ export function useSessao(): [EstadoSessao, AcoesSessao] {
   }, [encerrar]);
 
   const acoes: AcoesSessao = {
-    entrar: async (login, senha) => {
+    entrar: async (login, senha, codigo) => {
       try {
-        autenticar(await enviarJson('POST', URL_SESSAO, SessaoSchema, { corpo: { login, senha }, ignorar401: true }));
+        const corpo = codigo === undefined || codigo.trim() === '' ? { login, senha } : { login, senha, codigo };
+        autenticar(await enviarJson('POST', URL_SESSAO, SessaoSchema, { corpo, ignorar401: true }));
         return null;
       } catch (erro) {
+        if (erro instanceof FalhaRequisicao && erro.codigo === PEDE_CODIGO) return PEDE_CODIGO;
         return mensagemDeFalha(erro);
       }
     },

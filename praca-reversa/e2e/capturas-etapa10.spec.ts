@@ -70,7 +70,7 @@ test.describe('capturas etapa 10 @captura', () => {
 
     // Indicadores e relatórios (supervisor de estoque da demonstração).
     await page.getByTestId('menu-conta').locator('summary').click();
-    await page.getByRole('button', { name: 'Sair' }).click();
+    await page.getByRole('button', { name: 'Sair', exact: true }).click();
     // Navegar antes da resposta interromperia a saída e manteria a sessão.
     await expect(page.getByTestId('aviso-login')).toHaveText('Você saiu.');
     await entrar(page, 'supervisorDemo');

@@ -11,7 +11,7 @@ test.describe('sessão na interface', () => {
   test('sair encerra a sessão no servidor e descarta os dados da tela', async ({ page }) => {
     await entrarNoMapa(page, 'consulta');
     await abrirMenu(page);
-    await page.getByRole('button', { name: 'Sair' }).click();
+    await page.getByRole('button', { name: 'Sair', exact: true }).click();
     await expect(page.getByTestId('aviso-login')).toHaveText('Você saiu.');
     await expect(page.locator('path[data-palete-id]')).toHaveCount(0);
     await expect(page.locator('.item-palete')).toHaveCount(0);

@@ -71,6 +71,9 @@ export default defineConfig({
         // Links das etiquetas QR: o próprio servidor de teste (endereço local).
         APP_URL_PUBLICA: URL_BASE,
         DATABASE_URL: process.env.DATABASE_URL_E2E ?? '',
+        // O usuário limitado e o destino externo do .env são do banco real: o E2E nunca os usa.
+        DATABASE_URL_APLICACAO: '',
+        BACKUP_DESTINO_EXTERNO: '',
         // Planilha e backup do E2E em pastas próprias; sem backup automático (nunca na pasta dos backups reais).
         PLANILHA_PASTA_LOCAL: '.dados/e2e/planilha',
         BACKUP_DESTINO: '.dados/e2e/backups',
@@ -96,6 +99,9 @@ export default defineConfig({
         WEB_DIST: 'apps/web/dist-praca',
         APP_URL_PUBLICA: ORIGEM_CAMINHO_BASE,
         DATABASE_URL: process.env.DATABASE_URL_E2E ?? '',
+        // O usuário limitado e o destino externo do .env são do banco real: o E2E nunca os usa.
+        DATABASE_URL_APLICACAO: '',
+        BACKUP_DESTINO_EXTERNO: '',
         // Planilha e backup do E2E em pastas próprias; sem backup automático (nunca na pasta dos backups reais).
         PLANILHA_PASTA_LOCAL: '.dados/e2e/planilha',
         BACKUP_DESTINO: '.dados/e2e/backups',

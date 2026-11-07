@@ -1,5 +1,6 @@
 import { CABECALHO_CONTRATO, CONTRATO_MINIMO_INTERFACE, VERSAO_CONTRATO, contratoAceito } from '@praca-reversa/contracts';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { createHash } from 'node:crypto';
 import { ErroHttp } from './erros.js';
 
 const METODOS_MUTAVEIS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -51,7 +52,49 @@ export function verificarContrato(request: FastifyRequest, prefixoApi: string): 
   }
 }
 
-export function registrarSeguranca(app: FastifyInstance, caminhoBase = '/'): void {
+/**
+ * Política de conteúdo: a página só executa scripts do próprio servidor (mais os
+ * scripts embutidos do index.html, liberados um a um pelo hash) e só conversa
+ * com o próprio servidor. Assim, um texto malicioso que consiga entrar numa tela
+ * não roda código nem envia dados para fora. `wasm-unsafe-eval` é exigido pelo
+ * leitor de código de barras e pelo OCR (WebAssembly local); `blob:` serve a
+ * foto da câmera e os trabalhadores. Estilos embutidos são necessários para o
+ * React (atributo style) e não executam código.
+ */
+export function montarPoliticaDeConteudo(indiceHtml: string | null): string {
+  const hashes: string[] = [];
+  if (indiceHtml !== null) {
+    for (const achado of indiceHtml.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/gi)) {
+      const conteudo = achado[1] ?? '';
+      if (conteudo.trim() === '') continue;
+      hashes.push(`'sha256-${createHash('sha256').update(conteudo).digest('base64')}'`);
+    }
+  }
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'wasm-unsafe-eval' ${hashes.join(' ')}`.trim(),
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "worker-src 'self' blob:",
+    "media-src 'self' blob:",
+    "manifest-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; ');
+}
+
+export interface OpcoesSeguranca {
+  /** Política de conteúdo (ver `montarPoliticaDeConteudo`); `null` não envia. */
+  politicaDeConteudo?: string | null;
+  /** Só com HTTPS: manda o navegador usar sempre cadeado neste endereço. */
+  hsts?: boolean;
+}
+
+export function registrarSeguranca(app: FastifyInstance, caminhoBase = '/', opcoes: OpcoesSeguranca = {}): void {
   const prefixoApi = `${caminhoBase}api/`;
   // Só JSON é aceito: formulários de outros sites (text/plain, urlencoded,
   // multipart) recebem 415 sem chegar às rotas.
@@ -73,6 +116,12 @@ export function registrarSeguranca(app: FastifyInstance, caminhoBase = '/'): voi
     reply.header('x-content-type-options', 'nosniff');
     reply.header('referrer-policy', 'same-origin');
     reply.header('x-frame-options', 'DENY');
+    // A câmera é usada pela própria tela (leitura de código e foto da nota); o resto fica desligado.
+    reply.header('permissions-policy', 'camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()');
+    reply.header('cross-origin-opener-policy', 'same-origin');
+    reply.header('cross-origin-resource-policy', 'same-origin');
+    if (opcoes.politicaDeConteudo) reply.header('content-security-policy', opcoes.politicaDeConteudo);
+    if (opcoes.hsts === true) reply.header('strict-transport-security', 'max-age=31536000; includeSubDomains');
     if (request.url.startsWith(prefixoApi)) {
       // Nada da API vai para cache (HTTP nem service worker; ver vite.config.ts).
       reply.header('cache-control', 'no-store');

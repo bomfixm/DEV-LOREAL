@@ -6,7 +6,9 @@ import { ehFalhaDeConexao, type Banco } from './db/cliente.js';
 import { ehRestricaoDeImportacao, restricaoDeClaim, restricaoDeConferencia, restricaoDeJanela } from './db/erros.js';
 import { ErroHttp, corpoErro, enviarErro } from './http/erros.js';
 import { ehRotaDaInterface, enviarIndice, registrarInterface } from './http/interface.js';
-import { registrarSeguranca } from './http/seguranca.js';
+import { montarPoliticaDeConteudo, registrarSeguranca } from './http/seguranca.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { criarAutenticacao, type ConfigAcesso, type Dependencias } from './modules/acesso/contexto.js';
 import { registrarRotasOperacoes, registrarRotasVersao, type ConfigAplicativo } from './modules/aplicativo/rotas.js';
 import { LimitadorTentativas, type RegraLimite } from './modules/acesso/limitador.js';
@@ -110,7 +112,10 @@ export async function criarApp(opcoes: OpcoesApp): Promise<FastifyInstance> {
 
   await app.register(fastifyCookie);
   app.decorateRequest('acesso', null);
-  registrarSeguranca(app, base);
+  // Política de conteúdo só quando este servidor entrega a interface (o hash do script embutido vem do index.html gerado).
+  const politicaDeConteudo =
+    opcoes.interfaceDir === null ? null : montarPoliticaDeConteudo(readFileSync(join(opcoes.interfaceDir, 'index.html'), 'utf8'));
+  registrarSeguranca(app, base, { politicaDeConteudo, hsts: opcoes.config.cookieSeguro });
 
   app.setErrorHandler((erro, request, reply) => {
     if (erro instanceof ErroHttp) {

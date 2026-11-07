@@ -79,6 +79,22 @@ export const ListaAuditoriaSchema = z.object({
 });
 export type ListaAuditoria = z.infer<typeof ListaAuditoriaSchema>;
 
+export const AlertaSegurancaSchema = z.object({
+  code: z.string().min(1),
+  level: z.enum(['ATENCAO', 'ALTA']),
+  title: z.string().min(1),
+  detail: z.string().min(1),
+  count: z.number().int().min(1),
+  windowMinutes: z.number().int().min(1),
+});
+export type AlertaSeguranca = z.infer<typeof AlertaSegurancaSchema>;
+
+export const ListaAlertasSegurancaSchema = z.object({
+  generatedAt: z.iso.datetime(),
+  items: z.array(AlertaSegurancaSchema),
+});
+export type ListaAlertasSeguranca = z.infer<typeof ListaAlertasSegurancaSchema>;
+
 /** Cabeçalho obrigatório nas mutações administrativas. */
 export const CABECALHO_IDEMPOTENCIA = 'idempotency-key';
 export const ChaveIdempotenciaSchema = z.string().regex(/^[A-Za-z0-9_-]{8,200}$/);

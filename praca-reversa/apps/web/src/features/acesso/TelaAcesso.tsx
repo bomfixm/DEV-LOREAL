@@ -1,5 +1,6 @@
 import {
   API_PREFIXO,
+  ListaAlertasSegurancaSchema,
   ListaAuditoriaSchema,
   ListaUsuariosSchema,
   PERFIS,
@@ -18,7 +19,8 @@ import { ROTULOS_PERFIL } from '../../sessao/perfis';
 import { formatarDataHora } from '../../utils/datas';
 
 const URL_USUARIOS = `${API_PREFIXO}/admin/usuarios`;
-const URL_AUDITORIA = `${API_PREFIXO}/admin/auditoria?limite=50`;
+const URL_ALERTAS = `${API_PREFIXO}/admin/alertas-seguranca`;
+const URL_AUDITORIA =`${API_PREFIXO}/admin/auditoria?limite=50`;
 
 const ROTULOS_ACAO: Record<string, string> = {
   LOGIN_SUCESSO: 'Login',
@@ -55,6 +57,7 @@ export function TelaAcesso({ sessao, aoVoltar }: Props) {
   const usuarios = useRecurso(URL_USUARIOS, ListaUsuariosSchema);
   const podeAuditar = sessao.permissions.includes('auditoria.consultar');
   const auditoria = useRecurso(podeAuditar ? URL_AUDITORIA : null, ListaAuditoriaSchema);
+  const alertas = useRecurso(URL_ALERTAS, ListaAlertasSegurancaSchema);
   const chaves = useChaves();
   const [mensagem, setMensagem] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
@@ -291,6 +294,30 @@ export function TelaAcesso({ sessao, aoVoltar }: Props) {
             </ul>
           ) : (
             <p className="estado-carregando">Carregando usuários…</p>
+          )}
+        </section>
+
+        <section className="cartao" aria-labelledby="titulo-alertas" data-testid="alertas-seguranca">
+          <h3 id="titulo-alertas">Alertas de segurança</h3>
+          {alertas.carga?.estado === 'erro' ? (
+            <p className="estado-erro" role="alert">
+              {alertas.carga.mensagem}
+            </p>
+          ) : alertas.carga?.estado === 'pronto' ? (
+            alertas.carga.dados.items.length === 0 ? (
+              <p>Nenhuma atividade anormal detectada.</p>
+            ) : (
+              <ul>
+                {alertas.carga.dados.items.map((a) => (
+                  <li key={a.code}>
+                    <strong>{a.level === 'ALTA' ? 'Alta' : 'Atenção'}: </strong>
+                    {a.title}. {a.detail}
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : (
+            <p className="estado-carregando">Verificando…</p>
           )}
         </section>
 

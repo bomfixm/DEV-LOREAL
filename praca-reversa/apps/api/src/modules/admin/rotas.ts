@@ -6,6 +6,7 @@ import {
   FiltroAuditoriaSchema,
   PERFIS_APROVACAO_FINANCEIRA,
   PERFIS_SELECAO_TESTE,
+  type ListaAlertasSeguranca,
   type ListaAuditoria,
   type UsuarioAdmin,
 } from '@praca-reversa/contracts';
@@ -17,6 +18,7 @@ import { ErroHttp, naoEncontrado, requisicaoInvalida } from '../../http/erros.js
 import { contextoDe, escopoAtivoDe, type Autenticacao, type Dependencias } from '../acesso/contexto.js';
 import { gerarHashSenha } from '../acesso/senhas.js';
 import { revogarSessoesDoUsuario } from '../acesso/sessoes.js';
+import { avaliarAlertas } from '../auditoria/alertas.js';
 import { registrarEvento } from '../auditoria/registrar.js';
 import { executarIdempotente, type Resposta } from '../idempotencia/executar.js';
 import { chaveIdempotencia, responder } from '../idempotencia/http.js';
@@ -255,6 +257,12 @@ export function registrarRotasAdmin(app: FastifyInstance, deps: Dependencias, au
       },
     );
     return responder(reply, resultado);
+  });
+
+  app.get(`${API_PREFIXO}/admin/alertas-seguranca`, administrar, async () => {
+    const agora = deps.agora();
+    const corpo: ListaAlertasSeguranca = { generatedAt: agora.toISOString(), items: await avaliarAlertas(deps.db, agora) };
+    return corpo;
   });
 
   app.get(`${API_PREFIXO}/admin/auditoria`, { preHandler: auth.exigirPermissao('auditoria.consultar') }, async (request) => {

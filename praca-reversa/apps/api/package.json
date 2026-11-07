@@ -21,16 +21,16 @@
     "protecao": "tsx src/cli/protecao.ts"
   },
   "dependencies": {
-    "@fastify/cookie": "11.1.2",
-    "@fastify/static": "10.1.5",
+    "@fastify/cookie": "11.1.5",
+    "@fastify/static": "10.1.10",
     "@praca-reversa/contracts": "0.1.0",
-    "@prisma/adapter-pg": "7.10.0",
-    "@prisma/client": "7.10.0",
-    "fastify": "5.12.5",
-    "zod": "4.6.5"
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "fastify": "5.12.8",
+    "zod": "4.6.7"
   },
   "devDependencies": {
-    "prisma": "7.10.0",
+    "prisma": "7.10.1",
     "tsx": "4.23.15"
   }
 }

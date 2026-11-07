@@ -18,6 +18,8 @@ const AmbienteSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, 'DATABASE_URL precisa ser uma URL PostgreSQL.'),
+  /** Usuário do banco só com leitura/gravação de linhas (scripts/seguranca/usuario-aplicacao.mjs). Sem valor, o servidor usa DATABASE_URL. */
+  DATABASE_URL_APLICACAO: z.string().regex(/^postgres(ql)?:\/\//, 'DATABASE_URL_APLICACAO precisa ser uma URL PostgreSQL.').optional(),
   APP_SEGREDO: z.string().min(32, 'APP_SEGREDO precisa de pelo menos 32 caracteres.'),
   COOKIE_SEGURO: booleano.optional(),
   SESSAO_INATIVIDADE_MINUTOS: z.coerce.number().int().min(5).max(24 * 60).default(120),
@@ -232,7 +234,7 @@ export function lerConfiguracao(env: NodeJS.ProcessEnv, argv: readonly string[])
     host: ambiente.HOST,
     port: ambiente.PORT,
     logLevel: ambiente.LOG_LEVEL,
-    databaseUrl: ambiente.DATABASE_URL,
+    databaseUrl: ambiente.DATABASE_URL_APLICACAO ?? ambiente.DATABASE_URL,
     appSegredo: ambiente.APP_SEGREDO,
     cookieSeguro: ambiente.COOKIE_SEGURO ?? ambiente.APP_AMBIENTE === 'producao',
     sessaoInatividadeMinutos: ambiente.SESSAO_INATIVIDADE_MINUTOS,

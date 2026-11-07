@@ -658,3 +658,10 @@ O prompt mandava ignorar códigos de barras e guardar as fotos. O usuário decid
 ### 6 nov. 2026 — Excluir da validação urgente
 
 A fila só permitia colocar no mapa, mas a NF pode já ter sido entregue. Novo botão Excluir (`POST /validacao/excluir`, permissão `conteudo.corrigir`): uma ou várias notas, motivo e confirmação. A nota vai para CANCELADO, sem apagar linha: histórico e auditoria ficam, e nova carga de inventário não a recoloca no estoque. Módulos: `packages/contracts/src/correcoes.ts`, `apps/api/src/modules/conteudos`, `apps/web/src/features/conteudos/TelaValidacao.tsx`.
+
+### 7 nov. 2026 — Segurança do banco e da sessão (passos 3 a 6)
+
+- Bloqueio de login guardado no banco (`tentativa_login`, só HMAC do login e do IP): sobrevive a reinícios.
+- "Sair de todos os aparelhos" (`DELETE /sessao/todas`, auditoria `LOGOUT_TODOS`). Expiração por inatividade (2 h) e limite de 12 h já existiam.
+- Alertas de atividade anormal (`GET /admin/alertas-seguranca`, só administrador), calculados sobre a auditoria existente; aparecem na tela de acesso. Sem envio externo (não há destino configurado).
+- Usuário do banco com poucos poderes: `scripts/seguranca/usuario-aplicacao.mjs` cria `praca_app` (só SELECT/INSERT/UPDATE/DELETE; sem DDL, TRUNCATE, CREATEDB; auditoria e `_prisma_migrations` só acrescentam/leem) e grava `DATABASE_URL_APLICACAO` no `.env`. O servidor usa essa URL; migrações, backup, restauração e comandos de manutenção seguem com `DATABASE_URL` (dono). Sem a variável, tudo funciona como antes. Aplicado no banco de desenvolvimento/real em 7 nov. 2026 (backup fa509648 antes).

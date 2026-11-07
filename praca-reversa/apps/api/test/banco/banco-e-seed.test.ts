@@ -50,6 +50,7 @@ describe('migração em PostgreSQL vazio', () => {
       '20261106120000_notas_por_foto',
       '20261106140000_notas_foto_sem_imagem',
       '20261106160000_notas_foto_codigo_barras',
+      '20261107090000_tentativas_login',
     ]);
     expect(linhas.every((l) => l.finished_at !== null)).toBe(true);
     const versao = await db.$queryRaw<{ server_version: string }[]>`SHOW server_version`;

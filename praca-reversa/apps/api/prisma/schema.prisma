@@ -644,6 +644,20 @@ model EventoAuditoria {
   @@map("evento_auditoria")
 }
 
+/// Falhas de login recentes (7 nov. 2026), para o bloqueio sobreviver a reinícios do servidor.
+/// `chave` é um HMAC do login ou do IP: o banco não guarda o IP nem o nome digitado.
+model TentativaLogin {
+  id         String   @id @default(uuid()) @db.Uuid
+  /// 'CONTA' ou 'IP'.
+  tipo       String
+  chave      String
+  ocorridoEm DateTime @map("ocorrido_em") @db.Timestamptz(3)
+
+  @@index([tipo, chave, ocorridoEm])
+  @@index([ocorridoEm])
+  @@map("tentativa_login")
+}
+
 model RegistroIdempotencia {
   id          String   @id @default(uuid()) @db.Uuid
   escopoId    String   @map("escopo_id") @db.Uuid

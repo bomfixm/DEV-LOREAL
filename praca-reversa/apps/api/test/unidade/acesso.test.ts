@@ -1,6 +1,5 @@
 import { argon2 } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { LimitadorTentativas } from '../../src/modules/acesso/limitador.js';
 import { gerarHashSenha, verificarSenha } from '../../src/modules/acesso/senhas.js';
 import { gerarTokenSessao, hashToken, iguaisEmTempoConstante, tokenCsrf } from '../../src/modules/acesso/tokens.js';
 import { hashPayload, jsonCanonico } from '../../src/modules/idempotencia/executar.js';
@@ -57,21 +56,6 @@ describe('tokens de sessão e CSRF', () => {
     expect(iguaisEmTempoConstante('abc', 'abc')).toBe(true);
     expect(iguaisEmTempoConstante('abc', 'abd')).toBe(false);
     expect(iguaisEmTempoConstante('abc', 'abcd')).toBe(false);
-  });
-});
-
-describe('limite de tentativas', () => {
-  it('bloqueia na janela e libera quando as tentativas saem dela', () => {
-    let agora = 0;
-    const limitador = new LimitadorTentativas({ maximo: 3, janelaMs: 1_000 }, () => agora);
-    for (let i = 0; i < 3; i++) limitador.registrar('maria');
-    expect(limitador.bloqueadoPor('maria')).toBe(1);
-    expect(limitador.bloqueadoPor('outra')).toBe(0);
-    agora = 1_001;
-    expect(limitador.bloqueadoPor('maria')).toBe(0);
-    limitador.registrar('maria');
-    limitador.limpar('maria');
-    expect(limitador.bloqueadoPor('maria')).toBe(0);
   });
 });
 

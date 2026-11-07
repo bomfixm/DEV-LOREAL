@@ -101,6 +101,7 @@ const TABELAS = [
   'lote_importacao',
   'evento_auditoria',
   'registro_idempotencia',
+  'tentativa_login',
   'historico_layout',
   'sequencia_palete',
   'codigo_barras',

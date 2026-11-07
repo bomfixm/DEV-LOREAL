@@ -23,7 +23,7 @@ export function registrarRotasLogin(app: FastifyInstance, deps: Dependencias): v
     if (!dados.success) throw requisicaoInvalida('Informe usuário e senha.');
     const login = dados.data.login.trim().toLowerCase();
 
-    const espera = Math.max(deps.limiteLoginPorConta.bloqueadoPor(login), deps.limiteLoginPorIp.bloqueadoPor(request.ip));
+    const espera = Math.max(await deps.limiteLoginPorConta.bloqueadoPor(login), await deps.limiteLoginPorIp.bloqueadoPor(request.ip));
     if (espera > 0) {
       await registrarEvento(deps.db, {
         acao: 'LOGIN_BLOQUEADO',
@@ -41,8 +41,8 @@ export function registrarRotasLogin(app: FastifyInstance, deps: Dependencias): v
     // não revela se o login existe.
     const senhaConfere = await verificarSenha(dados.data.senha, usuario?.senhaHash ?? (await hashParaContaInexistente()));
     if (!usuario || !senhaConfere || !usuario.ativo) {
-      deps.limiteLoginPorConta.registrar(login);
-      deps.limiteLoginPorIp.registrar(request.ip);
+      await deps.limiteLoginPorConta.registrar(login);
+      await deps.limiteLoginPorIp.registrar(request.ip);
       await registrarEvento(deps.db, {
         acao: 'LOGIN_FALHA',
         resultado: 'NEGADO',
@@ -53,7 +53,7 @@ export function registrarRotasLogin(app: FastifyInstance, deps: Dependencias): v
       throw new ErroHttp(401, 'CREDENCIAIS_INVALIDAS', CREDENCIAIS_INVALIDAS);
     }
 
-    deps.limiteLoginPorConta.limpar(login);
+    await deps.limiteLoginPorConta.limpar(login);
     const anterior = request.cookies[nomeCookie(deps.config)];
     if (anterior) await deps.sessoes.revogarPorToken(anterior, 'NOVO_LOGIN');
 

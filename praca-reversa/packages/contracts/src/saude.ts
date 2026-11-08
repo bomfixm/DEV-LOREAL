@@ -18,6 +18,8 @@ export const CodigoErroSchema = z.enum([
   'MUITAS_TENTATIVAS',
   'SEGUNDO_FATOR_NECESSARIO',
   'CODIGO_INVALIDO',
+  /** Senha incorreta ao confirmar uma ação sensível (ex.: redefinir a verificação em duas etapas de outra conta). */
+  'SENHA_INVALIDA',
   'ACESSO_NEGADO',
   'SEM_ESCOPO',
   'CSRF_INVALIDO',

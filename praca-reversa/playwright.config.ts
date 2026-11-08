@@ -79,7 +79,6 @@ export default defineConfig({
         BACKUP_DESTINO: '.dados/e2e/backups',
         BACKUP_AUTOMATICO: 'desativada',
         PLANILHA_DESTINO: '',
-        BACKUP_DESTINO_EXTERNO: '',
       },
     },
     {
@@ -107,7 +106,6 @@ export default defineConfig({
         BACKUP_DESTINO: '.dados/e2e/backups',
         BACKUP_AUTOMATICO: 'desativada',
         PLANILHA_DESTINO: '',
-        BACKUP_DESTINO_EXTERNO: '',
       },
     },
   ],

@@ -97,6 +97,10 @@ export const ListaAlertasSegurancaSchema = z.object({
 });
 export type ListaAlertasSeguranca = z.infer<typeof ListaAlertasSegurancaSchema>;
 
+/** Redefinir a verificação em duas etapas de outra conta exige a própria senha do administrador. */
+export const RedefinirSegundoFatorAdminSchema = z.object({ password: z.string().min(1).max(256) });
+export type RedefinirSegundoFatorAdmin = z.infer<typeof RedefinirSegundoFatorAdminSchema>;
+
 /** Cabeçalho obrigatório nas mutações administrativas. */
 export const CABECALHO_IDEMPOTENCIA = 'idempotency-key';
 export const ChaveIdempotenciaSchema = z.string().regex(/^[A-Za-z0-9_-]{8,200}$/);

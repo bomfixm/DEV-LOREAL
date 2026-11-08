@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { createHmac, randomBytes } from 'node:crypto';
 import { entrarNoMapa, irParaPagina } from './apoio';
+import { credenciais } from './credenciais';
 
 test.skip(({ isMobile }) => isMobile, 'Fluxo de acesso no layout de computador.');
 
@@ -89,7 +90,10 @@ test('verificação em duas etapas: ativar pela tela, entrar com o código e red
   await page.reload();
   const linha = page.locator(`.usuario-linha[data-login="${login}"]`);
   await expect(linha).toContainText('Duas etapas: ativada');
-  page.once('dialog', (d) => void d.accept());
+  page.once('dialog', (d) => {
+    void d.accept();
+    page.once('dialog', (d2) => void d2.accept(credenciais().admin.senha));
+  });
   await linha.getByTestId('redefinir-2fa').click();
   await expect(page.getByTestId('mensagem-acesso')).toContainText('Duas etapas');
   await expect(linha).toContainText('Duas etapas: desativada');

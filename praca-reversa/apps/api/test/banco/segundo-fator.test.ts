@@ -154,12 +154,20 @@ describe('verificação em duas etapas', () => {
     const mariaNaLista = lista.json<{ items: unknown[] }>().items.map((i) => UsuarioAdminSchema.parse(i)).find((u) => u.login === maria.login);
     expect(mariaNaLista?.twoFactor).toBe(true);
 
-    const negado = await como(app, await entrar(app, operador), { method: 'POST', url: `/api/v1/admin/usuarios/${maria.id}/segundo-fator/redefinir`, headers: { 'idempotency-key': 'chave-operador-0001' } });
+    const negado = await como(app, await entrar(app, operador), { method: 'POST', url: `/api/v1/admin/usuarios/${maria.id}/segundo-fator/redefinir`, payload: { password: operador.senha }, headers: { 'idempotency-key': 'chave-operador-0001' } });
     expect(negado.statusCode).toBe(403);
     expect(await db.segundoFator.count({ where: { usuarioId: maria.id } })).toBe(1);
 
     const sessaoAdmin = await entrar(app, admin);
-    const r = await como(app, sessaoAdmin, { method: 'POST', url: `/api/v1/admin/usuarios/${maria.id}/segundo-fator/redefinir`, headers: { 'idempotency-key': 'chave-admin-redefinir-1' } });
+
+    // Sem a senha do próprio admin, ou com a senha errada, a redefinição é recusada (sessão sequestrada não basta).
+    const semSenha = await como(app, sessaoAdmin, { method: 'POST', url: `/api/v1/admin/usuarios/${maria.id}/segundo-fator/redefinir`, headers: { 'idempotency-key': 'chave-admin-sem-senha' } });
+    expect(semSenha.statusCode).toBe(400);
+    const senhaErrada = await como(app, sessaoAdmin, { method: 'POST', url: `/api/v1/admin/usuarios/${maria.id}/segundo-fator/redefinir`, payload: { password: 'errada-errada-errada' }, headers: { 'idempotency-key': 'chave-admin-senha-errada' } });
+    expect(senhaErrada.statusCode).toBe(422);
+    expect(await db.segundoFator.count({ where: { usuarioId: maria.id } })).toBe(1);
+
+    const r = await como(app, sessaoAdmin, { method: 'POST', url: `/api/v1/admin/usuarios/${maria.id}/segundo-fator/redefinir`, payload: { password: admin.senha }, headers: { 'idempotency-key': 'chave-admin-redefinir-1' } });
     expect(r.statusCode).toBe(200);
     expect(UsuarioAdminSchema.parse(r.json()).twoFactor).toBe(false);
     expect(await db.segundoFator.count({ where: { usuarioId: maria.id } })).toBe(0);

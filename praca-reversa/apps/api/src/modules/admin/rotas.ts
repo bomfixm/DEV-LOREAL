@@ -6,6 +6,7 @@ import {
   FiltroAuditoriaSchema,
   PERFIS_APROVACAO_FINANCEIRA,
   PERFIS_SELECAO_TESTE,
+  RedefinirSegundoFatorAdminSchema,
   type ListaAlertasSeguranca,
   type ListaAuditoria,
   type UsuarioAdmin,
@@ -16,7 +17,7 @@ import type { Transacao } from '../../db/cliente.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { ErroHttp, naoEncontrado, requisicaoInvalida } from '../../http/erros.js';
 import { contextoDe, escopoAtivoDe, type Autenticacao, type Dependencias } from '../acesso/contexto.js';
-import { gerarHashSenha } from '../acesso/senhas.js';
+import { gerarHashSenha, verificarSenha } from '../acesso/senhas.js';
 import { revogarSessoesDoUsuario } from '../acesso/sessoes.js';
 import { avaliarAlertas } from '../auditoria/alertas.js';
 import { registrarEvento } from '../auditoria/registrar.js';
@@ -271,6 +272,13 @@ export function registrarRotasAdmin(app: FastifyInstance, deps: Dependencias, au
     const parametros = ParametrosUsuarioSchema.safeParse(request.params);
     if (!parametros.success) throw requisicaoInvalida('Usuário inválido.');
     const alvoId = parametros.data.id;
+
+    // Confirma a senha de quem está pedindo: sessão de admin sequestrada não basta para desligar a 2FA de outra conta.
+    const dadosSenha = RedefinirSegundoFatorAdminSchema.safeParse(request.body);
+    if (!dadosSenha.success) throw requisicaoInvalida('Informe sua senha para confirmar.');
+    const admin = await deps.db.usuario.findUnique({ where: { id: contexto.sessao.usuario.id } });
+    const senhaConfere = admin ? await verificarSenha(dadosSenha.data.password, admin.senhaHash) : false;
+    if (!senhaConfere) throw new ErroHttp(422, 'SENHA_INVALIDA', 'Senha incorreta.');
 
     const resultado = await executarIdempotente(
       deps.db,

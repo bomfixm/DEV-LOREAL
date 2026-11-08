@@ -109,9 +109,12 @@ export function TelaAcesso({ sessao, aoVoltar }: Props) {
 
   function redefinirSegundoFator(u: UsuarioAdmin) {
     if (!window.confirm(`Remover a verificação em duas etapas de ${u.login}? A pessoa entra só com a senha até cadastrar de novo.`)) return;
+    // Confirma a sua própria senha: uma sessão de administrador sequestrada não deve bastar para desligar a 2FA de outra conta.
+    const password = window.prompt('Confirme sua senha para redefinir a verificação em duas etapas desta conta:');
+    if (!password) return;
     void executar(
       `2fa-redefinir:${u.id}`,
-      (chave) => enviarJson('POST', `${URL_USUARIOS}/${u.id}/segundo-fator/redefinir`, UsuarioAdminSchema, { corpo: {}, idempotencia: chave }),
+      (chave) => enviarJson('POST', `${URL_USUARIOS}/${u.id}/segundo-fator/redefinir`, UsuarioAdminSchema, { corpo: { password }, idempotencia: chave }),
       (r) => `Duas etapas de ${r.login} removidas. Peça para cadastrar de novo em "Segurança da conta".`,
     );
   }

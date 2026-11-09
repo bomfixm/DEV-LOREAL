@@ -13,6 +13,7 @@ const ORIGEM: Readonly<Record<OrigemPosicaoLivre, string>> = {
   MOVIMENTO: 'palete movido para outra posição',
   EXPEDICAO: 'palete expedido',
   RETIRADA_VAZIO: 'palete vazio retirado',
+  LIBERACAO: 'posição liberada: palete não estava no local',
 };
 
 interface Props {

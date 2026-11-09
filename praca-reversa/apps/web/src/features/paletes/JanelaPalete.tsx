@@ -245,6 +245,8 @@ interface PropsPalete {
   aoNotasFoto: (() => void) | null;
   aoRegistrarConteudo: (() => void) | null;
   aoImprimir: (() => void) | null;
+  /** Liberar a posição (palete não está no local); `null` sem permissão, sem posição ou arquivado. */
+  aoLiberarPosicao: (() => void) | null;
   /** Detalhes completos (situação, conferência, liberação, movimentações, cadastro): o detalhe existente, sem o cabeçalho. */
   detalhesCompletos: ReactNode;
   /** Depois de uma correção gravada (mover, validação, cancelar): mapa e totais consultam de novo; o texto vira aviso. */
@@ -639,6 +641,17 @@ export function JanelaPalete(props: PropsPalete) {
           <button type="button" className="botao-link" onClick={props.aoImprimir} data-testid="acao-etiqueta">
             <IconeImprimir />
             Etiqueta
+          </button>
+        )}
+        {props.aoLiberarPosicao !== null && (
+          <button
+            type="button"
+            className="botao-link"
+            onClick={props.aoLiberarPosicao}
+            title="O palete não está nesta posição: tira o vínculo e deixa a posição livre."
+            data-testid="acao-liberar-posicao"
+          >
+            Liberar posição
           </button>
         )}
       </div>

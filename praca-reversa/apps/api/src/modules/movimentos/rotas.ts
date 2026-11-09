@@ -3,6 +3,7 @@ import {
   ConfirmarPosicaoLivreSchema,
   CorrigirLocalizacaoSchema,
   CorrigirTransferenciaSchema,
+  LiberarPosicaoSchema,
   MoverPaleteSchema,
   RetirarPaleteVazioSchema,
   TransferirSchema,
@@ -17,7 +18,7 @@ import { executarIdempotente, type Resposta } from '../idempotencia/executar.js'
 import { chaveIdempotencia, responder, validar } from '../idempotencia/http.js';
 import { historicoPalete } from './historico.js';
 import { confirmarPosicaoLivre } from './posicao-livre.js';
-import { corrigirMovimento, corrigirTransferencia, moverPalete, retirarPaleteVazio, transferir, type Autor } from './servico.js';
+import { corrigirMovimento, corrigirTransferencia, liberarPosicaoPalete, moverPalete, retirarPaleteVazio, transferir, type Autor } from './servico.js';
 
 const IdSchema = z.object({ id: z.uuid() });
 
@@ -52,6 +53,18 @@ export function registrarRotasMovimentos(app: FastifyInstance, deps: Dependencia
     const resultado = await mutar(request, 'movimento.mover', { id, corpo: request.body }, async (tx, autor) => ({
       status: 200,
       corpo: await moverPalete(tx, escopo, id, dados, autor, deps.agora()),
+    }));
+    return responder(reply, resultado);
+  });
+
+  // Liberar posição: o palete não está no local; fica em localização pendente (não arquiva, não mexe no conteúdo).
+  app.post(`${API_PREFIXO}/paletes/:id/liberar-posicao`, { preHandler: auth.exigirPermissao('movimento.registrar') }, async (request, reply) => {
+    const escopo = escopoAtivoDe(request);
+    const { id } = validar(IdSchema, request.params, 'Identificador de palete inválido.');
+    const dados = validar(LiberarPosicaoSchema, request.body, 'Dados da liberação inválidos.');
+    const resultado = await mutar(request, 'movimento.liberar_posicao', { id, corpo: request.body }, async (tx, autor) => ({
+      status: 200,
+      corpo: await liberarPosicaoPalete(tx, escopo, id, dados, autor, deps.agora()),
     }));
     return responder(reply, resultado);
   });

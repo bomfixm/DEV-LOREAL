@@ -35,6 +35,7 @@ import {
   type Escopo,
   type EstadoConferencia,
   type EstadoFluxo,
+  type LiberarPosicaoSchema,
   type MoverPaleteSchema,
   type PaleteDetalhe,
   type ResultadoMovimento,
@@ -66,6 +67,7 @@ type DadosTransferir = z.output<typeof TransferirSchema>;
 type DadosCorrigirTransferencia = z.output<typeof CorrigirTransferenciaSchema>;
 type DadosCorrigirLocalizacao = z.output<typeof CorrigirLocalizacaoSchema>;
 type DadosRetirarVazio = z.output<typeof RetirarPaleteVazioSchema>;
+type DadosLiberarPosicao = z.output<typeof LiberarPosicaoSchema>;
 
 interface PaleteTravado {
   id: string;
@@ -184,7 +186,7 @@ async function registrarLocalizacao(
   tx: Transacao,
   escopoId: string,
   palete: PaleteTravado,
-  tipo: 'MOVIMENTO' | 'CORRECAO' | 'RETIRADA_VAZIO',
+  tipo: 'MOVIMENTO' | 'CORRECAO' | 'RETIRADA_VAZIO' | 'LIBERACAO_POSICAO',
   destino: Destino | null,
   motivo: string,
   autor: Autor,
@@ -249,6 +251,43 @@ export async function moverPalete(
     alvoTipo: 'PALETE',
     alvoId: palete.id,
     detalhes: { codigo: palete.codigo, de: palete.posicao_codigo, para: destino.codigo, motivo: dados.reason, evento: eventoId },
+    requestId: autor.requestId,
+  });
+  return { event: await lerEventoLocalizacao(tx, escopo.id, eventoId), pallet: await detalhe(tx, escopo, palete.id, agora) };
+}
+
+/**
+ * Libera a posição: o palete não está fisicamente nela. Tira só o vínculo de
+ * endereço (o palete volta a "localização pendente"); ID, código, conteúdo,
+ * saldo e conferência não mudam e nada é arquivado, então vale também para
+ * conteúdo desconhecido. Gera evento de localização (MOVIMENTO sem destino),
+ * que também marca a posição como livre; o histórico guarda de onde saiu.
+ */
+export async function liberarPosicaoPalete(
+  tx: Transacao,
+  escopo: Escopo,
+  paleteId: string,
+  dados: DadosLiberarPosicao,
+  autor: Autor,
+  agora: Date,
+): Promise<ResultadoMovimento> {
+  const palete = exigirPalete(await bloquearPaletes(tx, escopo.id, [paleteId]), paleteId);
+  exigirAtivo(palete, 'não tem posição a liberar');
+  await exigirSemConferenciaAtiva(tx, escopo.id, palete.id, 'A liberação da posição');
+  exigirVersao(palete, dados.expectedVersion);
+  if (palete.posicao_id === null) throw new ErroHttp(409, 'CONFLITO', `O palete ${palete.codigo} não ocupa posição: não há endereço a liberar.`);
+  const motivo = `Posição liberada (palete não está no local): ${dados.reason}`;
+  await gravarPosicao(tx, palete, null);
+  // Correção do registro de endereço, não deslocamento físico: não reinicia a contagem de 20 dias.
+  const eventoId = await registrarLocalizacao(tx, escopo.id, palete, 'LIBERACAO_POSICAO', null, motivo, autor, agora, null, false);
+  await registrarEvento(tx, {
+    acao: 'PALETE_MOVIDO',
+    resultado: 'SUCESSO',
+    atorUsuarioId: autor.usuarioId,
+    escopoId: escopo.id,
+    alvoTipo: 'PALETE',
+    alvoId: palete.id,
+    detalhes: { codigo: palete.codigo, de: palete.posicao_codigo, para: null, motivo: dados.reason, evento: eventoId },
     requestId: autor.requestId,
   });
   return { event: await lerEventoLocalizacao(tx, escopo.id, eventoId), pallet: await detalhe(tx, escopo, palete.id, agora) };

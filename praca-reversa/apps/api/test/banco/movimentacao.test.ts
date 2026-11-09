@@ -562,6 +562,26 @@ describe('mudança de localização', () => {
     ]);
   });
 
+  it('liberar posição: palete de conteúdo desconhecido fica pendente, não é arquivado e a posição fica livre; sem permissão, sem posição e versão antiga são recusados', async () => {
+    const p = await criarPalete('F04-P02');
+    const posicaoId = await idPosicao(db, ID_ESCOPO_PRACA, 'F04-P02');
+    const liberar = (s: SessaoTeste, versao: number, confirma = true, id = p.id) =>
+      mutar(app, s, 'POST', `${API}/paletes/${id}/liberar-posicao`, { expectedVersion: versao, reason: 'Palete não está no local', confirmChecked: confirma }, chave());
+    expect((await liberar(sCons, p.version)).statusCode).toBe(403);
+    expect((await liberar(sOp, p.version, false)).statusCode).toBe(400);
+    expect((await liberar(sOp, p.version + 5)).statusCode).toBe(409);
+    const r = await liberar(sOp, p.version);
+    expect(r.statusCode, r.body).toBe(200);
+    const { event, pallet } = ResultadoMovimentoSchema.parse(r.json());
+    expect(event).toMatchObject({ type: 'LIBERACAO_POSICAO', from: { code: 'F04-P02' }, to: null });
+    expect([pallet.id, pallet.positionCode, pallet.archived]).toEqual([p.id, null, null]);
+    const livre = await db.posicao.findUnique({ where: { id: posicaoId }, select: { livreConfirmadaEm: true, livreOrigem: true } });
+    expect(livre?.livreConfirmadaEm).not.toBeNull();
+    expect(livre?.livreOrigem).toBe('LIBERACAO');
+    // Sem posição: não há o que liberar de novo.
+    expect((await liberar(sOp, pallet.version)).statusCode).toBe(409);
+  });
+
   it('dois paletes para a mesma posição ao mesmo tempo: só um ocupa; o outro mantém o vínculo', async () => {
     const a = await criarPalete('F04-P02');
     const b = await criarPalete('F04-P03');

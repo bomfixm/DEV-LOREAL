@@ -32,7 +32,7 @@ const quantidadePositiva = z
  * SAIDA_EXPEDICAO (etapa 08): o palete inteiro saiu numa expedição confirmada e liberou a posição.
  * RETIRADA_VAZIO (etapa 10): palete vazio retirado da posição depois de uma consolidação; nenhuma unidade sai do estoque.
  */
-export const TipoEventoLocalizacaoSchema = z.enum(['MOVIMENTO', 'CORRECAO', 'SAIDA_EXPEDICAO', 'RETIRADA_VAZIO']);
+export const TipoEventoLocalizacaoSchema = z.enum(['MOVIMENTO', 'CORRECAO', 'SAIDA_EXPEDICAO', 'RETIRADA_VAZIO', 'LIBERACAO_POSICAO']);
 export type TipoEventoLocalizacao = z.infer<typeof TipoEventoLocalizacaoSchema>;
 
 // ---------- Entradas ----------
@@ -61,6 +61,20 @@ export const RetirarPaleteVazioSchema = z.object({
   confirmEmpty: z.literal(true, { error: 'Confirme que o palete físico está vazio.' }),
 });
 export type RetirarPaleteVazio = z.input<typeof RetirarPaleteVazioSchema>;
+
+/**
+ * POST /paletes/:id/liberar-posicao — o palete não está (mais) fisicamente na
+ * posição registrada: tira o vínculo e deixa a posição livre. O palete NÃO é
+ * arquivado e o conteúdo não muda; ele fica em "localização pendente" até ser
+ * movido para o endereço certo. Vale também para conteúdo desconhecido.
+ */
+export const LiberarPosicaoSchema = z.object({
+  expectedVersion: versao,
+  reason: motivo('Motivo'),
+  /** Quem libera confirma que conferiu no local. */
+  confirmChecked: z.literal(true, { error: 'Confirme que conferiu no local.' }),
+});
+export type LiberarPosicao = z.input<typeof LiberarPosicaoSchema>;
 
 /** POST /transferencias — quantidade de um segmento de um palete para outro. */
 export const TransferirSchema = z

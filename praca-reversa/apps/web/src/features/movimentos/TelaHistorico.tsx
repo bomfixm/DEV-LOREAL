@@ -36,6 +36,7 @@ const ROTULOS_LOCALIZACAO = {
   MOVIMENTO: 'Mudança de localização',
   CORRECAO: 'Correção de localização',
   SAIDA_EXPEDICAO: 'Saída na expedição (posição liberada)',
+  LIBERACAO_POSICAO: 'Posição liberada (o palete não estava no local)',
   RETIRADA_VAZIO: 'Palete vazio retirado da posição (consolidação; sem baixa de estoque)',
 } as const;
 const quando = (iso: string) => `${formatarDataHora(iso)} (Brasília)`;

@@ -121,6 +121,8 @@ enum TipoEventoLocalizacao {
   SAIDA_EXPEDICAO
   /// Palete vazio retirado da posição depois de uma consolidação (etapa 10): nenhuma unidade sai do estoque.
   RETIRADA_VAZIO
+  /// Palete não está fisicamente na posição registrada: tira só o vínculo (localização pendente), sem arquivar nem mexer no conteúdo.
+  LIBERACAO_POSICAO
 }
 
 /// Situação do tutorial de primeiro uso de um usuário (etapa 10).

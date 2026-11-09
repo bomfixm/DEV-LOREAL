@@ -53,6 +53,7 @@ const TelaDocumentos = lazy(() => import('./features/documentos/TelaDocumentos')
 const AceiteTermos = lazy(() => import('./features/documentos/AceiteTermos').then((m) => ({ default: m.AceiteTermos })));
 const TelaPlanilha = lazy(() => import('./features/planilha/TelaPlanilha').then((m) => ({ default: m.TelaPlanilha })));
 const TelaRelatorios = lazy(() => import('./features/indicadores/TelaRelatorios').then((m) => ({ default: m.TelaRelatorios })));
+const TelaLiberarPosicao = lazy(() => import('./features/movimentos/TelaLiberarPosicao').then((m) => ({ default: m.TelaLiberarPosicao })));
 const TelaRetirarVazio = lazy(() => import('./features/movimentos/TelaRetirarVazio').then((m) => ({ default: m.TelaRetirarVazio })));
 const TelaBipagem = lazy(() => import('./features/paletes/TelaBipagem').then((m) => ({ default: m.TelaBipagem })));
 // Complemento: seleção do cliente, conciliação e inventários de referência.
@@ -291,6 +292,12 @@ function AreaAutenticada({
   } else if (rota.tipo === 'bipagem') {
     conteudo = pode('palete.cadastrar') ? (
       <TelaBipagem key={rota.id} paleteId={rota.id} sessao={sessao} aoNavegar={navegar} aoGravar={dadosAlterados} />
+    ) : (
+      <SemPermissao aoVoltar={voltarAoMapa} />
+    );
+  } else if (rota.tipo === 'liberar') {
+    conteudo = pode('movimento.registrar') ? (
+      <TelaLiberarPosicao key={rota.id} id={rota.id} sessao={sessao} aoNavegar={navegar} aoGravar={dadosAlterados} />
     ) : (
       <SemPermissao aoVoltar={voltarAoMapa} />
     );

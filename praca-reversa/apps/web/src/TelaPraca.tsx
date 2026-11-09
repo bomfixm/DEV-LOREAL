@@ -760,6 +760,7 @@ export function TelaPraca({ praca, compacto, paleteRota, permissoes, falhaAtuali
           aoNotasFoto={pode('palete.cadastrar') && aberto(selecionado) ? () => { aoNavegar({ tipo: 'notas-foto', id: selecionado.id }); } : null}
           aoRegistrarConteudo={pode('palete.cadastrar') && aberto(selecionado) ? () => { aoNavegar({ tipo: 'novo-conteudo', palete: selecionado.id }); } : null}
           aoImprimir={pode('etiqueta.imprimir') ? () => { aoNavegar({ tipo: 'etiquetas', ids: [selecionado.id] }); } : null}
+          aoLiberarPosicao={pode('movimento.registrar') && aberto(selecionado) && selecionado.positionId !== null ? () => { aoNavegar({ tipo: 'liberar', id: selecionado.id }); } : null}
           detalhesCompletos={
             <DetalhePalete
               embutido

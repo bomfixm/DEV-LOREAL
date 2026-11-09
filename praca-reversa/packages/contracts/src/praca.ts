@@ -52,7 +52,7 @@ export type Fileira = z.infer<typeof FileiraSchema>;
 
 /** Posição endereçável. O `id` é permanente; `code` é o texto legível. */
 /** Como a desocupação da posição foi confirmada. */
-export const OrigemPosicaoLivreSchema = z.enum(['CONFIRMACAO', 'MOVIMENTO', 'EXPEDICAO', 'RETIRADA_VAZIO']);
+export const OrigemPosicaoLivreSchema = z.enum(['CONFIRMACAO', 'MOVIMENTO', 'EXPEDICAO', 'RETIRADA_VAZIO', 'LIBERACAO']);
 export type OrigemPosicaoLivre = z.infer<typeof OrigemPosicaoLivreSchema>;
 
 export const PosicaoSchema = RetanguloSchema.extend({

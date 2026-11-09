@@ -123,6 +123,7 @@ export function secaoDaRota(rota: Rota): { titulo: string; descricao: string } {
     case 'transferir':
     case 'historico':
     case 'retirar':
+    case 'liberar':
       return { titulo: 'Movimentação', descricao: 'Mudança de local e de conteúdo do palete, com histórico.' };
     case 'claims':
     case 'novo-claim':

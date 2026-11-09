@@ -297,6 +297,11 @@ function Movimentacoes({ detalhe, permissoes, aoMovimentar }: { detalhe: PaleteD
           >
             Transferir produtos
           </button>
+          {detalhe.positionId !== null && (
+            <button type="button" className="botao-secundario" disabled={bloqueio !== null} onClick={() => { aoMovimentar('liberar'); }} data-testid="acao-liberar">
+              Liberar posição
+            </button>
+          )}
         </div>
       )}
       {podeMovimentar && bloqueio !== null && <p className="bloco-nota">{bloqueio}</p>}

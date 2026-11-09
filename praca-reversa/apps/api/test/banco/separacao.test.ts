@@ -84,6 +84,34 @@ describe('Separação do cliente', () => {
     expect(await db.conteudoPalete.count({ where: { paleteId: id, numeroDocumento: '00123' } })).toBe(1);
   });
 
+  it('separado para agenda: marca e desfaz só em palete roxo; o mapa mostra; encerrar a separação apaga a marca', async () => {
+    const id = PALETE_COM_NOTA;
+    const agora = new Date();
+    const usuario = (await db.usuario.findFirstOrThrow({ where: { login: 'supervisor' }, select: { id: true } })).id;
+    await db.conteudoPalete.create({ data: { id: randomUUID(), escopoId: ID_ESCOPO_PRACA, paleteId: id, remetente: 'R', tipoDocumento: 'NFD', numeroDocumento: '321', criadoPorId: usuario, criadoEm: agora, atualizadoEm: agora } });
+    const marcar = (s: SessaoTeste, paleteId: string, separated: boolean) => mutar(app, s, 'POST', `/api/v1/paletes/${paleteId}/separado-agenda`, { separated });
+    const feitos = async () => PracaSchema.parse((await como(app, sSupervisor, { method: 'GET', url: '/api/v1/praca' })).json()).pallets.filter((p) => p.clientSeparationDone === true).map((p) => p.id);
+
+    // Sem separação ativa o palete não é roxo: não há o que marcar.
+    expect((await marcar(sSupervisor, id, true)).statusCode).toBe(409);
+    const separacao = ListaSeparacoesSchema.parse((await enviar(sSupervisor, notas(['321']))).json()).items[0];
+    expect(await feitos()).toEqual([]);
+
+    expect((await marcar(sSupervisor, id, true)).statusCode).toBe(200);
+    expect(await feitos()).toEqual([id]);
+    expect((await marcar(sSupervisor, id, true)).statusCode).toBe(200); // repetir não duplica
+    expect(await db.separacaoClientePalete.count({ where: { paleteId: id } })).toBe(1);
+    expect((await marcar(sSupervisor, randomUUID(), true)).statusCode).toBe(404);
+
+    expect((await marcar(sSupervisor, id, false)).statusCode).toBe(200);
+    expect(await feitos()).toEqual([]);
+
+    expect((await marcar(sSupervisor, id, true)).statusCode).toBe(200);
+    expect((await mutar(app, sSupervisor, 'POST', `/api/v1/separacoes/${separacao?.id ?? ''}/encerrar`, {})).statusCode).toBe(200);
+    expect(await feitos()).toEqual([]);
+    expect((await marcar(sSupervisor, id, true)).statusCode).toBe(409);
+  });
+
   it('nota em palete fora do mapa fica como SEM_POSICAO, com o palete indicado', async () => {
     const agora = new Date();
     const usuario = (await db.usuario.findFirstOrThrow({ where: { login: 'supervisor' }, select: { id: true } })).id;

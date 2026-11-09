@@ -4,6 +4,7 @@ import {
   DefinirTipoCargaSchema,
   PaleteDetalheSchema,
   RenumerarPaleteSchema,
+  ResultadoMarcaSeparadoSchema,
   compararQuantidades,
   subtrairQuantidades,
   type ConteudoPalete,
@@ -27,6 +28,41 @@ import { NAO_INFORMADO, avisoReconferencia, baseDosVolumes, dataSimples, somaCon
 import { textoSequenciaFull } from './volumes';
 
 /** Troca manual do número do palete (ex.: "28" → "30"): campo curto no cabeçalho da janela. */
+/** Marca manual "separado para a agenda" no palete roxo (e desfaz). Não reserva nem altera estoque. */
+function SeparadoAgenda({ palete, aoAlterado }: { palete: PaleteResumo; aoAlterado: (texto: string) => void }) {
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const chaves = useChaves();
+  const feito = palete.clientSeparationDone === true;
+  async function alternar() {
+    const assinatura = `palete-separado:${palete.id}:${String(!feito)}`;
+    setEnviando(true);
+    setErro(null);
+    try {
+      await enviarJson('POST', `${API_PREFIXO}/paletes/${palete.id}/separado-agenda`, ResultadoMarcaSeparadoSchema, { corpo: { separated: !feito }, idempotencia: chaves.para(assinatura) });
+      chaves.concluir(assinatura);
+      aoAlterado(feito ? `Palete ${palete.code}: marca de separado desfeita.` : `Palete ${palete.code} marcado como separado para a agenda.`);
+    } catch (e) {
+      chaves.concluir(assinatura, e);
+      setErro(mensagemDeFalha(e));
+    } finally {
+      setEnviando(false);
+    }
+  }
+  return (
+    <>
+      <button type="button" className={feito ? 'botao-secundario' : 'botao-primario'} disabled={enviando} onClick={() => void alternar()} data-testid="acao-separado-agenda">
+        {enviando ? 'Gravando…' : feito ? '✓ Separado para agenda · Desfazer' : 'Separado para agenda'}
+      </button>
+      {erro !== null && (
+        <span className="mensagem-conflito" role="alert">
+          {erro}
+        </span>
+      )}
+    </>
+  );
+}
+
 function AlterarNumero({ palete, aoTrocado }: { palete: PaleteResumo; aoTrocado: (texto: string) => void }) {
   const [aberto, setAberto] = useState(false);
   const [valor, setValor] = useState('');
@@ -603,6 +639,7 @@ export function JanelaPalete(props: PropsPalete) {
   const rodape = (
     <>
       <div className="acoes-linha">
+        {palete.clientSeparation === true && props.permissoes.includes('movimento.registrar') && palete.flowState !== 'EXPEDIDO' && <SeparadoAgenda palete={palete} aoAlterado={props.aoAlterado} />}
         {props.aoConferirVolumes !== null && (
           <button type="button" className="botao-primario" onClick={props.aoConferirVolumes} data-testid="acao-volumes">
             Conferir volumes

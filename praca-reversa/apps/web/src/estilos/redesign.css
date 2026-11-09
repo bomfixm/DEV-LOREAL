@@ -4137,6 +4137,15 @@
     fill-opacity: 1 !important;
   }
 
+  /* Já separado para a agenda: roxo escuro (o texto do rótulo ganha "✓ separado"). */
+  .mapa-praca .pr-palete.pr-palete--separacao.pr-palete--separado {
+    fill: #3b0f8c !important;
+  }
+
+  .amostra--separado {
+    background: #3b0f8c;
+  }
+
   .pr-rotulo-palete--separacao,
   .pr-rotulo-palete--separacao .pr-rotulo-endereco,
   .pr-rotulo-palete--separacao .pr-rotulo-codigo,

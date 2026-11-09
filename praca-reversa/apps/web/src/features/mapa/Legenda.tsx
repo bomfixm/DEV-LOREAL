@@ -97,6 +97,10 @@ export function Legenda({ nota = null, aberta = false }: { nota?: string | null;
           Roxo: tem nota da separação do cliente
         </li>
         <li>
+          <span className="amostra amostra--separado" aria-hidden="true" />
+          Roxo escuro com ✓: já marcado como separado para a agenda
+        </li>
+        <li>
           <span className="amostra amostra--selecionado" aria-hidden="true" />
           Palete selecionado
         </li>

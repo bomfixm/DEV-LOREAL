@@ -85,6 +85,8 @@ const PaleteResumoBaseSchema = z.object({
   legacyCode: z.string().min(1).nullable().default(null),
   /** Tem nota de uma separação ativa do cliente: fica roxo no mapa. */
   clientSeparation: z.boolean().optional(),
+  /** Roxo e já marcado como separado para a agenda (marca manual na janela do palete). */
+  clientSeparationDone: z.boolean().optional(),
 });
 export type PaleteResumo = z.infer<typeof PaleteResumoBaseSchema>;
 

@@ -63,6 +63,63 @@ export async function paletesComSeparacao(db: Db, escopoId: string): Promise<Set
   return new Set((await ocorrencias(db, escopoId)).filter((o) => o.situacao === 'ATIVO').map((o) => o.palete_id));
 }
 
+/** Pares palete × separação ativa em que o palete tem nota ativa (a base da marca "separado"). */
+async function separacoesDosPaletes(db: Db, escopoId: string): Promise<{ palete_id: string; separacao_id: string }[]> {
+  return db.$queryRaw<{ palete_id: string; separacao_id: string }[]>`
+    SELECT DISTINCT p.id::text AS palete_id, s.id::text AS separacao_id
+      FROM (
+        SELECT palete_id, numero_documento FROM conteudo_palete
+         WHERE escopo_id = ${escopoId}::uuid AND situacao = 'ATIVO' AND numero_documento IS NOT NULL
+        UNION ALL
+        SELECT palete_id, numero_documento FROM vinculo_documento_palete
+         WHERE escopo_id = ${escopoId}::uuid AND situacao = 'ATIVO'
+      ) o
+      JOIN separacao_cliente_nota n ON n.escopo_id = ${escopoId}::uuid AND n.chave = ltrim(btrim(o.numero_documento), '0')
+      JOIN separacao_cliente s ON s.id = n.separacao_id AND s.situacao = 'ATIVA'
+      JOIN palete p ON p.id = o.palete_id AND p.arquivado_em IS NULL`;
+}
+
+/** Paletes roxos já marcados como separados para a agenda em todas as separações ativas em que aparecem. */
+export async function paletesSeparados(db: Db, escopoId: string): Promise<Set<string>> {
+  const [pares, marcas] = await Promise.all([
+    separacoesDosPaletes(db, escopoId),
+    db.separacaoClientePalete.findMany({ where: { escopoId, separacao: { situacao: 'ATIVA' } }, select: { paleteId: true, separacaoId: true } }),
+  ]);
+  const marcado = new Set(marcas.map((m) => `${m.paleteId}:${m.separacaoId}`));
+  const pendentes = new Set(pares.filter((x) => !marcado.has(`${x.palete_id}:${x.separacao_id}`)).map((x) => x.palete_id));
+  return new Set(pares.map((x) => x.palete_id).filter((id) => !pendentes.has(id)));
+}
+
+/**
+ * Marca (ou desfaz) "separado para a agenda" num palete roxo: vale para as
+ * separações ativas em que ele tem nota. Não reserva, não libera e não altera estoque.
+ */
+export async function marcarPaleteSeparado(tx: Transacao, escopo: Escopo, paleteId: string, separado: boolean, autor: Autor, agora: Date): Promise<{ palletId: string; separated: boolean }> {
+  const palete = await tx.palete.findFirst({ where: { id: paleteId, escopoId: escopo.id, arquivadoEm: null }, select: { id: true, codigo: true } });
+  if (!palete) throw naoEncontrado('Palete não encontrado neste escopo.');
+  const separacoes = (await separacoesDosPaletes(tx, escopo.id)).filter((x) => x.palete_id === palete.id).map((x) => x.separacao_id);
+  if (separacoes.length === 0) throw new ErroHttp(409, 'CONFLITO', `O palete ${palete.codigo} não tem nota de uma separação ativa do cliente (não está roxo).`);
+  if (separado) {
+    await tx.separacaoClientePalete.createMany({
+      data: separacoes.map((separacaoId) => ({ id: randomUUID(), escopoId: escopo.id, separacaoId, paleteId: palete.id, marcadoPor: autor.usuarioId, marcadoEm: agora })),
+      skipDuplicates: true,
+    });
+  } else {
+    await tx.separacaoClientePalete.deleteMany({ where: { escopoId: escopo.id, paleteId: palete.id, separacaoId: { in: separacoes } } });
+  }
+  await registrarEvento(tx, {
+    acao: 'PALETE_SEPARADO_AGENDA',
+    resultado: 'SUCESSO',
+    atorUsuarioId: autor.usuarioId,
+    escopoId: escopo.id,
+    alvoTipo: 'PALETE',
+    alvoId: palete.id,
+    detalhes: { codigo: palete.codigo, separado, separacoes: separacoes.join(',') },
+    requestId: autor.requestId,
+  });
+  return { palletId: palete.id, separated: separado };
+}
+
 /** Chaves das notas pedidas nas separações ativas. */
 export async function chavesEmSeparacao(db: Db, escopoId: string): Promise<Set<string>> {
   const linhas = await db.$queryRaw<{ chave: string }[]>`

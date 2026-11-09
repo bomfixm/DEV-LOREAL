@@ -241,7 +241,7 @@ export class ControladorMapa {
       const forma = L.rectangle(this.limitesDe(area), {
         // Preenchimento: neutro = estoque, lilás = separação para agenda (reservado); conferência no contorno e no rótulo.
         // Reconferência vencida (20 dias): laranja adicional; agenda, conferência e seleção continuam com seus marcadores.
-        className: `pr-palete pr-palete--${estadoExibido(palete).chave}${palete.activeCountId !== null ? ' pr-palete--em-conferencia' : ''}${palete.flowState === 'RESERVADO' ? ' pr-palete--agenda' : ''}${palete.reconference?.due === true ? ' pr-palete--reconferencia' : ''}${palete.clientSeparation === true ? ' pr-palete--separacao' : ''}`,
+        className: `pr-palete pr-palete--${estadoExibido(palete).chave}${palete.activeCountId !== null ? ' pr-palete--em-conferencia' : ''}${palete.flowState === 'RESERVADO' ? ' pr-palete--agenda' : ''}${palete.reconference?.due === true ? ' pr-palete--reconferencia' : ''}${palete.clientSeparation === true ? ' pr-palete--separacao' : ''}${palete.clientSeparationDone === true ? ' pr-palete--separado' : ''}`,
         bubblingMouseEvents: false,
       });
       forma.on('click', () => {
@@ -482,7 +482,7 @@ export class ControladorMapa {
 
   private criarRotuloPalete(palete: PaleteResumo): HTMLElement {
     const { chave, rotulo } = estadoExibido(palete);
-    const raiz = elemento('div', `pr-rotulo-palete pr-rotulo-palete--${chave}${palete.clientSeparation === true ? ' pr-rotulo-palete--separacao' : ''}`);
+    const raiz = elemento('div', `pr-rotulo-palete pr-rotulo-palete--${chave}${palete.clientSeparation === true ? ' pr-rotulo-palete--separacao' : ''}${palete.clientSeparationDone === true ? ' pr-rotulo-palete--separado' : ''}`);
     const posicao = palete.positionId === null ? undefined : this.posicoes.get(palete.positionId);
     // Endereço operacional em destaque; código do palete e código técnico da posição ficam como apoio.
     raiz.title = `${palete.code} · ${palete.positionCode ?? ''}`;
@@ -491,7 +491,7 @@ export class ControladorMapa {
       elemento('span', 'pr-rotulo-endereco pr-rotulo-endereco--curto', enderecoCurto(posicao, palete.positionCode)),
       elemento('span', 'pr-rotulo-endereco pr-rotulo-endereco--principal', rotuloEnderecoMapa(posicao, palete.positionCode)),
       elemento('span', 'pr-rotulo-codigo', palete.code),
-      elemento('span', 'pr-rotulo-estado', `${rotulo.marcador} ${rotulo.curto}${palete.activeCountId !== null ? ' · ✎ em conferência' : ''}`),
+      elemento('span', 'pr-rotulo-estado', `${rotulo.marcador} ${rotulo.curto}${palete.activeCountId !== null ? ' · ✎ em conferência' : ''}${palete.clientSeparationDone === true ? ' · ✓ separado' : ''}`),
     );
     if (palete.flowState === 'RESERVADO') raiz.append(elemento('span', 'pr-rotulo-agenda', 'AGENDA'));
     if (palete.reconference?.due === true) raiz.append(elemento('span', 'pr-rotulo-reconferencia', '⟳ Reconferência necessária'));

@@ -2944,6 +2944,7 @@ model SeparacaoCliente {
   criadoPor    Usuario                @relation("SeparacaoCriadaPor", fields: [criadoPorId], references: [id])
   encerradoPor Usuario?               @relation("SeparacaoEncerradaPor", fields: [encerradoPorId], references: [id])
   notas        SeparacaoClienteNota[]
+  paletes      SeparacaoClientePalete[]
 
   @@index([escopoId, situacao])
   @@map("separacao_cliente")
@@ -2972,6 +2973,23 @@ model SeparacaoClienteNota {
   @@unique([separacaoId, linhaArquivo])
   @@index([escopoId, chave])
   @@map("separacao_cliente_nota")
+}
+
+/// Palete já separado para a agenda do cliente (marca manual na janela do palete).
+/// Vale só para a separação ativa a que pertence; encerrar a separação encerra a marca.
+model SeparacaoClientePalete {
+  id          String   @id @db.Uuid
+  escopoId    String   @map("escopo_id") @db.Uuid
+  separacaoId String   @map("separacao_id") @db.Uuid
+  paleteId    String   @map("palete_id") @db.Uuid
+  marcadoPor  String   @map("marcado_por_id") @db.Uuid
+  marcadoEm   DateTime @map("marcado_em") @db.Timestamptz(3)
+
+  separacao SeparacaoCliente @relation(fields: [separacaoId], references: [id])
+
+  @@unique([separacaoId, paleteId])
+  @@index([escopoId, paleteId])
+  @@map("separacao_cliente_palete")
 }
 
 /// Resolução explícita de uma identificação ambígua (candidato escolhido e

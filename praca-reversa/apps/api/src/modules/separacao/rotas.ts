@@ -1,4 +1,4 @@
-import { API_PREFIXO, EnviarSeparacaoSchema } from '@praca-reversa/contracts';
+import { API_PREFIXO, EnviarSeparacaoSchema, MarcarSeparadoSchema } from '@praca-reversa/contracts';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { nomeDownload } from '../../http/csv-seguro.js';
@@ -6,7 +6,7 @@ import { naoEncontrado } from '../../http/erros.js';
 import { contextoDe, escopoAtivoDe, type Autenticacao, type Dependencias } from '../acesso/contexto.js';
 import { executarIdempotente } from '../idempotencia/executar.js';
 import { chaveIdempotencia, responder, validar } from '../idempotencia/http.js';
-import { encerrarSeparacao, listarSeparacoes, registrarSeparacao, relatorioXlsx, type Autor } from './servico.js';
+import { encerrarSeparacao, listarSeparacoes, marcarPaleteSeparado, registrarSeparacao, relatorioXlsx, type Autor } from './servico.js';
 
 const ParametrosSchema = z.object({ id: z.uuid() });
 const TIPO_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -25,6 +25,21 @@ export function registrarRotasSeparacao(app: FastifyInstance, deps: Dependencias
       deps.config.appSegredo,
       { escopoId: escopo.id, usuarioId: autor.usuarioId, operacao: 'separacao.enviar', chave, payload: { corpo: request.body } },
       async (tx) => ({ status: 201, corpo: await registrarSeparacao(tx, escopo, dados, autor, deps.agora()) }),
+    );
+    return responder(reply, resultado);
+  });
+
+  // Marca manual "separado para a agenda" no palete roxo (operação do dia a dia: perfis que movimentam).
+  app.post(`${API_PREFIXO}/paletes/:id/separado-agenda`, { preHandler: auth.exigirPermissao('movimento.registrar') }, async (request, reply) => {
+    const escopo = escopoAtivoDe(request);
+    const autor = autorDe(request);
+    const { id } = validar(ParametrosSchema, request.params, 'Identificador de palete inválido.');
+    const dados = validar(MarcarSeparadoSchema, request.body, 'Informe se o palete está separado.');
+    const resultado = await executarIdempotente(
+      deps.db,
+      deps.config.appSegredo,
+      { escopoId: escopo.id, usuarioId: autor.usuarioId, operacao: 'separacao.palete_separado', chave: chaveIdempotencia(request), payload: { id, corpo: request.body } },
+      async (tx) => ({ status: 200, corpo: await marcarPaleteSeparado(tx, escopo, id, dados.separated, autor, deps.agora()) }),
     );
     return responder(reply, resultado);
   });

@@ -7,7 +7,7 @@ import { LINHA_VIGENTE } from '../importacao/linhas-vigentes.js';
 import { enderecosInformados } from '../paletes/notas.js';
 import { CAMPOS_RELOGIO, reconferenciaDe } from '../paletes/relogio.js';
 import { conferenciaDosPaletes } from '../conteudos/estado.js';
-import { paletesComSeparacao } from '../separacao/servico.js';
+import { paletesComSeparacao, paletesSeparados } from '../separacao/servico.js';
 
 const selecaoResumo = {
   id: true,
@@ -69,7 +69,7 @@ export async function consultarPraca(db: Banco, escopo: Escopo, agora: Date): Pr
     db.palete.findMany({ where: { escopoId: escopo.id, arquivadoEm: null }, select: selecaoResumo, orderBy: { codigo: 'asc' } }),
     conferenciasAtivas(db, escopo.id),
   ]);
-  const [informados, conferencias, separacao] = await Promise.all([
+  const [informados, conferencias, separacao, separados] = await Promise.all([
     informadosDe(db, escopo.id, paletes),
     conferenciaDosPaletes(
       db,
@@ -77,11 +77,12 @@ export async function consultarPraca(db: Banco, escopo: Escopo, agora: Date): Pr
       paletes.map((p) => p.id),
     ),
     paletesComSeparacao(db, escopo.id),
+    paletesSeparados(db, escopo.id),
   ]);
   return {
     scope: escopo,
     layout,
-    pallets: paletes.map((p) => ({ ...resumo(p, ativas, informados, conferencias, agora), ...(separacao.has(p.id) ? { clientSeparation: true } : {}) })),
+    pallets: paletes.map((p) => ({ ...resumo(p, ativas, informados, conferencias, agora), ...(separacao.has(p.id) ? { clientSeparation: true } : {}), ...(separados.has(p.id) ? { clientSeparationDone: true } : {}) })),
     consultedAt: agora.toISOString(),
   };
 }

@@ -85,3 +85,9 @@ export type EnviarSeparacao = z.infer<typeof EnviarSeparacaoSchema>;
 
 export const ListaSeparacoesSchema = z.object({ items: z.array(SeparacaoClienteSchema) });
 export type ListaSeparacoes = z.infer<typeof ListaSeparacoesSchema>;
+
+/** POST /paletes/:id/separado-agenda: marca ou desfaz "separado para a agenda" num palete roxo. */
+export const MarcarSeparadoSchema = z.object({ separated: z.boolean() });
+export type MarcarSeparado = z.infer<typeof MarcarSeparadoSchema>;
+export const ResultadoMarcaSeparadoSchema = z.object({ palletId: z.uuid(), separated: z.boolean() });
+export type ResultadoMarcaSeparado = z.infer<typeof ResultadoMarcaSeparadoSchema>;

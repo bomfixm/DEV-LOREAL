@@ -239,3 +239,34 @@ export function relatorioXlsx(s: SeparacaoCliente): Buffer {
     { nome: 'No mapa', colunas, linhas: s.notes.filter((n) => n.situation === 'NO_MAPA').map(linha) },
   ]);
 }
+
+const fmtDataHora = (d: Date) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(d);
+
+/**
+ * Exportação do que já foi marcado como "separado para a agenda": uma linha por
+ * nota em palete marcado (palete, posição, endereço, quem e quando marcou, e
+ * todas as colunas da planilha do cliente). Segunda aba: notas em paletes do
+ * mapa que ainda não foram marcadas.
+ */
+export async function relatorioSeparadosXlsx(db: Db, escopoId: string, s: SeparacaoCliente): Promise<Buffer> {
+  const marcas = await db.separacaoClientePalete.findMany({ where: { escopoId, separacaoId: s.id }, select: { paleteId: true, marcadoPor: true, marcadoEm: true } });
+  const nomes = new Map((await db.usuario.findMany({ where: { id: { in: [...new Set(marcas.map((m) => m.marcadoPor))] } }, select: { id: true, nome: true } })).map((u) => [u.id, u.nome]));
+  const marca = new Map(marcas.map((m) => [m.paleteId, m]));
+  const t = (titulo: string, largura = 18) => ({ titulo, largura, texto: true });
+  const colunasSeparados = [t('Palete', 14), t('Posição no mapa', 18), t('Endereço no sistema', 22), t('Separado em', 18), t('Separado por', 22), ...s.headers.map((h) => t(h))];
+  const colunasFalta = [t('Palete', 14), t('Posição no mapa', 18), t('Endereço no sistema', 22), ...s.headers.map((h) => t(h))];
+  const separados: (string | null)[][] = [];
+  const falta: (string | null)[][] = [];
+  for (const n of s.notes) {
+    const valores = s.headers.map((h) => n.values[h] ?? null);
+    for (const l of n.locations) {
+      const m = marca.get(l.palletId);
+      if (m !== undefined) separados.push([l.palletCode, l.positionCode, l.address, fmtDataHora(m.marcadoEm), nomes.get(m.marcadoPor) ?? null, ...valores]);
+      else if (n.situation === 'NO_MAPA') falta.push([l.palletCode, l.positionCode, l.address, ...valores]);
+    }
+  }
+  return escreverXlsx([
+    { nome: 'Separados', colunas: colunasSeparados, linhas: separados },
+    { nome: 'Ainda nao separados', colunas: colunasFalta, linhas: falta },
+  ]);
+}

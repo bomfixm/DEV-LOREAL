@@ -37,7 +37,7 @@ function TabelaNotas({ notas }: { notas: readonly NotaSeparacao[] }) {
   );
 }
 
-export function CartaoSeparacao({ s, podeGravar, ocupado, aoEncerrar, aoBaixar }: { s: SeparacaoCliente; podeGravar: boolean; ocupado: boolean; aoEncerrar: () => void; aoBaixar: () => void }) {
+export function CartaoSeparacao({ s, podeGravar, ocupado, aoEncerrar, aoBaixar, aoBaixarSeparados }: { s: SeparacaoCliente; podeGravar: boolean; ocupado: boolean; aoEncerrar: () => void; aoBaixar: () => void; aoBaixarSeparados: () => void }) {
   const fora = s.notes.filter((n) => n.situation !== 'NO_MAPA');
   const noMapa = s.notes.length - fora.length;
   return (
@@ -53,6 +53,10 @@ export function CartaoSeparacao({ s, podeGravar, ocupado, aoEncerrar, aoBaixar }
         <button type="button" className="botao-secundario" onClick={aoBaixar} data-testid="separacao-baixar">
           <IconeArquivo />
           Baixar relatório em Excel
+        </button>
+        <button type="button" className="botao-secundario" onClick={aoBaixarSeparados} data-testid="separacao-baixar-separados">
+          <IconeArquivo />
+          Exportar separados (Excel)
         </button>
         {podeGravar && (
           <button type="button" className="botao-secundario" disabled={ocupado} onClick={aoEncerrar} data-testid="separacao-encerrar">

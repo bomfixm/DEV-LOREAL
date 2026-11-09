@@ -95,6 +95,11 @@ export function useSeparacaoCliente(permissoes: readonly Permissao[], aoGravar: 
               setErro(mensagemDeFalha(e));
             });
           }}
+          aoBaixarSeparados={() => {
+            baixarArquivo(`${API_PREFIXO}/separacoes/${s.id}/separados`, `separados-${s.window ?? 'cliente'}.xlsx`).catch((e: unknown) => {
+              setErro(mensagemDeFalha(e));
+            });
+          }}
           aoEncerrar={() => {
             void executar(`separacao-encerrar:${s.id}`, (chave) => enviarJson('POST', `${API_PREFIXO}/separacoes/${s.id}/encerrar`, z.unknown(), { corpo: {}, idempotencia: chave }));
           }}

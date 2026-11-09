@@ -6,7 +6,7 @@ import { naoEncontrado } from '../../http/erros.js';
 import { contextoDe, escopoAtivoDe, type Autenticacao, type Dependencias } from '../acesso/contexto.js';
 import { executarIdempotente } from '../idempotencia/executar.js';
 import { chaveIdempotencia, responder, validar } from '../idempotencia/http.js';
-import { encerrarSeparacao, listarSeparacoes, marcarPaleteSeparado, registrarSeparacao, relatorioXlsx, type Autor } from './servico.js';
+import { encerrarSeparacao, listarSeparacoes, marcarPaleteSeparado, registrarSeparacao, relatorioSeparadosXlsx, relatorioXlsx, type Autor } from './servico.js';
 
 const ParametrosSchema = z.object({ id: z.uuid() });
 const TIPO_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -55,6 +55,19 @@ export function registrarRotasSeparacao(app: FastifyInstance, deps: Dependencias
       .header('cache-control', 'no-store')
       .header('content-disposition', `attachment; filename="${nomeDownload(`notas-separacao-${separacao.window ?? 'cliente'}`)}.xlsx"`)
       .send(relatorioXlsx(separacao));
+  });
+
+  // Exporta o que já foi marcado como separado para a agenda.
+  app.get(`${API_PREFIXO}/separacoes/:id/separados`, { preHandler: auth.exigirPermissao('selecao.consultar') }, async (request, reply) => {
+    const escopo = escopoAtivoDe(request);
+    const { id } = validar(ParametrosSchema, request.params, 'Identificador inválido.');
+    const separacao = (await listarSeparacoes(deps.db, escopo.id)).items.find((s) => s.id === id);
+    if (!separacao) throw naoEncontrado('Separação ativa não encontrada.');
+    return reply
+      .header('content-type', TIPO_XLSX)
+      .header('cache-control', 'no-store')
+      .header('content-disposition', `attachment; filename="${nomeDownload(`separados-${separacao.window ?? 'cliente'}`)}.xlsx"`)
+      .send(await relatorioSeparadosXlsx(deps.db, escopo.id, separacao));
   });
 
   app.post(`${API_PREFIXO}/separacoes/:id/encerrar`, { preHandler: auth.exigirPermissao('selecao.importar') }, async (request, reply) => {

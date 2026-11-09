@@ -103,6 +103,12 @@ describe('Separação do cliente', () => {
     expect(await db.separacaoClientePalete.count({ where: { paleteId: id } })).toBe(1);
     expect((await marcar(sSupervisor, randomUUID(), true)).statusCode).toBe(404);
 
+    // Exportação: o palete marcado sai na aba "Separados".
+    const exp = await como(app, sSupervisor, { method: 'GET', url: `/api/v1/separacoes/${separacao?.id ?? ''}/separados` });
+    expect(exp.statusCode).toBe(200);
+    expect(exp.headers['content-type']).toContain('spreadsheetml');
+    expect(exp.rawPayload.subarray(0, 2).toString()).toBe('PK');
+
     expect((await marcar(sSupervisor, id, false)).statusCode).toBe(200);
     expect(await feitos()).toEqual([]);
 

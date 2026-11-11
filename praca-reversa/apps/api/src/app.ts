@@ -29,6 +29,7 @@ import { LIMITE_EXPORTACAO_PADRAO, LIMITES_IMPORTACAO_PADRAO, LIMITES_PLANILHA_P
 import { registrarRotasImportacao } from './modules/importacao/rotas.js';
 import { registrarRotasClaims } from './modules/claims/rotas.js';
 import { registrarRotasJanelas } from './modules/janelas/rotas.js';
+import { registrarRotasCarga } from './modules/carga/rotas.js';
 import { registrarRotasLayout } from './modules/layout/rotas.js';
 import { registrarRotasMovimentos } from './modules/movimentos/rotas.js';
 import { registrarRotasPaletes } from './modules/paletes/rotas.js';
@@ -203,6 +204,7 @@ export async function criarApp(opcoes: OpcoesApp): Promise<FastifyInstance> {
         registrarRotasImportacao(privado, deps, auth);
         registrarRotasClaims(privado, deps, auth);
         registrarRotasJanelas(privado, deps, auth);
+        registrarRotasCarga(privado, deps, auth);
         registrarRotasSelecao(privado, deps, auth);
         registrarRotasSeparacao(privado, deps, auth);
         registrarRotasNotasFoto(privado, deps, auth);

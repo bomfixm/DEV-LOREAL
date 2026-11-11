@@ -1,0 +1,240 @@
+/**
+ * Rotas da Expedição DHL (carga por veículo). Consulta: `janela.consultar`.
+ * Montagem, posição, físico conferido e emissões: `expedicao.preparar`.
+ * Conferência documental: `expedicao.documentos`. Fechar, reabrir e cancelar
+ * veículo: `expedicao.confirmar`. Toda mutação é idempotente, transacional e
+ * devolve a carga atualizada da janela; nenhuma baixa estoque.
+ */
+import {
+  API_PREFIXO,
+  AcaoVeiculoSchema,
+  AlterarLinhasEmbarqueSchema,
+  AlterarVeiculoSchema,
+  CancelarEmbarqueSchema,
+  ConferirDocumentoSchema,
+  ConfirmarPosicaoSchema,
+  CriarPaleteEmbarqueSchema,
+  CriarVeiculoSchema,
+  EmitirSchema,
+  FisicoConferidoSchema,
+  PosicaoEmbarqueSchema,
+  TransferirEmbarqueSchema,
+  identidadeEmbarque,
+  type EventosEmbarque,
+  type OrigemEmbarque,
+  type Escopo,
+  type TipoVeiculo,
+} from '@praca-reversa/contracts';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
+import type { Banco, Transacao } from '../../db/cliente.js';
+import { naoEncontrado } from '../../http/erros.js';
+import { contextoDe, escopoAtivoDe, type Autenticacao, type Dependencias } from '../acesso/contexto.js';
+import { executarIdempotente } from '../idempotencia/executar.js';
+import { chaveIdempotencia, responder, validar } from '../idempotencia/http.js';
+import { cargaDaJanela, janelasParaCarga, lerJanelaCarga } from './leitura.js';
+import { disponibilidade, lerOcorrencias, ocorrenciasDoPalete } from './origem.js';
+import {
+  acaoVeiculo,
+  alterarLinhas,
+  alterarVeiculo,
+  cancelarPalete,
+  conferirDocumento,
+  confirmarPosicao,
+  criarPalete,
+  criarVeiculo,
+  emitirMapa,
+  emitirPalete,
+  marcarFisico,
+  moverPosicao,
+  transferirPalete,
+  type Autor,
+} from './servico.js';
+
+const Id = z.object({ id: z.uuid() });
+const BuscaOrigem = z.object({ codigo: z.string().trim().min(1).max(40) });
+const Recarregar = z.object({ expectedVersion: z.number().int().positive() });
+
+async function origemPorCodigo(db: Banco, escopo: Escopo, janelaId: string, codigo: string): Promise<OrigemEmbarque> {
+  await lerJanelaCarga(db, escopo.id, janelaId);
+  const [p] = await db.$queryRaw<{ id: string; codigo: string; endereco: string | null; na_praca: boolean }[]>`
+    SELECT p.id::text, p.codigo,
+           (SELECT ep.endereco FROM endereco_posicao ep WHERE ep.escopo_id = p.escopo_id AND ep.posicao_id = p.posicao_id ORDER BY ep.id LIMIT 1) AS endereco,
+           (p.arquivado_em IS NULL AND p.estado_fluxo::text IN ('EM_ESTOQUE', 'RESERVADO')) AS na_praca
+      FROM palete p
+     WHERE p.escopo_id = ${escopo.id}::uuid AND (upper(p.codigo) = upper(${codigo}) OR upper(coalesce(p.codigo_legado, '')) = upper(${codigo}))
+     ORDER BY (upper(p.codigo) = upper(${codigo})) DESC, p.arquivado_em NULLS FIRST
+     LIMIT 1`;
+  if (!p) throw naoEncontrado(`Palete ${codigo} não encontrado neste escopo.`);
+  const refs = await ocorrenciasDoPalete(db, escopo.id, p.id);
+  const ocorrencias = await lerOcorrencias(db, escopo.id, refs);
+  const disp = await disponibilidade(db, escopo.id, janelaId, refs.map((r) => r.id), new Map([...ocorrencias.values()].map((o) => [o.id, o.base])), null);
+  const [full] = await db.$queryRaw<{ codigo: string; tipo: TipoVeiculo; sequencia: number; numero: number }[]>`
+    SELECT j.codigo, v.tipo, v.sequencia, pe.numero
+      FROM palete_embarque pe JOIN veiculo_carga v ON v.id = pe.veiculo_id JOIN janela_devolucao j ON j.id = v.janela_id
+     WHERE pe.escopo_id = ${escopo.id}::uuid AND pe.palete_origem_id = ${p.id}::uuid AND pe.tipo = 'FULL' AND pe.situacao = 'ATIVO' AND v.situacao <> 'CANCELADO'
+     LIMIT 1`;
+  return {
+    palletId: p.id,
+    code: p.codigo,
+    address: p.endereco,
+    onSite: p.na_praca,
+    fullIn: full ? identidadeEmbarque(full.codigo, full.tipo, full.sequencia, full.numero) : null,
+    occurrences: refs.flatMap((r) => {
+      const o = ocorrencias.get(r.id);
+      if (!o) return [];
+      const d = disp.get(r.id);
+      return [
+        {
+          kind: o.kind,
+          id: o.id,
+          documentType: o.documentType,
+          documentNumber: o.documentNumber,
+          sender: o.sender,
+          delivery: o.delivery,
+          base: o.base,
+          available: d?.available ?? null,
+          separatedHere: d?.separatedHere ?? 0,
+        },
+      ];
+    }),
+  };
+}
+
+export function registrarRotasCarga(app: FastifyInstance, deps: Dependencias, auth: Autenticacao): void {
+  const autorDe = (request: FastifyRequest): Autor => ({ usuarioId: contextoDe(request).sessao.usuario.id });
+
+  app.get(`${API_PREFIXO}/cargas/janelas`, { preHandler: auth.exigirPermissao('janela.consultar') }, async (request) => janelasParaCarga(deps.db, escopoAtivoDe(request)));
+
+  app.get(`${API_PREFIXO}/cargas/janelas/:id`, { preHandler: auth.exigirPermissao('janela.consultar') }, async (request) => {
+    const { id } = validar(Id, request.params, 'Identificador de janela inválido.');
+    return cargaDaJanela(deps.db, escopoAtivoDe(request), id, deps.agora());
+  });
+
+  app.get(`${API_PREFIXO}/cargas/janelas/:id/origem`, { preHandler: auth.exigirPermissao('expedicao.preparar') }, async (request) => {
+    const { id } = validar(Id, request.params, 'Identificador de janela inválido.');
+    const { codigo } = validar(BuscaOrigem, request.query, 'Informe o código do palete de origem.');
+    return origemPorCodigo(deps.db, escopoAtivoDe(request), id, codigo);
+  });
+
+  app.get(`${API_PREFIXO}/cargas/veiculos/:id/historico`, { preHandler: auth.exigirPermissao('janela.consultar') }, async (request): Promise<EventosEmbarque> => {
+    const { id } = validar(Id, request.params, 'Identificador de veículo inválido.');
+    const escopo = escopoAtivoDe(request);
+    const linhas = await deps.db.$queryRaw<{ id: string; tipo: string; detalhes: Record<string, unknown>; autor: string; ocorrido_em: Date; numero: number | null }[]>`
+      SELECT e.id::text, e.tipo, e.detalhes, u.nome AS autor, e.ocorrido_em, pe.numero
+        FROM evento_embarque e JOIN usuario u ON u.id = e.autor_id LEFT JOIN palete_embarque pe ON pe.id = e.palete_embarque_id
+       WHERE e.escopo_id = ${escopo.id}::uuid AND e.veiculo_id = ${id}::uuid
+       ORDER BY e.ocorrido_em DESC, e.id DESC LIMIT 300`;
+    return { items: linhas.map((l) => ({ id: l.id, kind: l.tipo, details: l.detalhes, by: l.autor, at: l.ocorrido_em.toISOString(), pallet: l.numero === null ? null : `P${String(l.numero).padStart(2, '0')}` })) };
+  });
+
+  /** Mutação idempotente que devolve a carga atualizada da janela. */
+  const mutacao =
+    (operacao: string, status: number, executar: (request: FastifyRequest, id: string, escopo: Escopo, autor: Autor, tx: Transacao, agora: Date) => Promise<string>) =>
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const escopo = escopoAtivoDe(request);
+      const autor = autorDe(request);
+      const chave = chaveIdempotencia(request);
+      const { id } = validar(Id, request.params, 'Identificador inválido.');
+      const resultado = await executarIdempotente(deps.db, deps.config.appSegredo, { escopoId: escopo.id, usuarioId: autor.usuarioId, operacao, chave, payload: { id, corpo: request.body } }, async (tx) => {
+        const agora = deps.agora();
+        const janelaId = await executar(request, id, escopo, autor, tx, agora);
+        return { status, corpo: await cargaDaJanela(tx, escopo, janelaId, agora) };
+      });
+      return responder(reply, resultado);
+    };
+
+  const preparar = { preHandler: auth.exigirPermissao('expedicao.preparar') };
+
+  app.post(
+    `${API_PREFIXO}/cargas/janelas/:id/veiculos`,
+    preparar,
+    mutacao('carga.veiculo.criar', 201, async (request, id, escopo, autor, tx, agora) => {
+      await criarVeiculo(tx, escopo, id, validar(CriarVeiculoSchema, request.body, 'Escolha Carreta ou Truck.'), autor, agora);
+      return id;
+    }),
+  );
+  app.put(
+    `${API_PREFIXO}/cargas/veiculos/:id`,
+    preparar,
+    mutacao('carga.veiculo.alterar', 200, (request, id, escopo, autor, tx, agora) => alterarVeiculo(tx, escopo, id, validar(AlterarVeiculoSchema, request.body, 'Dados do veículo inválidos.'), autor, agora)),
+  );
+  app.post(
+    `${API_PREFIXO}/cargas/veiculos/:id/situacao`,
+    { preHandler: auth.exigirPermissao('expedicao.confirmar') },
+    mutacao('carga.veiculo.situacao', 200, (request, id, escopo, autor, tx, agora) =>
+      acaoVeiculo(tx, escopo, id, validar(AcaoVeiculoSchema, request.body, 'Ação inválida.'), autor, agora, async (janelaId, veiculoId) => {
+        const carga = await cargaDaJanela(tx, escopo, janelaId, agora);
+        return carga.vehicles.find((v) => v.id === veiculoId)?.pending ?? [];
+      }),
+    ),
+  );
+  app.post(
+    `${API_PREFIXO}/cargas/veiculos/:id/paletes`,
+    preparar,
+    mutacao('carga.palete.criar', 201, (request, id, escopo, autor, tx, agora) =>
+      criarPalete(tx, escopo, id, validar(CriarPaleteEmbarqueSchema, request.body, 'FULL: palete de origem; Fracionado: NFs e volumes.'), autor, agora),
+    ),
+  );
+  app.post(
+    `${API_PREFIXO}/cargas/veiculos/:id/mapa`,
+    preparar,
+    mutacao('carga.mapa.emitir', 201, (request, id, escopo, autor, tx, agora) => emitirMapa(tx, escopo, id, validar(EmitirSchema, request.body, 'Emissão inválida.'), autor, agora)),
+  );
+  app.put(
+    `${API_PREFIXO}/cargas/paletes/:id/posicao`,
+    preparar,
+    mutacao('carga.palete.posicao', 200, (request, id, escopo, autor, tx, agora) => moverPosicao(tx, escopo, id, validar(PosicaoEmbarqueSchema, request.body, 'Posição inválida.'), autor, agora)),
+  );
+  app.post(
+    `${API_PREFIXO}/cargas/paletes/:id/confirmacao`,
+    preparar,
+    mutacao('carga.palete.confirmacao', 200, (request, id, escopo, autor, tx, agora) =>
+      confirmarPosicao(tx, escopo, id, validar(ConfirmarPosicaoSchema, request.body, 'Confirmação inválida.'), autor, agora),
+    ),
+  );
+  app.post(
+    `${API_PREFIXO}/cargas/paletes/:id/transferencia`,
+    preparar,
+    mutacao('carga.palete.transferir', 200, (request, id, escopo, autor, tx, agora) =>
+      transferirPalete(tx, escopo, id, validar(TransferirEmbarqueSchema, request.body, 'Transferência inválida.'), autor, agora),
+    ),
+  );
+  app.put(
+    `${API_PREFIXO}/cargas/paletes/:id/linhas`,
+    preparar,
+    mutacao('carga.palete.linhas', 200, (request, id, escopo, autor, tx, agora) =>
+      alterarLinhas(tx, escopo, id, validar(AlterarLinhasEmbarqueSchema, request.body, 'Informe as NFs e os volumes.'), autor, agora),
+    ),
+  );
+  app.post(
+    `${API_PREFIXO}/cargas/paletes/:id/recarregar-origem`,
+    preparar,
+    mutacao('carga.palete.recarregar', 200, (request, id, escopo, autor, tx, agora) => {
+      const { expectedVersion } = validar(Recarregar, request.body, 'Versão do palete ausente.');
+      return alterarLinhas(tx, escopo, id, { expectedVersion, lines: null }, autor, agora);
+    }),
+  );
+  app.post(
+    `${API_PREFIXO}/cargas/paletes/:id/fisico`,
+    preparar,
+    mutacao('carga.palete.fisico', 200, (request, id, escopo, autor, tx, agora) => marcarFisico(tx, escopo, id, validar(FisicoConferidoSchema, request.body, 'Revisão ausente.'), autor, agora)),
+  );
+  app.post(
+    `${API_PREFIXO}/cargas/paletes/:id/documentos`,
+    { preHandler: auth.exigirPermissao('expedicao.documentos') },
+    mutacao('carga.palete.documento', 201, (request, id, escopo, autor, tx, agora) =>
+      conferirDocumento(tx, escopo, id, validar(ConferirDocumentoSchema, request.body, 'Situação do documento inválida.'), autor, agora),
+    ),
+  );
+  app.post(
+    `${API_PREFIXO}/cargas/paletes/:id/cancelamento`,
+    preparar,
+    mutacao('carga.palete.cancelar', 200, (request, id, escopo, autor, tx, agora) => cancelarPalete(tx, escopo, id, validar(CancelarEmbarqueSchema, request.body, 'Informe o motivo.'), autor, agora)),
+  );
+  app.post(
+    `${API_PREFIXO}/cargas/paletes/:id/emissoes`,
+    { preHandler: auth.exigirAlguma(['expedicao.preparar', 'expedicao.documentos']) },
+    mutacao('carga.palete.emitir', 201, (request, id, escopo, autor, tx, agora) => emitirPalete(tx, escopo, id, validar(EmitirSchema, request.body, 'Emissão inválida.'), autor, agora)),
+  );
+}

@@ -3675,3 +3675,135 @@ model EventoSelecaoTeste {
   @@index([escopoId, solicitacaoId, ocorridoEm])
   @@map("selecao_teste_evento")
 }
+
+// ---------- Expedição DHL: montagem da carga por veículo (11 nov. 2026) ----------
+// Só planejamento, conferência e impressão: nada aqui baixa estoque (a baixa
+// continua no evento EXPEDICAO de evento_volumes_janela). Chaves estrangeiras,
+// índices parciais e gatilhos estão na migração 20261111150000_carga_expedicao.
+
+/// Veículo da janela: CARRETA (até 28) ou TRUCK (até 16); grade provisória até a operação confirmar.
+model VeiculoCarga {
+  id                   String   @id @db.Uuid
+  escopoId             String   @map("escopo_id") @db.Uuid
+  janelaId             String   @map("janela_id") @db.Uuid
+  tipo                 String
+  sequencia            Int
+  capacidade           Int
+  nome                 String?
+  placa                String?
+  fileiras             Int
+  colunas              Int
+  disposicaoConfirmada Boolean  @default(false) @map("disposicao_confirmada")
+  situacao             String   @default("MONTAGEM")
+  versao               Int      @default(1)
+  criadoPorId          String   @map("criado_por_id") @db.Uuid
+  criadoEm             DateTime @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm         DateTime @map("atualizado_em") @db.Timestamptz(3)
+
+  @@unique([escopoId, id])
+  @@unique([janelaId, tipo, sequencia], map: "veiculo_carga_janela_tipo_sequencia_key")
+  @@index([escopoId, janelaId], map: "veiculo_carga_escopo_janela_idx")
+  @@map("veiculo_carga")
+}
+
+/// Palete de embarque: número no veículo, posição planejada/confirmada, FULL ou FRACIONADO, revisão e físico conferido.
+model PaleteEmbarque {
+  id                     String    @id @db.Uuid
+  escopoId               String    @map("escopo_id") @db.Uuid
+  veiculoId              String    @map("veiculo_id") @db.Uuid
+  numero                 Int
+  posicao                Int?
+  posicaoConfirmada      Boolean   @default(false) @map("posicao_confirmada")
+  posicaoConfirmadaPorId String?   @map("posicao_confirmada_por_id") @db.Uuid
+  posicaoConfirmadaEm    DateTime? @map("posicao_confirmada_em") @db.Timestamptz(3)
+  tipo                   String
+  paleteOrigemId         String?   @map("palete_origem_id") @db.Uuid
+  revisao                Int       @default(1)
+  fisicoRevisao          Int?      @map("fisico_revisao")
+  fisicoPorId            String?   @map("fisico_por_id") @db.Uuid
+  fisicoEm               DateTime? @map("fisico_em") @db.Timestamptz(3)
+  situacao               String    @default("ATIVO")
+  motivoCancelamento     String?   @map("motivo_cancelamento")
+  versao                 Int       @default(1)
+  criadoPorId            String    @map("criado_por_id") @db.Uuid
+  criadoEm               DateTime  @map("criado_em") @db.Timestamptz(3)
+  atualizadoEm           DateTime  @map("atualizado_em") @db.Timestamptz(3)
+
+  @@unique([escopoId, id])
+  @@index([escopoId, veiculoId], map: "palete_embarque_escopo_veiculo_idx")
+  @@map("palete_embarque")
+}
+
+/// Ocorrência de origem (vínculo OU conteúdo) e os volumes que vão no palete de embarque.
+model LinhaPaleteEmbarque {
+  id                 String  @id @db.Uuid
+  escopoId           String  @map("escopo_id") @db.Uuid
+  paleteEmbarqueId   String  @map("palete_embarque_id") @db.Uuid
+  vinculoId          String? @map("vinculo_id") @db.Uuid
+  conteudoId         String? @map("conteudo_id") @db.Uuid
+  paleteOrigemId     String  @map("palete_origem_id") @db.Uuid
+  paleteOrigemCodigo String  @map("palete_origem_codigo")
+  volumes            Int
+  tipoDocumento      String? @map("tipo_documento")
+  numeroDocumento    String? @map("numero_documento")
+  remetente          String?
+  delivery           String?
+  ordem              Int
+  removidaEm         DateTime? @map("removida_em") @db.Timestamptz(3)
+
+  @@unique([escopoId, id])
+  @@index([escopoId, paleteEmbarqueId], map: "linha_palete_embarque_palete_idx")
+  @@index([escopoId, vinculoId], map: "linha_palete_embarque_vinculo_idx")
+  @@index([escopoId, conteudoId], map: "linha_palete_embarque_conteudo_idx")
+  @@map("linha_palete_embarque")
+}
+
+/// Conferência documental por linha e revisão (só acrescentada).
+model DocumentoEmbarque {
+  id               String   @id @db.Uuid
+  escopoId         String   @map("escopo_id") @db.Uuid
+  paleteEmbarqueId String   @map("palete_embarque_id") @db.Uuid
+  linhaId          String   @map("linha_id") @db.Uuid
+  revisao          Int
+  situacao         String
+  observacao       String?
+  autorId          String   @map("autor_id") @db.Uuid
+  registradoEm     DateTime @map("registrado_em") @db.Timestamptz(3)
+
+  @@index([escopoId, paleteEmbarqueId, revisao], map: "documento_embarque_palete_idx")
+  @@map("documento_embarque")
+}
+
+/// Emissão impressa (etiqueta, espelho, mapa, lista de documentos), rascunho ou final (só acrescentada).
+model EmissaoEmbarque {
+  id               String   @id @db.Uuid
+  escopoId         String   @map("escopo_id") @db.Uuid
+  veiculoId        String   @map("veiculo_id") @db.Uuid
+  paleteEmbarqueId String?  @map("palete_embarque_id") @db.Uuid
+  tipo             String
+  final            Boolean
+  revisao          Int?
+  identidade       String
+  fotografia       Json
+  autorId          String   @map("autor_id") @db.Uuid
+  emitidoEm        DateTime @map("emitido_em") @db.Timestamptz(3)
+
+  @@index([escopoId, veiculoId, tipo], map: "emissao_embarque_veiculo_idx")
+  @@map("emissao_embarque")
+}
+
+/// Histórico da montagem (só acrescentado).
+model EventoEmbarque {
+  id               String   @id @db.Uuid
+  escopoId         String   @map("escopo_id") @db.Uuid
+  veiculoId        String   @map("veiculo_id") @db.Uuid
+  paleteEmbarqueId String?  @map("palete_embarque_id") @db.Uuid
+  tipo             String
+  detalhes         Json     @default("{}")
+  autorId          String   @map("autor_id") @db.Uuid
+  ocorridoEm       DateTime @map("ocorrido_em") @db.Timestamptz(3)
+
+  @@index([escopoId, veiculoId, ocorridoEm], map: "evento_embarque_veiculo_idx")
+  @@index([escopoId, paleteEmbarqueId], map: "evento_embarque_palete_idx")
+  @@map("evento_embarque")
+}

@@ -32,6 +32,12 @@ export function bancoDeTeste(): Banco {
 }
 
 const TABELAS = [
+  'documento_embarque',
+  'emissao_embarque',
+  'evento_embarque',
+  'linha_palete_embarque',
+  'palete_embarque',
+  'veiculo_carga',
   'aceite_documento',
   'documento_publico',
   'item_conferencia_volumes',

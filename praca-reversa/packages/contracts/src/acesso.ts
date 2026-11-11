@@ -62,6 +62,8 @@ export const PermissaoSchema = z.enum([
   'expedicao.confirmar',
   /** Registrar retorno físico ou aviso documental ligado à expedição. */
   'expedicao.retorno',
+  /** Expedição DHL (carga por veículo): conferência documental do administrativo por palete de embarque. */
+  'expedicao.documentos',
   /** Exportar lista de preparação e resumo das janelas (CSV). */
   'janela.exportar',
   /** Exportar relatórios da etapa 10 (CSV); cada relatório exige também a permissão de consulta da área. */
@@ -128,6 +130,7 @@ export const PERMISSOES_IMPLEMENTADAS: ReadonlySet<Permissao> = new Set([
   'expedicao.preparar',
   'expedicao.confirmar',
   'expedicao.retorno',
+  'expedicao.documentos',
   'janela.exportar',
   'relatorio.exportar',
   'inventario.importar',
@@ -207,6 +210,7 @@ export const PERMISSOES_POR_PERFIL: Readonly<Record<Perfil, readonly Permissao[]
     'expedicao.preparar',
     'expedicao.confirmar',
     'expedicao.retorno',
+    'expedicao.documentos',
     'janela.exportar',
     'relatorio.exportar',
     'inventario.importar',

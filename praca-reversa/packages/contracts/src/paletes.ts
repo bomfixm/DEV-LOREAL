@@ -310,6 +310,10 @@ export type RenumerarPalete = z.output<typeof RenumerarPaleteSchema>;
 export const DefinirTipoCargaSchema = z.object({ kind: z.enum(['FULL', 'FRACIONADO']).nullable() });
 export type DefinirTipoCarga = z.output<typeof DefinirTipoCargaSchema>;
 
+/** Observação do palete feita direto na janela (vale também para paletes vindos do inventário); vazio apaga. */
+export const DefinirObservacaoPaleteSchema = z.object({ notes: textoOpcional(500) });
+export type DefinirObservacaoPalete = z.output<typeof DefinirObservacaoPaleteSchema>;
+
 /** Posição do palete full na carga: "2/7", "11/11". Nulo apaga. A posição não pode passar do total. */
 export const DefinirSequenciaFullSchema = z.object({
   sequence: z

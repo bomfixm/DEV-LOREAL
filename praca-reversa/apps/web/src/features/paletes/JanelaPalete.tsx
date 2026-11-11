@@ -1,6 +1,7 @@
 import {
   API_PREFIXO,
   ConteudosPaleteSchema,
+  DefinirObservacaoPaleteSchema,
   DefinirSequenciaFullSchema,
   DefinirTipoCargaSchema,
   PaleteDetalheSchema,
@@ -192,6 +193,59 @@ function InformarSequenciaFull({ paleteId, atual, aoTrocado }: { paleteId: strin
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); void salvar(); } }}
       />{' '}
       <button type="button" className="botao-secundario" disabled={enviando || valor.trim() === (atual ?? '')} onClick={() => void salvar()} data-testid="janela-full-sequencia-salvar">Salvar</button>
+      {erro !== null && <span className="mensagem-conflito" role="alert"> {erro}</span>}
+    </span>
+  );
+}
+
+/** Observação do palete (vale para qualquer palete, inclusive os vindos do inventário). */
+function ObservacaoPalete({ paleteId, atual, podeEditar, aoTrocado }: { paleteId: string; atual: string | null; podeEditar: boolean; aoTrocado: (texto: string) => void }) {
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState(atual ?? '');
+  const [erro, setErro] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const chaves = useChaves();
+  useEffect(() => { if (!editando) setValor(atual ?? ''); }, [atual, editando]);
+  async function salvar() {
+    const analisado = DefinirObservacaoPaleteSchema.safeParse({ notes: valor });
+    if (!analisado.success) { setErro(analisado.error.issues[0]?.message ?? 'Observação inválida.'); return; }
+    const lido = analisado.data;
+    const assinatura = `palete-obs:${paleteId}:${lido.notes ?? ''}`;
+    setEnviando(true);
+    setErro(null);
+    try {
+      await enviarJson('PUT', `${API_PREFIXO}/paletes/${paleteId}/observacao`, PaleteDetalheSchema, { corpo: lido, idempotencia: chaves.para(assinatura) });
+      chaves.concluir(assinatura);
+      setEditando(false);
+      aoTrocado(lido.notes === null ? 'Observação do palete apagada.' : 'Observação do palete gravada.');
+    } catch (e) {
+      chaves.concluir(assinatura, e);
+      setErro(mensagemDeFalha(e));
+    } finally {
+      setEnviando(false);
+    }
+  }
+  if (!editando) {
+    return (
+      <>
+        <span data-testid="janela-observacao" style={{ whiteSpace: 'pre-wrap' }}>{atual ?? 'Sem observação.'}</span>
+        {podeEditar && (
+          <>
+            {' '}
+            <button type="button" className="botao-secundario" data-testid="janela-observacao-editar" onClick={() => { setValor(atual ?? ''); setErro(null); setEditando(true); }}>
+              {atual === null ? 'Adicionar' : 'Editar'}
+            </button>
+          </>
+        )}
+      </>
+    );
+  }
+  return (
+    <span className="janela-observacao-edicao">
+      <textarea rows={3} maxLength={500} value={valor} disabled={enviando} aria-label="Observação do palete (até 500 caracteres)" data-testid="janela-observacao-texto" style={{ width: '100%' }} onChange={(e) => { setValor(e.target.value); setErro(null); }} />
+      <br />
+      <button type="button" className="botao-secundario" disabled={enviando} onClick={() => void salvar()} data-testid="janela-observacao-salvar">Salvar</button>{' '}
+      <button type="button" className="botao-link" disabled={enviando} onClick={() => { setEditando(false); setErro(null); }}>Cancelar</button>
       {erro !== null && <span className="mensagem-conflito" role="alert"> {erro}</span>}
     </span>
   );
@@ -811,6 +865,14 @@ export function JanelaPalete(props: PropsPalete) {
                   )}
                 </>
               )}
+            </dd>
+          </div>
+        )}
+        {conteudo !== null && (conteudo.paletteNotes !== null || props.permissoes.includes('palete.cadastrar')) && (
+          <div>
+            <dt>Observação</dt>
+            <dd>
+              <ObservacaoPalete paleteId={palete.id} atual={conteudo.paletteNotes} podeEditar={props.permissoes.includes('palete.cadastrar')} aoTrocado={props.aoAlterado} />
             </dd>
           </div>
         )}

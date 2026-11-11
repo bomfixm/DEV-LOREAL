@@ -352,6 +352,19 @@ describe('cadastro de palete', () => {
     expect((await mutar(app, sSupervisor, 'PUT', url, { sequence: null })).statusCode).toBe(200);
   });
 
+  it('observação do palete pela janela: grava, aparece no conteúdo, apaga; consulta é recusada', async () => {
+    const posicao = await idPosicao(db, ID_ESCOPO_PRACA, 'F04-P02');
+    const criado = PaleteDetalheSchema.parse((await novoPalete(sOperador, { code: { mode: 'GERAR' }, positionId: posicao })).json());
+    const url = `/api/v1/paletes/${criado.id}/observacao`;
+    const lido = async () => (await como(app, sSupervisor, { method: 'GET', url: `/api/v1/paletes/${criado.id}/conteudos` })).json() as { paletteNotes: string | null };
+    expect((await mutar(app, sSupervisor, 'PUT', url, { notes: 'Caixa avariada na lateral' })).statusCode).toBe(200);
+    expect(await lido()).toMatchObject({ paletteNotes: 'Caixa avariada na lateral' });
+    expect((await mutar(app, sSupervisor, 'PUT', url, { notes: 'x'.repeat(501) })).statusCode).toBe(400);
+    expect((await mutar(app, sConsulta, 'PUT', url, { notes: 'não' })).statusCode).toBe(403);
+    expect((await mutar(app, sSupervisor, 'PUT', url, { notes: '' })).statusCode).toBe(200);
+    expect(await lido()).toMatchObject({ paletteNotes: null });
+  });
+
   it('arquivar cadastro por engano libera a posição, sai do mapa e mantém o detalhe pelo ID', async () => {
     const posicao = await idPosicao(db, ID_ESCOPO_PRACA, 'F04-P02');
     const criado = PaleteDetalheSchema.parse((await novoPalete(sOperador, { code: { mode: 'GERAR' }, positionId: posicao })).json());

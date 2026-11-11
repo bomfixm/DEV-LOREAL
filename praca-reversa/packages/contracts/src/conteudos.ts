@@ -146,6 +146,8 @@ export const ConteudosPaleteSchema = z.object({
   loadKind: z.enum(['FULL', 'FRACIONADO']).nullable().default(null),
   /** Posição do palete full na carga, informada à mão ("2/7"). */
   loadSequence: z.string().nullable().default(null),
+  /** Observação do palete (cadastro), editável na janela. */
+  paletteNotes: z.string().nullable().default(null),
   /** Inventário ativo do escopo; `inValidation` = base provisória ("Inventário em validação"), não disponibilidade certificada. */
   inventory: z.object({ code: z.string(), baseDate: z.iso.date().nullable(), inValidation: z.boolean() }).nullable().default(null),
   /** Assinatura do conjunto (ocorrências e quantidades atuais): a conferência em tabela a devolve para detectar mudança. */

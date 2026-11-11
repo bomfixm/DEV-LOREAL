@@ -803,7 +803,7 @@ export function JanelaPalete(props: PropsPalete) {
                 <>
                   {' '}
                   <EscolherTipoCarga paleteId={palete.id} atual={conteudo.loadKind} aoTrocado={props.aoAlterado} />
-                  {(conteudo.loadKind === 'FULL' || (conteudo.loadKind === null && tipoPalete === 'FULL')) && (
+                  {(conteudo.loadKind === 'FULL' || (conteudo.loadKind === null && (tipoPalete === 'FULL' || (fullPlanilha ?? '').startsWith('FULL')))) && (
                     <>
                       {' '}
                       <InformarSequenciaFull paleteId={palete.id} atual={conteudo.loadSequence} aoTrocado={props.aoAlterado} />

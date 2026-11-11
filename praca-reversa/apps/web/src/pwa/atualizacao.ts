@@ -161,6 +161,32 @@ export async function atualizarAgora(): Promise<ResultadoAtualizacao> {
   return { ok: true };
 }
 
+/**
+ * Botão "Buscar versão mais recente" (tela Aplicativo e aparelho): se há versão nova
+ * esperando, aplica como o "Atualizar"; senão remove o service worker e o cache da
+ * casca e recarrega, baixando tudo de novo. Sessão, rascunhos e fila ficam intactos
+ * (só o Cache Storage e o registro do service worker são limpos). Respeita as mesmas
+ * proteções do "Atualizar".
+ */
+export async function buscarVersaoMaisRecente(): Promise<ResultadoAtualizacao> {
+  const motivos = impedimentosParaAtualizar();
+  if (motivos.length > 0) return { ok: false, motivos };
+  if (lojaAtualizacao.ler().novaVersao) return atualizarAgora();
+  iniciadaAqui = true;
+  try {
+    if ('serviceWorker' in navigator) {
+      for (const registro of await navigator.serviceWorker.getRegistrations()) await registro.unregister();
+    }
+    if (typeof caches !== 'undefined') {
+      for (const nome of await caches.keys()) await caches.delete(nome);
+    }
+  } catch {
+    // Sem permissão para limpar: o recarregamento abaixo ainda tenta a rede.
+  }
+  window.location.reload();
+  return { ok: true };
+}
+
 export function useAtualizacao(): EstadoAtualizacao {
   return useLoja(lojaAtualizacao);
 }

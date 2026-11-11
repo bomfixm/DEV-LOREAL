@@ -4,7 +4,7 @@ import { TEXTO_REDE, useConexao } from '../api/conexao';
 import { useVersao } from '../api/versao';
 import { CAMINHO_BASE, VERSAO_INTERFACE } from '../base';
 import { formatarHora } from '../utils/datas';
-import { useAtualizacao } from './atualizacao';
+import { buscarVersaoMaisRecente, useAtualizacao } from './atualizacao';
 import { AjudaTarefa } from '../features/ajuda/AjudaTarefa';
 import { INSTRUCOES, instalar, plataformaProvavel, useInstalacao } from './instalacao';
 
@@ -24,6 +24,8 @@ export function TelaAplicativo({ aoVoltar }: { aoVoltar: () => void }) {
   const versao = useVersao();
   const conexao = useConexao();
   const [resultado, setResultado] = useState<string | null>(null);
+  const [buscando, setBuscando] = useState(false);
+  const [avisoVersao, setAvisoVersao] = useState<string | null>(null);
   const plataforma = plataformaProvavel(navigator.userAgent);
   const seguro = window.isSecureContext;
   const camera = typeof (navigator as { mediaDevices?: Partial<MediaDevices> }).mediaDevices?.getUserMedia === 'function';
@@ -103,6 +105,35 @@ export function TelaAplicativo({ aoVoltar }: { aoVoltar: () => void }) {
               <dd className="texto-quebravel">{navigator.userAgent}</dd>
             </div>
           </dl>
+        </section>
+
+        <section className="cartao" aria-labelledby="titulo-atualizacao">
+          <h3 id="titulo-atualizacao">Atualização</h3>
+          <p data-testid="estado-atualizacao">
+            {atualizacao.novaVersao ? 'Há uma versão nova esperando: use o botão abaixo para aplicar.' : 'Se uma mudança publicada não aparece, busque a versão mais recente.'}
+          </p>
+          <div className="acoes-linha">
+            <button
+              type="button"
+              className="botao-primario"
+              disabled={buscando}
+              onClick={() => {
+                setBuscando(true);
+                setAvisoVersao(null);
+                void buscarVersaoMaisRecente().then((r) => {
+                  if (!r.ok) {
+                    setAvisoVersao(r.motivos.join(' '));
+                    setBuscando(false);
+                  }
+                });
+              }}
+              data-testid="buscar-versao"
+            >
+              {buscando ? 'Buscando…' : atualizacao.novaVersao ? 'Atualizar agora' : 'Buscar versão mais recente'}
+            </button>
+          </div>
+          {avisoVersao !== null && <p role="alert">{avisoVersao}</p>}
+          <p className="bloco-nota">A página recarrega e baixa a versão atual. Sua sessão, rascunhos e operações em fila não são apagados.</p>
         </section>
 
         <section className="cartao" aria-labelledby="titulo-versoes">

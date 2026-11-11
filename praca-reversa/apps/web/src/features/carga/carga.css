@@ -1,0 +1,184 @@
+/* Expedição DHL — carga por veículo. Topo: janela e veículos; centro: mapa amplo; lateral: detalhes recolhíveis. */
+.tela-carga .carga-conteudo { max-width: none; }
+.carga-topo { display: grid; gap: 10px; margin-bottom: 12px; }
+.carga-topo-linha { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 20px; }
+.carga-topo-linha h2 { margin: 0 8px 4px 0; }
+@media (max-width: 900px) { .carga-topo-linha h2 { display: none; } }
+.carga-janela { display: grid; gap: 2px; flex: 1 1 280px; min-width: 0; max-width: 560px; }
+.carga-janela select { min-height: 40px; width: 100%; max-width: 100%; }
+.tela-carga .carga-conteudo { min-width: 0; overflow-x: hidden; }
+.mapa-celula-curto { display: none; }
+.carga-visao { display: inline-flex; border: 1px solid var(--borda-forte); border-radius: 999px; overflow: hidden; margin-left: auto; }
+.carga-visao button { border: 0; background: transparent; color: inherit; padding: 8px 16px; font: inherit; font-weight: 600; cursor: pointer; min-height: 40px; }
+.carga-visao button[aria-pressed='true'] { background: var(--amarelo); color: #1a1a1a; }
+.carga-veiculos { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.carga-veiculo-chip { border: 1px solid var(--borda-forte); background: var(--superficie); color: inherit; border-radius: 999px; padding: 7px 14px; font: inherit; cursor: pointer; min-height: 40px; }
+.carga-veiculo-chip[aria-selected='true'] { border: 2px solid var(--tinta); background: var(--amarelo-suave); color: #1a1a1a; }
+.carga-veiculo-chip--fechado { border-style: double; }
+.carga-ocupacao { font-variant-numeric: tabular-nums; }
+.carga-selo-fechado { font-weight: 700; }
+
+.carga-corpo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); gap: 16px; align-items: start; }
+.carga-corpo--sem-painel { grid-template-columns: minmax(0, 1fr) auto; }
+.carga-centro { display: grid; gap: 12px; min-width: 0; }
+.carga-painel { position: sticky; top: 8px; border: 1px solid var(--borda); border-radius: 14px; background: var(--superficie); padding: 12px 14px; max-height: calc(100vh - 120px); overflow: auto; }
+.carga-painel[data-aberto='nao'] { padding: 8px; }
+.carga-painel-alternar { display: block; margin: 0 0 6px auto; font-size: 0.85rem; }
+.carga-painel-vazio { color: var(--tinta-suave); padding: 12px 0; }
+
+.carga-resumo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+.carga-resumo-titulo { font-size: 1.1rem; }
+.carga-resumo-numeros { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--tinta-suave); font-size: 0.9rem; }
+.carga-resumo-numeros span:first-child { color: var(--tinta); font-weight: 700; }
+.carga-situacao { margin-left: auto; padding: 3px 12px; border-radius: 999px; border: 1px solid var(--borda-forte); font-size: 0.85rem; font-weight: 600; }
+.carga-situacao--fechado { background: var(--tom-ok-fundo); border-color: var(--ok); }
+.carga-aviso { margin: 0; padding: 8px 12px; border-radius: 10px; background: var(--tom-aviso-fundo); color: var(--tom-aviso-texto); border: 1px solid var(--divergencia-borda); font-size: 0.9rem; }
+.carga-aviso--acao { background: var(--amarelo-suave); color: #1a1a1a; border-color: var(--amarelo-acao-borda); }
+.carga-legenda { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; font-size: 0.8rem; color: var(--tinta-suave); }
+.carga-baixa { margin: 0; font-size: 0.82rem; color: var(--tinta-suave); border-top: 1px dashed var(--borda); padding-top: 8px; }
+
+/* Vista de cima do veículo. */
+.mapa-veiculo { display: grid; gap: 6px; max-width: 760px; margin: 0 auto; width: 100%; }
+.mapa-veiculo-ponta { text-align: center; font-weight: 700; letter-spacing: 0.06em; font-size: 0.8rem; color: var(--tinta-suave); padding: 4px; border: 2px solid var(--borda-forte); }
+.mapa-veiculo-frente { border-radius: 22px 22px 4px 4px; }
+.mapa-veiculo-porta { border-radius: 4px 4px 10px 10px; border-style: dashed; }
+.mapa-veiculo-grade { display: grid; grid-template-columns: repeat(var(--colunas), minmax(0, 1fr)); gap: 6px; padding: 8px; border-left: 4px solid var(--borda-forte); border-right: 4px solid var(--borda-forte); background: var(--superficie-2); }
+.mapa-celula { position: relative; display: grid; align-content: center; justify-items: center; gap: 2px; min-height: 74px; padding: 6px 6px 8px; border-radius: 10px; border: 2px dashed var(--borda-forte); background: var(--superficie); color: inherit; font: inherit; text-align: center; }
+button.mapa-celula { cursor: pointer; }
+.mapa-celula--fora { visibility: hidden; }
+.mapa-celula--livre { border-style: dotted; color: var(--tinta-suave); }
+.mapa-celula--livre:hover, .mapa-celula--escolhida { background: var(--livre-suave); border-color: var(--st-livre-borda); color: var(--tinta); }
+.mapa-celula--alvo { border-color: var(--amarelo-acao-borda); background: var(--amarelo-suave); color: #1a1a1a; }
+.mapa-celula--ocupada { background: var(--amarelo-suave); color: #1a1a1a; }
+.mapa-celula--planejada { border-style: dashed; border-color: var(--amarelo-acao-borda); }
+.mapa-celula--confirmada { border: 3px solid #1a1a1a; background: var(--amarelo); }
+.mapa-celula--problema { box-shadow: inset 0 0 0 3px var(--vermelho); }
+.mapa-celula--selecionada { outline: 3px solid var(--foco); outline-offset: 2px; }
+.mapa-celula-pos { position: absolute; top: 4px; left: 8px; font-size: 0.72rem; font-weight: 700; opacity: 0.75; }
+.mapa-celula-num { font-size: 1.35rem; line-height: 1.1; }
+.mapa-celula-info { font-size: 0.78rem; font-weight: 600; }
+.mapa-celula-marcas { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 8px; font-size: 0.7rem; }
+.mapa-celula-situacao { font-size: 0.68rem; opacity: 0.85; }
+.mapa-celula-livre-texto { font-size: 0.8rem; }
+.marca-ok { color: var(--ok); }
+.marca-pendente { color: var(--tom-aviso-texto); }
+.marca-erro { color: var(--erro); font-weight: 600; }
+.mapa-celula--ocupada .marca-ok { color: #155c2f; }
+.mapa-celula--ocupada .marca-pendente { color: #6b3a00; }
+.mapa-celula--ocupada .marca-erro { color: #a3040d; }
+
+.carga-sem-posicao { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.carga-acoes-veiculo { display: grid; gap: 10px; border-top: 1px solid var(--borda); padding-top: 10px; }
+.carga-pendencias ul { margin: 4px 0 0; padding-left: 20px; }
+.carga-pendencias p { margin: 0; }
+.carga-form-veiculo { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; padding: 10px; border: 1px dashed var(--borda); border-radius: 10px; }
+.carga-form-veiculo .campo { min-width: 140px; }
+.carga-supervisor { border: 1px solid var(--borda); border-radius: 10px; padding: 8px 12px; }
+.carga-supervisor summary { cursor: pointer; font-weight: 600; }
+
+/* Painel lateral. */
+.carga-detalhe h3, .carga-novo h3 { margin: 0 0 4px; font-size: 1.15rem; }
+.carga-tipo-selo { font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--borda-forte); vertical-align: middle; }
+.carga-identidade { margin: 0 0 8px; font-weight: 600; font-size: 0.9rem; }
+.carga-dados { display: grid; gap: 4px; margin: 0 0 10px; }
+.carga-dados > div { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px; }
+.carga-dados dt { color: var(--tinta-suave); font-size: 0.82rem; font-weight: 600; }
+.carga-dados dd { margin: 0; font-size: 0.9rem; }
+.carga-linhas { font-size: 0.85rem; }
+.carga-acoes { display: grid; gap: 8px; margin: 10px 0; }
+.carga-bloco { display: grid; gap: 8px; margin: 10px 0; padding: 10px; border: 1px solid var(--borda); border-radius: 10px; }
+.carga-bloco summary { cursor: pointer; font-weight: 600; }
+.carga-tipo { display: grid; gap: 4px; }
+.carga-busca-origem { display: flex; gap: 8px; align-items: end; }
+.carga-busca-origem .campo { flex: 1; }
+.carga-origem { display: grid; gap: 8px; min-width: 0; }
+.carga-painel, .carga-bloco, .carga-novo, .carga-detalhe { min-width: 0; }
+.carga-painel input:not([type='radio']):not([type='checkbox']), .carga-painel select { box-sizing: border-box; max-width: 100%; }
+.carga-novo .campo input, .carga-busca-origem input { width: 100%; }
+.carga-tabela-rolagem { overflow-x: auto; max-width: 100%; }
+.carga-painel .janela-tabela { font-size: 0.82rem; }
+.carga-painel .janela-tabela th, .carga-painel .janela-tabela td { padding: 5px 6px; }
+.carga-origem p { margin: 0; }
+.carga-input-volumes { width: 64px; min-height: 34px; }
+.carga-linha-edicao input { width: 100px; }
+.carga-emissoes { margin: 0; padding-left: 18px; font-size: 0.85rem; }
+.carga-fila { display: grid; gap: 10px; }
+.carga-fila-selecionada { background: var(--amarelo-suave); color: #1a1a1a; }
+.carga-checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.carga-check { border: 1px solid var(--borda); border-left: 5px solid var(--borda-forte); border-radius: 8px; padding: 8px 10px; display: grid; gap: 6px; }
+.carga-check--conferido { border-left-color: var(--ok); }
+.carga-check--faltante, .carga-check--divergente { border-left-color: var(--vermelho); }
+.carga-check-situacao { font-size: 0.85rem; color: var(--tinta-suave); }
+.carga-check input { flex: 1; min-width: 160px; }
+
+/* Computador: veículo deitado (frente à esquerda, porta à direita) para a carreta inteira caber na tela. */
+.seta-horizontal { display: none; }
+@media (min-width: 1100px) {
+  .tela-carga .mapa-veiculo:not(.mapa-veiculo--impressao) { grid-template-columns: auto minmax(0, 1fr) auto; max-width: none; align-items: stretch; }
+  .tela-carga .mapa-veiculo:not(.mapa-veiculo--impressao) .mapa-veiculo-grade { grid-auto-flow: column; grid-template-columns: none; grid-template-rows: repeat(var(--colunas), minmax(104px, auto)); grid-auto-columns: minmax(0, 1fr); border: 0; border-top: 4px solid var(--borda-forte); border-bottom: 4px solid var(--borda-forte); }
+  .tela-carga .mapa-veiculo:not(.mapa-veiculo--impressao) .mapa-veiculo-ponta { writing-mode: vertical-rl; transform: rotate(180deg); display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 4px; }
+  .tela-carga .mapa-veiculo:not(.mapa-veiculo--impressao) .mapa-veiculo-frente { border-radius: 4px 22px 22px 4px; }
+  .tela-carga .mapa-veiculo:not(.mapa-veiculo--impressao) .mapa-veiculo-porta { border-radius: 10px 4px 4px 10px; }
+  .tela-carga .mapa-veiculo:not(.mapa-veiculo--impressao) .seta-vertical { display: none; }
+  .tela-carga .mapa-veiculo:not(.mapa-veiculo--impressao) .seta-horizontal { display: inline; writing-mode: horizontal-tb; transform: rotate(90deg); }
+  .tela-carga .mapa-veiculo:not(.mapa-veiculo--impressao) .mapa-celula { min-height: 0; padding: 18px 3px 6px; }
+  .tela-carga .mapa-veiculo:not(.mapa-veiculo--impressao) .mapa-celula-num { font-size: 1.05rem; }
+  .tela-carga .mapa-veiculo:not(.mapa-veiculo--impressao) .mapa-celula-info,
+  .tela-carga .mapa-veiculo:not(.mapa-veiculo--impressao) .mapa-celula-marcas,
+  .tela-carga .mapa-veiculo:not(.mapa-veiculo--impressao) .mapa-celula-situacao { display: none; }
+  .tela-carga .mapa-veiculo:not(.mapa-veiculo--impressao) .mapa-celula-curto { display: grid; gap: 1px; font-size: 0.72rem; font-weight: 700; line-height: 1.2; }
+  .tela-carga .mapa-veiculo:not(.mapa-veiculo--impressao) .mapa-celula-livre-texto { font-size: 0.7rem; }
+}
+
+/* Impressão: só a folha pedida. Na tela não aparece. */
+.carga-impressao { display: none; }
+@media (max-width: 900px) {
+  .carga-corpo, .carga-corpo--sem-painel { grid-template-columns: minmax(0, 1fr); }
+  .carga-painel { position: static; max-height: none; }
+  .carga-visao { margin-left: 0; }
+  .mapa-celula { min-height: 64px; }
+  .mapa-celula-marcas, .mapa-celula-situacao, .mapa-celula-info { display: none; }
+  .mapa-celula-curto { display: flex; gap: 10px; font-size: 0.8rem; font-weight: 700; }
+}
+
+@page carga { size: A4 landscape; margin: 8mm; }
+@media print {
+  body:has(.tela-carga) .barra-lateral, body:has(.tela-carga) nav, body:has(.tela-carga) header, body:has(.tela-carga) .rodape, body:has(.tela-carga) .aviso-conexao { display: none !important; }
+  body:has(.tela-carga) .app-coluna { height: auto !important; overflow: visible !important; display: block !important; }
+  body:has(.tela-carga) .app { height: auto; overflow: visible; }
+  .tela-carga { padding: 0 !important; margin: 0 !important; }
+  .tela-carga .nao-imprimir { display: none !important; }
+  .carga-impressao { display: block; color: #111; background: #fff; }
+  .impr-folha { page: carga; box-sizing: border-box; width: 281mm; min-height: 190mm; padding: 6mm 8mm; break-after: page; font-family: Arial, sans-serif; position: relative; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .impr-folha:last-child { break-after: auto; }
+}
+.impr-demo { color: #b00000; font-weight: 700; text-align: center; margin: 0 0 2mm; }
+.impr-rascunho { text-align: center; font-weight: 900; letter-spacing: 0.08em; border: 2px dashed #b00000; color: #b00000; padding: 2mm; margin: 0 0 3mm; }
+.impr-final { text-align: center; font-weight: 900; letter-spacing: 0.05em; border: 2px solid #111; padding: 2mm; margin: 0 0 3mm; }
+.impr-rodape { font-size: 8pt; margin-top: 4mm; }
+.impr-etiqueta { display: grid; align-content: center; justify-items: center; text-align: center; gap: 4mm; border: 1.5mm solid #111; }
+.impr-etiqueta-janela { font: 700 22pt Arial; margin: 0; }
+.impr-etiqueta-numero { font: 900 150pt/1 Arial; margin: 0; }
+.impr-etiqueta-identidade { font: 700 18pt Arial; margin: 0; }
+.impr-etiqueta-info { font: 600 14pt Arial; margin: 0; }
+.impr-espelho { padding: 9mm 13mm 16mm; height: 199mm; }
+.impr-moldura { position: absolute; inset: 0; width: 100%; height: 100%; }
+.impr-espelho-interior { position: relative; height: 100%; padding: 15mm 6mm 8mm; box-sizing: border-box; }
+.impr-espelho h2 { text-align: center; font: bold 24pt Arial; margin: 0 0 2mm; color: #000; }
+.impr-espelho h3 { text-align: center; font: bold 14pt Arial; margin: 0 0 2mm; color: #000; }
+.impr-espelho-identidade { text-align: center; font: 600 10pt Arial; margin: 0 0 5mm; }
+.impr-espelho table, .impr-documentos table, .impr-mapa table { width: 100%; table-layout: fixed; border-collapse: collapse; font: bold 9pt/1.3 Arial; color: #000; }
+.impr-espelho th, .impr-documentos th, .impr-mapa th { background: #282828; color: #fff; font-size: 8pt; padding: 2.5mm 1mm; }
+.impr-espelho td, .impr-documentos td, .impr-mapa td { padding: 2mm 1mm; }
+.impr-espelho th, .impr-espelho td, .impr-documentos th, .impr-documentos td, .impr-mapa th, .impr-mapa td { border: 0.25mm solid #555; text-align: center; overflow-wrap: anywhere; }
+.impr-total td { background: #eee; }
+.impr-espelho footer { position: absolute; bottom: 3mm; left: 6mm; right: 6mm; font: 7pt/1.4 Arial; }
+.impr-documentos h2, .impr-mapa h2 { font: bold 18pt Arial; margin: 0 0 2mm; }
+.impr-documentos-identidade { font: 700 12pt Arial; margin: 0 0 2mm; }
+.impr-mapa-corpo { display: grid; grid-template-columns: 95mm minmax(0, 1fr); gap: 6mm; align-items: start; }
+.mapa-veiculo--impressao { max-width: none; }
+.mapa-veiculo--impressao .mapa-celula { min-height: 9mm; padding: 1mm; border-radius: 2mm; }
+.mapa-veiculo--impressao .mapa-celula-num { font-size: 11pt; }
+.mapa-veiculo--impressao .mapa-celula-info { font-size: 6.5pt; }
+.mapa-veiculo--impressao .mapa-celula-pos { font-size: 6pt; top: 0.5mm; left: 1mm; }
+.mapa-veiculo--impressao .mapa-veiculo-ponta { font-size: 7pt; padding: 1mm; }

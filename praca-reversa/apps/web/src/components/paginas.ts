@@ -14,6 +14,7 @@ export interface ItemMenu {
 /** Páginas do menu da conta, exibidas conforme as permissões do escopo ativo. */
 export const ITENS_MENU: readonly ItemMenu[] = [
   { rotulo: 'Imprimir espelhos', rota: { tipo: 'espelhos' }, permissoes: ['etiqueta.imprimir'], ativo: (r) => r.tipo === 'espelhos', soComputador: true },
+  { rotulo: 'Expedição', rota: { tipo: 'carga', janela: null, veiculo: null, visao: 'operacao' }, permissoes: ['janela.consultar'], ativo: (r) => r.tipo === 'carga' },
   { rotulo: 'Mapa da praça', rota: { tipo: 'praca' }, permissoes: ['praca.consultar'], ativo: (r) => r.tipo === 'praca' || r.tipo === 'palete' },
   { rotulo: 'Cadastrar palete', rota: { tipo: 'novo-palete' }, permissoes: ['palete.cadastrar'], ativo: (r) => r.tipo === 'novo-palete' },
   { rotulo: 'Registrar conteúdo', rota: { tipo: 'novo-conteudo' }, permissoes: ['palete.cadastrar'], ativo: (r) => r.tipo === 'novo-conteudo' },

@@ -2,7 +2,7 @@ import type { Permissao, Sessao } from '@praca-reversa/contracts';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { paraEndereco } from '../base';
 import { caminhoDe, type Navegar, type Rota } from '../rotas';
-import { IconeCaixa, IconeCalendario, IconeExpandirMenu, IconeMapa, IconePainel, IconePrancheta, IconeRecolherMenu, IconeReticencias } from './Icones';
+import { IconeCaixa, IconeCalendario, IconeCaminhao, IconeExpandirMenu, IconeMapa, IconePainel, IconePrancheta, IconeRecolherMenu, IconeReticencias } from './Icones';
 import { Marca } from './Moldura';
 import { ITENS_MENU, ROTAS_AGENDA } from './paginas';
 import { escolherEstadoMenu, useEstadoMenu } from './preferencia-menu';
@@ -34,6 +34,7 @@ const ITENS: readonly ItemNavegacao[] = [
     ativo: (r) => r.tipo === 'novo-palete' || r.tipo === 'bipagem' || r.tipo === 'bipagem-escolher' || r.tipo === 'novo-conteudo' || r.tipo === 'volumes',
   },
   { rotulo: 'Agendas', icone: <IconeCalendario />, rota: { tipo: 'janelas', mes: null }, permissoes: ['janela.consultar'], ativo: (r) => ROTAS_AGENDA.includes(r.tipo) },
+  { rotulo: 'Expedição', icone: <IconeCaminhao />, rota: { tipo: 'carga', janela: null, veiculo: null, visao: 'operacao' }, permissoes: ['janela.consultar'], ativo: (r) => r.tipo === 'carga' },
   {
     rotulo: 'Painel',
     icone: <IconePainel />,
@@ -44,7 +45,7 @@ const ITENS: readonly ItemNavegacao[] = [
 ];
 
 /** Páginas que já estão nas funções principais (não se repetem em "Mais"). */
-const JA_PRINCIPAIS = new Set(['Mapa da praça', 'Cadastrar palete', 'Janelas de devolução', 'Painel da operação']);
+const JA_PRINCIPAIS = new Set(['Mapa da praça', 'Cadastrar palete', 'Janelas de devolução', 'Painel da operação', 'Expedição']);
 // "Registrar conteúdo" continua em "Mais" (atalho do recebimento).
 
 /**

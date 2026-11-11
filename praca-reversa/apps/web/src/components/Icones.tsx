@@ -121,6 +121,14 @@ export const IconeCaixa = () => (
   </Svg>
 );
 
+/** Expedição (caminhão). */
+export const IconeCaminhao = () => (
+  <Svg>
+    <path d="M2.5 6h11v10h-11zM13.5 9.5h4l3 3.5v3h-7z" />
+    <path d="M6.5 18.5a1.6 1.6 0 1 0 0-.01M17 18.5a1.6 1.6 0 1 0 0-.01" />
+  </Svg>
+);
+
 export const IconeCalendario = () => (
   <Svg>
     <path d="M4 6h16v14H4zM4 10h16M8 3v5M16 3v5" />

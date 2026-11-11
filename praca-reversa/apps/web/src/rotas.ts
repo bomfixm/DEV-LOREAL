@@ -36,6 +36,7 @@ import { ehTarefa, type IdTarefa } from './features/ajuda/tarefas';
 export type Rota =
   | { tipo: 'praca' }
   | { tipo: 'espelhos' }
+  | { tipo: 'carga'; janela: string | null; veiculo: string | null; visao: 'operacao' | 'adm' }
   | { tipo: 'palete'; id: string; claim?: ContextoClaim; reserva?: string }
   | { tipo: 'conferencia'; id: string }
   | { tipo: AcaoPalete; id: string }
@@ -165,6 +166,11 @@ export function lerRota(caminho: string, busca: string): Rota {
   const [primeira, segunda, terceira] = partes;
   if (partes.length === 0) return { tipo: 'praca' };
   if (partes.length === 1 && primeira === 'espelhos') return { tipo: 'espelhos' };
+  if (partes.length === 1 && primeira === 'expedicao') {
+    const janela = parametros.get('janela') ?? '';
+    const veiculo = parametros.get('veiculo') ?? '';
+    return { tipo: 'carga', janela: UUID.test(janela) ? janela.toLowerCase() : null, veiculo: UUID.test(veiculo) ? veiculo.toLowerCase() : null, visao: parametros.get('visao') === 'adm' ? 'adm' : 'operacao' };
+  }
   const antigo = ENDERECOS_ANTIGOS.get(`/${partes.join('/')}`);
   if (antigo !== undefined) return { tipo: antigo };
   if (primeira === 'paletes' && partes.length === 2 && segunda === 'novo') {
@@ -381,6 +387,14 @@ export function caminhoDe(rota: Rota): string {
       return `/selecao-teste/solicitacoes/${rota.id}`;
     case 'espelhos':
       return '/espelhos';
+    case 'carga': {
+      const p = new URLSearchParams();
+      if (rota.janela) p.set('janela', rota.janela);
+      if (rota.veiculo) p.set('veiculo', rota.veiculo);
+      if (rota.visao === 'adm') p.set('visao', 'adm');
+      const q = p.toString();
+      return q ? `/expedicao?${q}` : '/expedicao';
+    }
     case 'etiquetas':
       return `/etiquetas?ids=${rota.ids.join(',')}`;
     case 'entrar':

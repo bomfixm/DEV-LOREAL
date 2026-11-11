@@ -3058,15 +3058,74 @@
     gap: 6px;
   }
 
-  .janela-resumo {
+  .janela-selos {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 28px;
-    margin: 0;
+    align-items: center;
+    gap: 6px 8px;
+    margin: 0 0 12px;
+  }
+
+  .janela-selo {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 3px 12px;
+    border: 1px solid var(--borda);
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .janela-selo--tipo {
+    border-color: var(--acento, var(--borda));
+  }
+
+  .janela-selo--aviso {
+    border-color: #b8860b;
+  }
+
+  .janela-selo--alerta {
+    border-color: var(--erro);
+    color: var(--erro);
+  }
+
+  .janela-ajustar {
+    margin-left: 4px;
+    font-size: 0.85rem;
+  }
+
+  .janela-ajuste {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin: 0 0 12px;
+    padding: 8px 12px;
+    border: 1px dashed var(--borda);
+    border-radius: 10px;
+  }
+
+  .janela-ajuste-rotulo {
+    color: var(--tinta-suave);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .janela-resumo {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 8px;
+    margin: 0 0 12px;
   }
 
   .janela-resumo > div {
     display: grid;
+    align-content: start;
+    gap: 2px;
+    padding: 8px 12px;
+    border: 1px solid var(--borda);
+    border-radius: 10px;
   }
 
   .janela-resumo dt {
@@ -3077,8 +3136,39 @@
 
   .janela-resumo dd {
     margin: 0;
-    font-size: 1rem;
+    font-size: 1.1rem;
     font-weight: 700;
+  }
+
+  .janela-observacao-cartao {
+    margin: 12px 0 0;
+    padding: 10px 14px;
+    border: 1px solid var(--borda);
+    border-radius: 10px;
+  }
+
+  .janela-observacao-titulo {
+    margin: 0 0 4px;
+    color: var(--tinta-suave);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .janela-observacao-texto {
+    margin: 0 0 6px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .janela-observacao-texto--vazia {
+    color: var(--tinta-suave);
+    font-weight: 400;
+  }
+
+  .janela-observacao-edicao textarea {
+    width: 100%;
   }
 
   .janela-base {

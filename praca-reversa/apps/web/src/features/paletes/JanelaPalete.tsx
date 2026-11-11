@@ -228,7 +228,7 @@ function ObservacaoPalete({ paleteId, atual, podeEditar, aoTrocado }: { paleteId
   if (!editando) {
     return (
       <>
-        <span data-testid="janela-observacao" style={{ whiteSpace: 'pre-wrap' }}>{atual ?? 'Sem observação.'}</span>
+        <p className={`janela-observacao-texto${atual === null ? ' janela-observacao-texto--vazia' : ''}`} data-testid="janela-observacao">{atual ?? 'Sem observação.'}</p>
         {podeEditar && (
           <>
             {' '}
@@ -729,6 +729,7 @@ export function JanelaPalete(props: PropsPalete) {
   const tipoPalete = conteudo === null ? 'NAO_INFORMADO' : naoConstam === 0 ? conteudo.full : contarDocumentos(vigentes) >= 2 ? 'MISTO' : 'NAO_INFORMADO';
   // Detalhes completos só são montados (e consultados) quando abertos.
   const [completos, setCompletos] = useState(false);
+  const [ajustandoTipo, setAjustandoTipo] = useState(false);
   // Correção de conteúdos (perfis internos com conteudo.corrigir): seleção por ocorrência.
   const podeCorrigir = props.permissoes.includes('conteudo.corrigir') && palete.flowState !== 'EXPEDIDO';
   const [selecionando, setSelecionando] = useState(false);
@@ -822,6 +823,56 @@ export function JanelaPalete(props: PropsPalete) {
       tutorial="identificacao-palete"
       paleteId={palete.id}
     >
+      {/* 1) Quem é: selos curtos de situação; o ajuste manual do tipo fica recolhido. */}
+      <div className="janela-selos" data-testid="janela-selos">
+        {conteudo !== null && (tipoPalete !== 'NAO_INFORMADO' || fullPlanilha !== null || conteudo.loadKind !== null) && (
+          <span className="janela-selo janela-selo--tipo" data-testid="janela-full">
+            {/* Marcação manual prevalece; depois a indicação da planilha (FULL n/m ou Fracionado) e a regra de contagem de notas. */}
+            {conteudo.loadKind !== null
+              ? conteudo.loadKind === 'FULL' ? 'Full' : 'Fracionado'
+              : tipoPalete === 'MISTO' ? 'Fracionado' : tipoPalete === 'FULL' || fullPlanilha !== null ? (fullPlanilha ?? 'Full') : 'Não informado'}
+            {conteudo.loadSequence !== null ? ` ${conteudo.loadSequence}` : conteudo.loadKind === null && tipoPalete === 'FULL' && fullPlanilha === null && sequencia !== null && ` ${sequencia}`}
+            {conteudo.loadKind !== null && <span className="janela-base"> · marcado à mão</span>}
+          </span>
+        )}
+        {inventario?.inValidation === true && (
+          <span className="janela-selo janela-selo--aviso" data-testid="janela-inventario-validacao" title="Base provisória: os volumes não são disponibilidade certificada.">
+            Inventário em validação
+            {inventario.baseDate !== null && <span> · base {dataSimples(inventario.baseDate)}</span>}
+            {naoConstam > 0 && <span> · {naoConstam} não {naoConstam === 1 ? 'consta' : 'constam'} da versão atual</span>}
+          </span>
+        )}
+        {palete.flowState === 'RESERVADO' && (
+          <span className="janela-selo" data-testid="janela-agenda">Separação para agenda</span>
+        )}
+        {aviso !== null && (
+          <span className={`janela-selo ${palete.reconference?.due ? 'janela-selo--alerta' : ''}`} data-testid="janela-reconferencia">
+            {aviso}
+            {palete.reconference?.required != null && (
+              <span data-testid="janela-reconferencia-motivo"> · {palete.reconference.required.reason}</span>
+            )}
+          </span>
+        )}
+        {conteudo !== null && props.permissoes.includes('palete.cadastrar') && palete.flowState !== 'EXPEDIDO' && (
+          <button type="button" className="botao-link janela-ajustar" aria-expanded={ajustandoTipo} onClick={() => setAjustandoTipo(!ajustandoTipo)} data-testid="janela-ajustar-tipo">
+            {ajustandoTipo ? 'Fechar ajuste' : 'Ajustar tipo'}
+          </button>
+        )}
+      </div>
+      {ajustandoTipo && conteudo !== null && props.permissoes.includes('palete.cadastrar') && palete.flowState !== 'EXPEDIDO' && (
+        <div className="janela-ajuste" data-testid="janela-ajuste-tipo">
+          <span className="janela-ajuste-rotulo">Tipo do palete</span>
+          <EscolherTipoCarga paleteId={palete.id} atual={conteudo.loadKind} aoTrocado={props.aoAlterado} />
+          {(conteudo.loadKind === 'FULL' || (conteudo.loadKind === null && (tipoPalete === 'FULL' || (fullPlanilha ?? '').startsWith('FULL')))) && (
+            <>
+              <span className="janela-ajuste-rotulo">Posição na carga</span>
+              <InformarSequenciaFull paleteId={palete.id} atual={conteudo.loadSequence} aoTrocado={props.aoAlterado} />
+            </>
+          )}
+        </div>
+      )}
+
+      {/* 2) O que tem dentro: números e, logo abaixo, a tabela de notas. */}
       <dl className="janela-resumo" data-testid="janela-resumo" data-tutorial="conteudo-palete">
         <div>
           <dt>Volumes</dt>
@@ -843,49 +894,6 @@ export function JanelaPalete(props: PropsPalete) {
             {conteudo !== null && conteudo.withoutDocument > 0 && <span className="janela-base"> + {conteudo.withoutDocument} sem documento</span>}
           </dd>
         </div>
-        {conteudo !== null && (tipoPalete !== 'NAO_INFORMADO' || fullPlanilha !== null || conteudo.loadKind !== null || props.permissoes.includes('palete.cadastrar')) && (
-          <div>
-            <dt>Palete</dt>
-            <dd data-testid="janela-full">
-              {/* Marcação manual prevalece; depois a indicação da planilha (FULL n/m ou Fracionado) e a regra de contagem de notas. */}
-              {conteudo.loadKind !== null
-                ? conteudo.loadKind === 'FULL' ? 'Full' : 'Fracionado'
-                : tipoPalete === 'MISTO' ? 'Fracionado' : tipoPalete === 'FULL' || fullPlanilha !== null ? (fullPlanilha ?? 'Full') : 'Não informado'}
-              {conteudo.loadSequence !== null ? ` · ${conteudo.loadSequence}` : conteudo.loadKind === null && tipoPalete === 'FULL' && fullPlanilha === null && sequencia !== null && ` · ${sequencia}`}
-              {conteudo.loadKind !== null && <span className="janela-base"> · marcado à mão</span>}
-              {props.permissoes.includes('palete.cadastrar') && palete.flowState !== 'EXPEDIDO' && (
-                <>
-                  {' '}
-                  <EscolherTipoCarga paleteId={palete.id} atual={conteudo.loadKind} aoTrocado={props.aoAlterado} />
-                  {(conteudo.loadKind === 'FULL' || (conteudo.loadKind === null && (tipoPalete === 'FULL' || (fullPlanilha ?? '').startsWith('FULL')))) && (
-                    <>
-                      {' '}
-                      <InformarSequenciaFull paleteId={palete.id} atual={conteudo.loadSequence} aoTrocado={props.aoAlterado} />
-                    </>
-                  )}
-                </>
-              )}
-            </dd>
-          </div>
-        )}
-        {conteudo !== null && (conteudo.paletteNotes !== null || props.permissoes.includes('palete.cadastrar')) && (
-          <div>
-            <dt>Observação</dt>
-            <dd>
-              <ObservacaoPalete paleteId={palete.id} atual={conteudo.paletteNotes} podeEditar={props.permissoes.includes('palete.cadastrar')} aoTrocado={props.aoAlterado} />
-            </dd>
-          </div>
-        )}
-        {inventario?.inValidation === true && (
-          <div>
-            <dt>Inventário</dt>
-            <dd data-testid="janela-inventario-validacao" title="Base provisória: os volumes não são disponibilidade certificada.">
-              Em validação
-              {inventario.baseDate !== null && <span className="janela-base"> · base {dataSimples(inventario.baseDate)}</span>}
-              {naoConstam > 0 && <span className="janela-base"> · {naoConstam} não {naoConstam === 1 ? 'consta' : 'constam'} da versão atual</span>}
-            </dd>
-          </div>
-        )}
         <div>
           <dt>Conferência</dt>
           <dd data-testid="janela-conferencia" data-estado={conferencia.chave}>
@@ -908,26 +916,6 @@ export function JanelaPalete(props: PropsPalete) {
             )}
           </dd>
         </div>
-        {palete.flowState === 'RESERVADO' && (
-          <div>
-            <dt>Agenda</dt>
-            <dd data-testid="janela-agenda">Separação para agenda</dd>
-          </div>
-        )}
-        {aviso !== null && (
-          <div>
-            <dt>Reconferência</dt>
-            <dd className={palete.reconference?.due ? 'janela-alerta' : undefined} data-testid="janela-reconferencia">
-              {aviso}
-              {palete.reconference?.required != null && (
-                <span className="janela-base" data-testid="janela-reconferencia-motivo">
-                  {' '}
-                  · {palete.reconference.required.reason}
-                </span>
-              )}
-            </dd>
-          </div>
-        )}
       </dl>
 
       {cargaConteudo?.estado === 'erro' ? (
@@ -999,6 +987,14 @@ export function JanelaPalete(props: PropsPalete) {
             props.aoAlterado(textoResultadoAcao(r));
           }}
         />
+      )}
+
+      {/* 3) Observação do palete: cartão próprio, com o texto inteiro. */}
+      {conteudo !== null && (conteudo.paletteNotes !== null || props.permissoes.includes('palete.cadastrar')) && (
+        <section className="janela-observacao-cartao" aria-label="Observação do palete" data-testid="janela-observacao-cartao">
+          <h3 className="janela-observacao-titulo">Observação</h3>
+          <ObservacaoPalete paleteId={palete.id} atual={conteudo.paletteNotes} podeEditar={props.permissoes.includes('palete.cadastrar')} aoTrocado={props.aoAlterado} />
+        </section>
       )}
 
       {conteudo !== null && (conteudo.items.length > 0 || (detalhe?.currentItems ?? []).length > 0) && <InformacoesAdicionais itens={conteudo.items} detalhe={detalhe} />}

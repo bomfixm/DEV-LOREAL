@@ -131,7 +131,6 @@ test.describe('Expedição DHL', () => {
       await expect(page.locator(`[data-testid="carga-impressao"][data-tipo="${tipo}"]`)).toBeAttached();
       await page.emulateMedia({ media: 'print' });
       await page.pdf({ path: `${PASTA}/${arquivo}.pdf`, format: 'A4', landscape: true, printBackground: true });
-      await page.screenshot({ path: `${PASTA}/${arquivo}.png`, fullPage: true });
       await page.emulateMedia({ media: 'screen' });
       await page.reload();
       await page.evaluate(() => {

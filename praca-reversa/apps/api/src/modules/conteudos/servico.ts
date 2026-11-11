@@ -113,7 +113,7 @@ export async function exigirPaleteAberto(tx: Transacao, escopoId: string, palete
 
 /** Conteúdo do palete: registrado à mão e importado, com a contagem mais recente de cada um. */
 export async function conteudosDoPalete(db: Db, escopoId: string, paleteId: string): Promise<ConteudosPalete> {
-  const palete = await db.palete.findFirst({ where: { id: paleteId, escopoId }, select: { id: true, tipoCarga: true } });
+  const palete = await db.palete.findFirst({ where: { id: paleteId, escopoId }, select: { id: true, tipoCarga: true, sequenciaFull: true } });
   if (!palete) throw naoEncontrado('Palete não encontrado neste escopo.');
   const [registrados, importados] = await Promise.all([
     db.conteudoPalete.findMany({
@@ -235,6 +235,7 @@ export async function conteudosDoPalete(db: Db, escopoId: string, paleteId: stri
     withoutDocument: semDocumento,
     full,
     loadKind: palete.tipoCarga === 'FULL' || palete.tipoCarga === 'FRACIONADO' ? palete.tipoCarga : null,
+    loadSequence: palete.tipoCarga === 'FRACIONADO' ? null : palete.sequenciaFull,
     inventory: inventario,
     setSignature: assinaturaConjunto(ocorrencias),
     volumeCheck: conferencia.porPalete.get(paleteId) ?? null,

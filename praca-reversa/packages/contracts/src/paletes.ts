@@ -310,6 +310,21 @@ export type RenumerarPalete = z.output<typeof RenumerarPaleteSchema>;
 export const DefinirTipoCargaSchema = z.object({ kind: z.enum(['FULL', 'FRACIONADO']).nullable() });
 export type DefinirTipoCarga = z.output<typeof DefinirTipoCargaSchema>;
 
+/** Posição do palete full na carga: "2/7", "11/11". Nulo apaga. A posição não pode passar do total. */
+export const DefinirSequenciaFullSchema = z.object({
+  sequence: z
+    .string()
+    .trim()
+    .regex(/^\d{1,3}\s*\/\s*\d{1,3}$/, 'Use o formato 2/7.')
+    .transform((v) => v.replace(/\s+/g, ''))
+    .refine((v) => {
+      const [n = 0, t = 0] = v.split('/').map(Number);
+      return n >= 1 && t >= 1 && n <= t;
+    }, 'A posição precisa estar entre 1 e o total (ex.: 2/7).')
+    .nullable(),
+});
+export type DefinirSequenciaFull = z.output<typeof DefinirSequenciaFullSchema>;
+
 /** Arquivar um cadastro feito por engano: o código continua reservado. */
 export const ArquivarPaleteSchema = z.object({
   expectedVersion: z.number().int().positive(),

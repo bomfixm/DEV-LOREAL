@@ -5,6 +5,7 @@ import {
   type CadastroPaleteSchema,
   type Escopo,
   type PaleteDetalhe,
+  type DefinirSequenciaFull,
   type DefinirTipoCarga,
   type RenumerarPalete,
 } from '@praca-reversa/contracts';
@@ -348,7 +349,8 @@ export async function definirTipoCarga(tx: Transacao, escopo: Escopo, id: string
     SELECT codigo, tipo_carga AS tipo, arquivado_em AS arquivado FROM palete WHERE id = ${id}::uuid AND escopo_id = ${escopo.id}::uuid FOR UPDATE`;
   if (!atual) throw naoEncontrado('Palete não encontrado neste escopo.');
   if (atual.arquivado !== null) throw new ErroHttp(409, 'CONFLITO', 'Palete arquivado: não pode ser alterado.');
-  await tx.$executeRaw`UPDATE palete SET tipo_carga = ${dados.kind} WHERE id = ${id}::uuid AND escopo_id = ${escopo.id}::uuid`;
+  // A posição na carga só faz sentido para full: marcar fracionado a apaga.
+  await tx.$executeRaw`UPDATE palete SET tipo_carga = ${dados.kind}, sequencia_full = CASE WHEN ${dados.kind} = 'FRACIONADO' THEN NULL ELSE sequencia_full END WHERE id = ${id}::uuid AND escopo_id = ${escopo.id}::uuid`;
   await registrarEvento(tx, {
     acao: 'PALETE_ALTERADO',
     resultado: 'SUCESSO',
@@ -357,6 +359,29 @@ export async function definirTipoCarga(tx: Transacao, escopo: Escopo, id: string
     alvoTipo: 'PALETE',
     alvoId: id,
     detalhes: { codigo: atual.codigo, campo: 'tipoCarga', de: atual.tipo, para: dados.kind },
+    requestId: autor.requestId,
+  });
+  const detalhe = await consultarPalete(tx, escopo, id);
+  if (!detalhe) throw naoEncontrado('Palete não encontrado neste escopo.');
+  return detalhe;
+}
+
+/** Posição do palete full na carga ("2/7"; nulo apaga). Só o rótulo: não mexe em volumes, conferência nem estoque. */
+export async function definirSequenciaFull(tx: Transacao, escopo: Escopo, id: string, dados: DefinirSequenciaFull, autor: Autor): Promise<PaleteDetalhe> {
+  const [atual] = await tx.$queryRaw<{ codigo: string; tipo: string | null; sequencia: string | null; arquivado: Date | null }[]>`
+    SELECT codigo, tipo_carga AS tipo, sequencia_full AS sequencia, arquivado_em AS arquivado FROM palete WHERE id = ${id}::uuid AND escopo_id = ${escopo.id}::uuid FOR UPDATE`;
+  if (!atual) throw naoEncontrado('Palete não encontrado neste escopo.');
+  if (atual.arquivado !== null) throw new ErroHttp(409, 'CONFLITO', 'Palete arquivado: não pode ser alterado.');
+  if (atual.tipo === 'FRACIONADO' && dados.sequence !== null) throw new ErroHttp(409, 'CONFLITO', 'Palete fracionado não tem posição de full.');
+  await tx.$executeRaw`UPDATE palete SET sequencia_full = ${dados.sequence} WHERE id = ${id}::uuid AND escopo_id = ${escopo.id}::uuid`;
+  await registrarEvento(tx, {
+    acao: 'PALETE_ALTERADO',
+    resultado: 'SUCESSO',
+    atorUsuarioId: autor.usuarioId,
+    escopoId: escopo.id,
+    alvoTipo: 'PALETE',
+    alvoId: id,
+    detalhes: { codigo: atual.codigo, campo: 'sequenciaFull', de: atual.sequencia, para: dados.sequence },
     requestId: autor.requestId,
   });
   const detalhe = await consultarPalete(tx, escopo, id);

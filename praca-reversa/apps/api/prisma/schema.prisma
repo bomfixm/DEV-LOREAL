@@ -858,6 +858,8 @@ model Palete {
   observacoes                String?
   /// Informado na importação da bipagem: FULL ou FRACIONADO (nulo = não informado).
   tipoCarga                  String?            @map("tipo_carga")
+  /// Posição do palete full na carga, informada à mão ("2/7"); nulo = não informada.
+  sequenciaFull              String?            @map("sequencia_full")
   criadoPorId                String?            @map("criado_por_id") @db.Uuid
   arquivadoEm                DateTime?          @map("arquivado_em") @db.Timestamptz(3)
   arquivadoPorId             String?            @map("arquivado_por_id") @db.Uuid

@@ -1,6 +1,7 @@
 import {
   API_PREFIXO,
   ConteudosPaleteSchema,
+  DefinirSequenciaFullSchema,
   DefinirTipoCargaSchema,
   PaleteDetalheSchema,
   RenumerarPaleteSchema,
@@ -145,6 +146,52 @@ function EscolherTipoCarga({ paleteId, atual, aoTrocado }: { paleteId: string; a
         <option value="FULL">Full</option>
         <option value="FRACIONADO">Fracionado</option>
       </select>
+      {erro !== null && <span className="mensagem-conflito" role="alert"> {erro}</span>}
+    </span>
+  );
+}
+
+/** Posição do palete full na carga ("2/7", "11/11"); vazio apaga. */
+function InformarSequenciaFull({ paleteId, atual, aoTrocado }: { paleteId: string; atual: string | null; aoTrocado: (texto: string) => void }) {
+  const [valor, setValor] = useState(atual ?? '');
+  const [erro, setErro] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const chaves = useChaves();
+  useEffect(() => { setValor(atual ?? ''); }, [atual]);
+  async function salvar() {
+    const analisado = DefinirSequenciaFullSchema.safeParse({ sequence: valor.trim() === '' ? null : valor });
+    if (!analisado.success) { setErro(analisado.error.issues[0]?.message ?? 'Use o formato 2/7.'); return; }
+    const lido = analisado.data;
+    const assinatura = `palete-seq:${paleteId}:${lido.sequence ?? ''}`;
+    setEnviando(true);
+    setErro(null);
+    try {
+      await enviarJson('PUT', `${API_PREFIXO}/paletes/${paleteId}/sequencia-full`, PaleteDetalheSchema, { corpo: lido, idempotencia: chaves.para(assinatura) });
+      chaves.concluir(assinatura);
+      aoTrocado(lido.sequence === null ? 'Posição do full apagada.' : `Full ${lido.sequence} registrado.`);
+    } catch (e) {
+      chaves.concluir(assinatura, e);
+      setErro(mensagemDeFalha(e));
+    } finally {
+      setEnviando(false);
+    }
+  }
+  return (
+    <span className="janela-sequencia-full">
+      <input
+        type="text"
+        inputMode="text"
+        size={6}
+        maxLength={7}
+        placeholder="ex.: 2/7"
+        value={valor}
+        disabled={enviando}
+        aria-label="Posição do full na carga (ex.: 2/7)"
+        data-testid="janela-full-sequencia"
+        onChange={(e) => { setValor(e.target.value); setErro(null); }}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); void salvar(); } }}
+      />{' '}
+      <button type="button" className="botao-secundario" disabled={enviando || valor.trim() === (atual ?? '')} onClick={() => void salvar()} data-testid="janela-full-sequencia-salvar">Salvar</button>
       {erro !== null && <span className="mensagem-conflito" role="alert"> {erro}</span>}
     </span>
   );
@@ -750,12 +797,18 @@ export function JanelaPalete(props: PropsPalete) {
               {conteudo.loadKind !== null
                 ? conteudo.loadKind === 'FULL' ? 'Full' : 'Fracionado'
                 : tipoPalete === 'MISTO' ? 'Fracionado' : tipoPalete === 'FULL' || fullPlanilha !== null ? (fullPlanilha ?? 'Full') : 'Não informado'}
-              {conteudo.loadKind === null && tipoPalete === 'FULL' && fullPlanilha === null && sequencia !== null && ` · ${sequencia}`}
+              {conteudo.loadSequence !== null ? ` · ${conteudo.loadSequence}` : conteudo.loadKind === null && tipoPalete === 'FULL' && fullPlanilha === null && sequencia !== null && ` · ${sequencia}`}
               {conteudo.loadKind !== null && <span className="janela-base"> · marcado à mão</span>}
               {props.permissoes.includes('palete.cadastrar') && palete.flowState !== 'EXPEDIDO' && (
                 <>
                   {' '}
                   <EscolherTipoCarga paleteId={palete.id} atual={conteudo.loadKind} aoTrocado={props.aoAlterado} />
+                  {(conteudo.loadKind === 'FULL' || (conteudo.loadKind === null && tipoPalete === 'FULL')) && (
+                    <>
+                      {' '}
+                      <InformarSequenciaFull paleteId={palete.id} atual={conteudo.loadSequence} aoTrocado={props.aoAlterado} />
+                    </>
+                  )}
                 </>
               )}
             </dd>

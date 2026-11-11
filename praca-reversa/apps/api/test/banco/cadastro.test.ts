@@ -335,6 +335,23 @@ describe('cadastro de palete', () => {
     expect((await mutar(app, sConsulta, 'PUT', `/api/v1/paletes/${criado.id}/tipo-carga`, { kind: 'FULL' })).statusCode).toBe(403);
   });
 
+  it('posição do full na carga (2/7): grava, valida, some ao marcar fracionado; consulta é recusada', async () => {
+    const posicao = await idPosicao(db, ID_ESCOPO_PRACA, 'F04-P02');
+    const criado = PaleteDetalheSchema.parse((await novoPalete(sOperador, { code: { mode: 'GERAR' }, positionId: posicao })).json());
+    const url = `/api/v1/paletes/${criado.id}/sequencia-full`;
+    const lido = async () => (await como(app, sSupervisor, { method: 'GET', url: `/api/v1/paletes/${criado.id}/conteudos` })).json() as { loadSequence: string | null };
+    expect((await mutar(app, sSupervisor, 'PUT', `/api/v1/paletes/${criado.id}/tipo-carga`, { kind: 'FULL' })).statusCode).toBe(200);
+    expect((await mutar(app, sSupervisor, 'PUT', url, { sequence: '11 / 11' })).statusCode).toBe(200);
+    expect(await lido()).toMatchObject({ loadSequence: '11/11' });
+    expect((await mutar(app, sSupervisor, 'PUT', url, { sequence: '8/7' })).statusCode).toBe(400);
+    expect((await mutar(app, sSupervisor, 'PUT', url, { sequence: 'abc' })).statusCode).toBe(400);
+    expect((await mutar(app, sConsulta, 'PUT', url, { sequence: '1/2' })).statusCode).toBe(403);
+    expect((await mutar(app, sSupervisor, 'PUT', `/api/v1/paletes/${criado.id}/tipo-carga`, { kind: 'FRACIONADO' })).statusCode).toBe(200);
+    expect(await lido()).toMatchObject({ loadSequence: null });
+    expect((await mutar(app, sSupervisor, 'PUT', url, { sequence: '1/2' })).statusCode).toBe(409);
+    expect((await mutar(app, sSupervisor, 'PUT', url, { sequence: null })).statusCode).toBe(200);
+  });
+
   it('arquivar cadastro por engano libera a posição, sai do mapa e mantém o detalhe pelo ID', async () => {
     const posicao = await idPosicao(db, ID_ESCOPO_PRACA, 'F04-P02');
     const criado = PaleteDetalheSchema.parse((await novoPalete(sOperador, { code: { mode: 'GERAR' }, positionId: posicao })).json());

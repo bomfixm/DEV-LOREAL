@@ -156,3 +156,7 @@ export const ConteudosPaleteSchema = z.object({
   volumeCheck: ConferenciaVolumesPaleteSchema.nullable().default(null),
 });
 export type ConteudosPalete = z.infer<typeof ConteudosPaleteSchema>;
+
+/** Remetentes que já existem no estoque do escopo (mais usados primeiro), para sugerir ao registrar conteúdo. */
+export const RemetentesSchema = z.object({ senders: z.array(z.string()) });
+export type Remetentes = z.output<typeof RemetentesSchema>;

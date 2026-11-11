@@ -61,6 +61,19 @@ describe('Registrar conteúdo', () => {
     expect(await db.eventoAuditoria.count({ where: { acao: 'CONTEUDO_REGISTRADO', alvoId: p.id } })).toBe(4);
   });
 
+  it('sugestões de remetente: nomes já usados, uma grafia por nome, só do escopo; consulta é recusada', async () => {
+    const p = await criarPalete(a);
+    await registrar(p.id, { sender: 'Sugestão Teste Ltda' });
+    await registrar(p.id, { sender: 'sugestão teste ltda', documentNumber: '1' });
+    await registrar(p.id, { sender: 'Sugestão Teste Ltda', documentNumber: '2' });
+    const r = await como(a.app, a.op, { method: 'GET', url: `${API}/remetentes` });
+    expect(r.statusCode, r.body).toBe(200);
+    const nomes = (r.json() as { senders: string[] }).senders.filter((n) => n.toLowerCase() === 'sugestão teste ltda');
+    expect(nomes).toEqual(['Sugestão Teste Ltda']);
+    const c = await como(a.app, a.consulta, { method: 'GET', url: `${API}/remetentes` });
+    expect(c.statusCode).toBe(403);
+  });
+
   it('MI aceito; tipo inválido, remetente vazio ou texto longo demais são recusados; consulta não cadastra', async () => {
     const p = await criarPalete(a);
     await registrar(p.id, { sender: 'Remetente Fictício', documentType: 'MI', documentNumber: '0007' });

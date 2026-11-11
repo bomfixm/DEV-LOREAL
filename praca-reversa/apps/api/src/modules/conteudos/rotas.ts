@@ -33,6 +33,25 @@ function autorDe(request: FastifyRequest): Autor {
  * Mutações idempotentes, transacionais e auditadas.
  */
 export function registrarRotasConteudos(app: FastifyInstance, deps: Dependencias, auth: Autenticacao): void {
+  // Sugestões do campo Remetente: nomes já usados no escopo (uma grafia por nome, a mais frequente), mais usados primeiro.
+  app.get(`${API_PREFIXO}/remetentes`, { preHandler: auth.exigirPermissao('palete.cadastrar') }, async (request) => {
+    const escopo = escopoAtivoDe(request);
+    const linhas = await deps.db.$queryRaw<{ nome: string }[]>`
+      SELECT nome FROM (
+        SELECT DISTINCT ON (chave) nome, chave, total_chave FROM (
+          SELECT btrim(remetente) AS nome, lower(btrim(remetente)) AS chave, count(*) AS n,
+                 sum(count(*)) OVER (PARTITION BY lower(btrim(remetente))) AS total_chave
+          FROM conteudo_palete
+          WHERE escopo_id = ${escopo.id}::uuid AND btrim(remetente) <> ''
+          GROUP BY btrim(remetente)
+        ) por_grafia
+        ORDER BY chave, n DESC
+      ) unicos
+      ORDER BY total_chave DESC, nome
+      LIMIT 1000`;
+    return { senders: linhas.map((l) => l.nome) };
+  });
+
   app.get(`${API_PREFIXO}/paletes/:id/conteudos`, { preHandler: auth.exigirPermissao('palete.consultar') }, async (request) => {
     const { id } = validar(ParametrosSchema, request.params, 'Identificador de palete inválido.');
     return conteudosDoPalete(deps.db, escopoAtivoDe(request).id, id);

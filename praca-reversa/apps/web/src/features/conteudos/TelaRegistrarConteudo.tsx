@@ -3,6 +3,7 @@ import {
   ConteudosPaleteSchema,
   NovoConteudoSchema,
   PracaSchema,
+  RemetentesSchema,
   TipoDocumentoConteudoSchema,
   type ConteudoPalete,
   type NovoConteudo,
@@ -52,6 +53,8 @@ export function TelaRegistrarConteudo({ sessao, paleteInicial, aoNavegar, aoGrav
   const chaves = useChaves();
   const conectado = useConectado();
   const praca = useRecurso(URL_PRACA, PracaSchema);
+  const { carga: remetentes } = useRecurso(`${API_PREFIXO}/remetentes`, RemetentesSchema);
+  const listaRemetentes = `${ids}-remetentes`;
   const [paleteId, setPaleteId] = useState<string | null>(paleteInicial);
   const [paleteTexto, setPaleteTexto] = useState('');
   const [paleteAviso, setPaleteAviso] = useState<{ tipo: 'carregando' | 'invalido'; texto: string } | null>(null);
@@ -316,12 +319,16 @@ export function TelaRegistrarConteudo({ sessao, paleteInicial, aoNavegar, aoGrav
               value={form.remetente}
               maxLength={200}
               autoComplete="off"
+              list={listaRemetentes}
               required
               onChange={(e) => {
                 mudar({ remetente: e.target.value });
               }}
               data-testid="conteudo-remetente"
             />
+            <datalist id={listaRemetentes}>
+              {remetentes?.estado === 'pronto' && remetentes.dados.senders.map((nome) => <option key={nome} value={nome} />)}
+            </datalist>
           </label>
           <fieldset className="campo grupo-tipo-documento">
             <legend className="campo-rotulo">Tipo de documento (quando identificado)</legend>

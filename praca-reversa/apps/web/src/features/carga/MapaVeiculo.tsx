@@ -1,19 +1,6 @@
 import type React from 'react';
 import type { PaleteEmbarque, VeiculoCarga } from '@praca-reversa/contracts';
-
-/** Selo curto da documentação (sempre com texto, não só cor). */
-export function textoDocs(p: PaleteEmbarque): string {
-  switch (p.docs.state) {
-    case 'AGUARDANDO_FISICO':
-      return 'Aguarda físico';
-    case 'PENDENTE':
-      return `Docs ${String(p.docs.checked)}/${String(p.docs.total)}`;
-    case 'COM_PROBLEMA':
-      return `Docs: ${String(p.docs.missing + p.docs.divergent)} problema(s)`;
-    case 'CONFERIDA':
-      return 'Docs conferidos';
-  }
-}
+import { textoDocs } from './textos';
 
 /**
  * Vista de cima do veículo: frente (cabine) no alto, porta embaixo. Posições
@@ -60,7 +47,10 @@ export function MapaVeiculo({
           const mostrar = p !== undefined && (!impressao || !impressao.soConfirmadas || p.positionConfirmed) ? p : undefined;
           if (impressao) {
             return (
-              <div key={pos} className={`mapa-celula ${mostrar ? 'mapa-celula--ocupada' : 'mapa-celula--livre'}${mostrar && !mostrar.positionConfirmed ? ' mapa-celula--planejada' : ''}`}>
+              <div
+                key={pos}
+                className={`mapa-celula ${mostrar ? 'mapa-celula--ocupada' : 'mapa-celula--livre'}${mostrar ? (mostrar.positionConfirmed ? ' mapa-celula--confirmada' : ' mapa-celula--planejada') : ''}`}
+              >
                 <span className="mapa-celula-pos">{String(pos).padStart(2, '0')}</span>
                 {mostrar && (
                   <>
@@ -118,7 +108,9 @@ export function MapaVeiculo({
                 <span>{mostrar.volumes} vol</span>
                 <span>
                   <span className={mostrar.physical.checked ? 'marca-ok' : 'marca-pendente'}>F{mostrar.physical.checked ? '✓' : '○'}</span>{' '}
-                  <span className={mostrar.docs.state === 'CONFERIDA' ? 'marca-ok' : problema ? 'marca-erro' : 'marca-pendente'}>D{mostrar.docs.state === 'CONFERIDA' ? '✓' : problema ? '!' : '○'}</span>
+                  <span className={mostrar.docs.state === 'CONFERIDA' ? 'marca-ok' : problema ? 'marca-erro' : 'marca-pendente'}>
+                    D{mostrar.docs.state === 'CONFERIDA' ? '✓' : problema ? '!' : '○'}
+                  </span>
                 </span>
               </span>
             </button>

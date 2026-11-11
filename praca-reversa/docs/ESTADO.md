@@ -1,6 +1,16 @@
 # Estado do projeto
 
-Atualizado em 27 de outubro de 2026.
+Atualizado em 11 de novembro de 2026.
+
+## Expedição DHL — carga por veículo — 11 de novembro de 2026
+
+Branch `expedicao-dhl` (não mesclada na `main`, não publicada). Tela **Expedição** no menu principal (`/expedicao`): escolher a janela, adicionar Carreta (28) ou Truck (16), mapa do veículo visto de cima (frente/cabine e porta; deitado no computador, em pé no celular), alocar na posição livre um palete FULL (palete de origem inteiro) ou fracionado (NFs e volumes separados, com base e disponível por NF), mover sem trocar o número, confirmar a posição no carregamento, transferir entre veículos (identidade nova e aviso de reimpressão), físico conferido, visão **Administrativo** (fila e checklist por NF: conferido/faltante/divergente com observação), etiqueta, espelho de embarque (via do cliente, moldura do espelho), lista de documentos e mapa (prévia ou final só com posições confirmadas). Fechar/reabrir/cancelar veículo com o supervisor. **Nada baixa estoque**: a baixa continua no registro de expedição por volumes da janela (Painel).
+
+Banco: migração aditiva `20261111150000_carga_expedicao` (6 tabelas novas, índices parciais de número/posição/FULL, gatilhos só-acrescentar em documentos, emissões e histórico). **Não aplicada** no banco de desenvolvimento real nem no Vercel.
+
+Verificações: typecheck (contratos, API, web); ESLint dos arquivos novos/alterados (lint global estoura a memória da máquina); unidade 332/332; banco `carga` 5/5 (os 5 cenários do pedido), `janelas-acesso` 3/3, `permissoes-e-praca` 20/20, `paineis` 12/12; build; E2E `carga.spec.ts` (computador e celular) e `redesign`, `computador`, `celular` (30 aprovados). Capturas e PDFs fictícios em `docs/capturas/expedicao/` (espelho, etiqueta, mapa e lista em uma página A4 paisagem cada).
+
+Limites e pendências de negócio: disposição física real dos veículos (grade provisória 14×2 / 8×2, ajustável e marcada como provisória); quem é o "administrativo" (permissão nova `expedicao.documentos` só no supervisor); consolidação de várias origens no mesmo palete fracionado (permitida tecnicamente, sem regra aprovada); momento da baixa (continua no fluxo do Painel); consulta digital do cliente não criada (só impressão). Impressora física e celular real não testados.
 
 ## Notas por foto — 6 de novembro de 2026
 

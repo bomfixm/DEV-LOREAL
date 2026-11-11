@@ -21,7 +21,10 @@ export interface OcorrenciaLida extends OcorrenciaOrigem {
   ativa: boolean;
 }
 
-export type RefOcorrencia = { kind: 'VINCULO' | 'CONTEUDO'; id: string };
+export interface RefOcorrencia {
+  kind: 'VINCULO' | 'CONTEUDO';
+  id: string;
+}
 
 const chave = (r: RefOcorrencia) => r.id;
 
@@ -127,11 +130,15 @@ export async function disponibilidade(
          AND (${excluirPalete}::uuid IS NULL OR pe.id <> ${excluirPalete}::uuid)
        GROUP BY 1, 2`,
   ]);
-  type Soma = { e: number; sep: number; alocado: number };
+  interface Soma {
+    e: number;
+    sep: number;
+    alocado: number;
+  }
   const por = new Map<string, Map<string, Soma>>();
   const soma = (alvo: string, janela: string): Soma => {
     let m = por.get(alvo);
-    if (!m) por.set(alvo, (m = new Map()));
+    if (!m) por.set(alvo, (m = new Map<string, Soma>()));
     let s = m.get(janela);
     if (!s) m.set(janela, (s = { e: 0, sep: 0, alocado: 0 }));
     return s;
@@ -146,7 +153,7 @@ export async function disponibilidade(
   }
   for (const a of alocados) soma(a.alvo, a.janela_id).alocado += Number(a.volumes);
   for (const id of ids) {
-    const m = por.get(id) ?? new Map<string, Soma>();
+    const m: Map<string, Soma> = por.get(id) ?? new Map<string, Soma>();
     const desta = m.get(janelaId) ?? { e: 0, sep: 0, alocado: 0 };
     let outras = 0;
     for (const [janela, s] of m) if (janela !== janelaId) outras += Math.max(s.e, s.alocado);

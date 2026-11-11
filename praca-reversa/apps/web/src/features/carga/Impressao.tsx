@@ -13,7 +13,11 @@ export interface PedidoImpressao {
 const Demo = ({ carga }: { carga: CargaJanela }) => (carga.scope.demo ? <p className="impr-demo">DEMONSTRAÇÃO — DADOS FICTÍCIOS</p> : null);
 
 function Rascunho({ final }: { final: boolean }) {
-  return final ? null : <p className="impr-rascunho" aria-label="Rascunho">RASCUNHO — NÃO VALE PARA O EMBARQUE</p>;
+  return final ? null : (
+    <p className="impr-rascunho" aria-label="Rascunho">
+      RASCUNHO — NÃO VALE PARA O EMBARQUE
+    </p>
+  );
 }
 
 /** Etiqueta física do palete de embarque: o número grande e a identidade completa. */
@@ -160,7 +164,15 @@ function MapaCarga({ carga, veiculo, final }: { carga: CargaJanela; veiculo: Vei
         {!veiculo.layoutConfirmed ? ' · Disposição do veículo provisória' : ''}
       </p>
       <div className="impr-mapa-corpo">
-        <MapaVeiculo veiculo={veiculo} selecionado={null} posicaoEscolhida={null} movendo={null} aoEscolherPosicao={() => undefined} aoEscolherPalete={() => undefined} impressao={{ soConfirmadas: final }} />
+        <MapaVeiculo
+          veiculo={veiculo}
+          selecionado={null}
+          posicaoEscolhida={null}
+          movendo={null}
+          aoEscolherPosicao={() => undefined}
+          aoEscolherPalete={() => undefined}
+          impressao={{ soConfirmadas: final }}
+        />
         <table>
           <thead>
             <tr>

@@ -304,3 +304,11 @@ Saída do piloto: comparar mapa e registros com o físico, verificar movimentos,
 - Quantidades: VOLUMES = previsto informado; LIDO = contagem registrada, inclusive zero. Ausência continua “—”. Não presumir previsto a partir de contado. Observação informa conferência real, conferência informada do inventário, contagem registrada ou pendência, com a data da fonte, nunca a data da impressão como conferência.
 - Moldura extraída do formulário original SF-164133/01 enviado pelo usuário, sem os textos de preenchimento. Prévia e impressão A4 paisagem pelo navegador, inclusive Salvar como PDF. Texto segue selecionável, até 250 paletes por lote, continuação em novas folhas quando necessário.
 - Impressão física e aprovação visual da operação ainda precisam ser feitas na impressora usada no piso.
+
+## Expedição DHL — perguntas para a operação (11 nov. 2026)
+
+1. **Disposição real** da carreta e do truck: quantas fileiras e colunas, e como se numera (da cabine para a porta, esquerda para a direita?). Hoje a grade é provisória (14×2 e 8×2) e aparece marcada como tal.
+2. **Quem é o administrativo** que confere os documentos? A permissão `expedicao.documentos` está só com o supervisor; outro perfil pode receber.
+3. **Consolidação**: um palete fracionado de embarque pode juntar NFs de vários paletes de origem? O sistema aceita, mas a regra não foi aprovada.
+4. **Momento da baixa**: a baixa continua no registro de expedição por volumes do Painel. Deve acontecer ao fechar a carga? Até a decisão, a tela não mexe no saldo.
+5. **Via do cliente**: o espelho de embarque impresso é suficiente para o recebimento na L’Oréal, ou haverá consulta digital (hoje não criada)?

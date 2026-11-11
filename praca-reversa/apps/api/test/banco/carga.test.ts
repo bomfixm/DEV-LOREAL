@@ -24,7 +24,8 @@ afterAll(async () => {
   await db.$disconnect();
 });
 
-async function ok(r: Awaited<ReturnType<typeof mutar>>, status = 200): Promise<CargaJanela> {
+async function ok(pedido: ReturnType<typeof mutar>, status = 200): Promise<CargaJanela> {
+  const r = await pedido;
   expect(r.statusCode, r.body).toBe(status);
   return CargaJanelaSchema.parse(r.json());
 }
@@ -50,7 +51,7 @@ async function novaJanela(): Promise<string> {
 }
 
 async function veiculo(janelaId: string, kind: 'CARRETA' | 'TRUCK', s: SessaoTeste = a.op): Promise<CargaJanela> {
-  return ok(await mutar(a.app, s, 'POST', `${API}/cargas/janelas/${janelaId}/veiculos`, { kind }), 201);
+  return ok(mutar(a.app, s, 'POST', `${API}/cargas/janelas/${janelaId}/veiculos`, { kind }), 201);
 }
 
 const paletesDe = (c: CargaJanela, label: string): PaleteEmbarque[] => c.vehicles.find((v) => v.label === label)?.pallets.filter((p) => p.state === 'ATIVO') ?? [];
@@ -74,23 +75,23 @@ describe('Expedição DHL — carga por veículo', () => {
     ]);
     const o1 = await origemCom([5]);
     const o2 = await origemCom([5]);
-    const linha = async (o: { conteudos: string[] }, volumes: number) => ({ occurrence: { kind: 'CONTEUDO', id: o.conteudos[0] }, volumes });
-    c = await ok(await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${idVeiculo(c, 'Carreta 01')}/paletes`, { kind: 'FRACIONADO', number: 7, position: 3, lines: [await linha(o1, 2)] }), 201);
-    c = await ok(await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${idVeiculo(c, 'Carreta 02')}/paletes`, { kind: 'FRACIONADO', number: 7, position: 3, lines: [await linha(o2, 2)] }), 201);
+    const linha = (o: { conteudos: string[] }, volumes: number) => ({ occurrence: { kind: 'CONTEUDO', id: o.conteudos[0] }, volumes });
+    c = await ok(mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${idVeiculo(c, 'Carreta 01')}/paletes`, { kind: 'FRACIONADO', number: 7, position: 3, lines: [linha(o1, 2)] }), 201);
+    c = await ok(mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${idVeiculo(c, 'Carreta 02')}/paletes`, { kind: 'FRACIONADO', number: 7, position: 3, lines: [linha(o2, 2)] }), 201);
     const p07a = um(c, 'Carreta 01', 7);
     const p07b = um(c, 'Carreta 02', 7);
     expect(p07a.identity).not.toBe(p07b.identity);
     expect(p07a.identity).toMatch(/Carreta 01 · Palete 07$/);
     // Número repetido no mesmo veículo e posição ocupada são recusados.
-    expect(codigoErro(await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${idVeiculo(c, 'Carreta 01')}/paletes`, { kind: 'FRACIONADO', number: 7, lines: [await linha(o1, 1)] }))).toBe('CONFLITO');
-    expect(codigoErro(await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${idVeiculo(c, 'Carreta 01')}/paletes`, { kind: 'FRACIONADO', position: 3, lines: [await linha(o1, 1)] }))).toBe('CONFLITO');
+    expect(codigoErro(await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${idVeiculo(c, 'Carreta 01')}/paletes`, { kind: 'FRACIONADO', number: 7, lines: [linha(o1, 1)] }))).toBe('CONFLITO');
+    expect(codigoErro(await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${idVeiculo(c, 'Carreta 01')}/paletes`, { kind: 'FRACIONADO', position: 3, lines: [linha(o1, 1)] }))).toBe('CONFLITO');
     // Posição fora do truck (16).
-    expect(codigoErro(await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${idVeiculo(c, 'Truck 01')}/paletes`, { kind: 'FRACIONADO', position: 17, lines: [await linha(o1, 1)] }))).toBe('REQUISICAO_INVALIDA');
+    expect(codigoErro(await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${idVeiculo(c, 'Truck 01')}/paletes`, { kind: 'FRACIONADO', position: 17, lines: [linha(o1, 1)] }))).toBe('REQUISICAO_INVALIDA');
     // Capacidade do truck: 16 paletes e o 17º é recusado.
     const truck = idVeiculo(c, 'Truck 01');
     const o3 = await origemCom([20]);
-    for (let n = 1; n <= 16; n++) await ok(await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${truck}/paletes`, { kind: 'FRACIONADO', lines: [await linha(o3, 1)] }), 201);
-    expect(codigoErro(await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${truck}/paletes`, { kind: 'FRACIONADO', lines: [await linha(o3, 1)] }))).toBe('CONFLITO');
+    for (let n = 1; n <= 16; n++) await ok(mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${truck}/paletes`, { kind: 'FRACIONADO', lines: [linha(o3, 1)] }), 201);
+    expect(codigoErro(await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${truck}/paletes`, { kind: 'FRACIONADO', lines: [linha(o3, 1)] }))).toBe('CONFLITO');
     // Consulta não monta.
     expect((await mutar(a.app, a.consulta, 'POST', `${API}/cargas/janelas/${j}/veiculos`, { kind: 'TRUCK' })).statusCode).toBe(403);
   });
@@ -100,7 +101,7 @@ describe('Expedição DHL — carga por veículo', () => {
     let c = await veiculo(j, 'CARRETA');
     const carreta = idVeiculo(c, 'Carreta 01');
     const cheio = await origemCom([12, 4]);
-    c = await ok(await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${carreta}/paletes`, { kind: 'FULL', sourcePalletId: cheio.id }), 201);
+    c = await ok(mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${carreta}/paletes`, { kind: 'FULL', sourcePalletId: cheio.id }), 201);
     const full = um(c, 'Carreta 01', 1);
     expect(full.volumes).toBe(16);
     expect(full.lines).toHaveLength(2);
@@ -111,7 +112,7 @@ describe('Expedição DHL — carga por veículo', () => {
 
     const vinte = await origemCom([20]);
     const ocorrencia = { kind: 'CONTEUDO', id: vinte.conteudos[0] };
-    c = await ok(await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${carreta}/paletes`, { kind: 'FRACIONADO', lines: [{ occurrence: ocorrencia, volumes: 8 }] }), 201);
+    c = await ok(mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${carreta}/paletes`, { kind: 'FRACIONADO', lines: [{ occurrence: ocorrencia, volumes: 8 }] }), 201);
     const frac = um(c, 'Carreta 01', 2);
     expect(frac.volumes).toBe(8);
     expect(frac.lines.map((l) => l.volumes)).toEqual([8]);
@@ -143,21 +144,21 @@ describe('Expedição DHL — carga por veículo', () => {
     // O adm não confere antes do físico.
     const doc = (s: SessaoTeste, linha: string, state: string, note: string | null = null) => mutar(a.app, s, 'POST', `${API}/cargas/paletes/${p.id}/documentos`, { revision: p.revision, lineId: linha, state, note });
     expect(codigoErro(await doc(a.sup, p.lines[0]?.id ?? '', 'CONFERIDO'))).toBe('CONFLITO');
-    c = await ok(await mutar(a.app, a.op, 'POST', `${API}/cargas/paletes/${p.id}/fisico`, { expectedVersion: p.version, revision: p.revision }));
+    c = await ok(mutar(a.app, a.op, 'POST', `${API}/cargas/paletes/${p.id}/fisico`, { expectedVersion: p.version, revision: p.revision }));
     p = um(c, 'Truck 01', 1);
     expect(p.physical.checked).toBe(true);
     expect(p.docs.state).toBe('PENDENTE');
     // Operador não tem a permissão do administrativo.
     expect((await doc(a.op, p.lines[0]?.id ?? '', 'CONFERIDO')).statusCode).toBe(403);
-    c = await ok(await doc(a.sup, p.lines[0]?.id ?? '', 'CONFERIDO'), 201);
-    c = await ok(await doc(a.sup, p.lines[1]?.id ?? '', 'FALTANTE', 'Segunda via não veio'), 201);
+    await ok(doc(a.sup, p.lines[0]?.id ?? '', 'CONFERIDO'), 201);
+    c = await ok(doc(a.sup, p.lines[1]?.id ?? '', 'FALTANTE', 'Segunda via não veio'), 201);
     p = um(c, 'Truck 01', 1);
     expect(p.physical.checked).toBe(true);
     expect(p.docs).toMatchObject({ state: 'COM_PROBLEMA', checked: 1, missing: 1 });
     expect(c.vehicles[0]?.pending.join(' ')).toMatch(/faltante ou divergente/);
     // Faltante sem observação é recusado.
     expect(codigoErro(await doc(a.sup, p.lines[1]?.id ?? '', 'FALTANTE'))).toBe('REQUISICAO_INVALIDA');
-    c = await ok(await doc(a.sup, p.lines[1]?.id ?? '', 'CONFERIDO'), 201);
+    c = await ok(doc(a.sup, p.lines[1]?.id ?? '', 'CONFERIDO'), 201);
     p = um(c, 'Truck 01', 1);
     expect(p.docs.state).toBe('CONFERIDA');
     // Alterar o conteúdo abre revisão nova: físico e documentação voltam a pendentes só neste palete.
@@ -182,24 +183,24 @@ describe('Expedição DHL — carga por veículo', () => {
     let c = await veiculo(j, 'CARRETA');
     const c1 = idVeiculo(c, 'Carreta 01');
     const o = await origemCom([10]);
-    c = await ok(await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${c1}/paletes`, { kind: 'FRACIONADO', number: 7, position: 5, lines: [{ occurrence: { kind: 'CONTEUDO', id: o.conteudos[0] }, volumes: 4 }] }), 201);
+    c = await ok(mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${c1}/paletes`, { kind: 'FRACIONADO', number: 7, position: 5, lines: [{ occurrence: { kind: 'CONTEUDO', id: o.conteudos[0] }, volumes: 4 }] }), 201);
     let p = um(c, 'Carreta 01', 7);
-    c = await ok(await mutar(a.app, a.op, 'POST', `${API}/cargas/paletes/${p.id}/emissoes`, { kind: 'ETIQUETA', final: true }), 201);
+    c = await ok(mutar(a.app, a.op, 'POST', `${API}/cargas/paletes/${p.id}/emissoes`, { kind: 'ETIQUETA', final: true }), 201);
     p = um(c, 'Carreta 01', 7);
-    c = await ok(await mutar(a.app, a.op, 'PUT', `${API}/cargas/paletes/${p.id}/posicao`, { expectedVersion: p.version, position: 9 }));
+    c = await ok(mutar(a.app, a.op, 'PUT', `${API}/cargas/paletes/${p.id}/posicao`, { expectedVersion: p.version, position: 9 }));
     p = um(c, 'Carreta 01', 7);
     expect([p.number, p.position, p.positionConfirmed]).toEqual([7, 9, false]);
     expect(p.emissions.find((e) => e.kind === 'ETIQUETA')?.outdated).toBe(false);
     // Mapa final recusado sem confirmação; prévia aceita.
     expect(codigoErro(await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${c1}/mapa`, { kind: 'MAPA', final: true }))).toBe('CONFLITO');
-    c = await ok(await mutar(a.app, a.op, 'POST', `${API}/cargas/paletes/${p.id}/confirmacao`, { expectedVersion: p.version, confirmed: true }));
-    c = await ok(await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${c1}/mapa`, { kind: 'MAPA', final: true }), 201);
+    await ok(mutar(a.app, a.op, 'POST', `${API}/cargas/paletes/${p.id}/confirmacao`, { expectedVersion: p.version, confirmed: true }));
+    c = await ok(mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${c1}/mapa`, { kind: 'MAPA', final: true }), 201);
     expect(c.vehicles[0]?.map).toMatchObject({ final: true, outdated: false });
     p = um(c, 'Carreta 01', 7);
     // Versão desatualizada é recusada (duas pessoas).
     expect(codigoErro(await mutar(a.app, a.op, 'PUT', `${API}/cargas/paletes/${p.id}/posicao`, { expectedVersion: p.version - 1, position: 1 }))).toBe('CONFLITO_VERSAO');
     // Transferir para a Carreta 02: mantém P07 (livre), perde a posição, etiqueta fica desatualizada e o mapa final também.
-    c = await ok(await mutar(a.app, a.op, 'POST', `${API}/cargas/paletes/${p.id}/transferencia`, { expectedVersion: p.version, vehicleId: idVeiculo(c, 'Carreta 02') }));
+    c = await ok(mutar(a.app, a.op, 'POST', `${API}/cargas/paletes/${p.id}/transferencia`, { expectedVersion: p.version, vehicleId: idVeiculo(c, 'Carreta 02') }));
     const t = um(c, 'Carreta 02', 7);
     expect(t.position).toBeNull();
     expect(t.identity).toMatch(/Carreta 02 · Palete 07$/);
@@ -225,15 +226,15 @@ describe('Expedição DHL — carga por veículo', () => {
     // Operador não fecha carga.
     expect((await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${truck}/situacao`, { expectedVersion: v?.version, action: 'FECHAR' })).statusCode).toBe(403);
     let p = um(c, 'Truck 01', 1);
-    c = await ok(await mutar(a.app, a.op, 'POST', `${API}/cargas/paletes/${p.id}/confirmacao`, { expectedVersion: p.version, confirmed: true }));
+    c = await ok(mutar(a.app, a.op, 'POST', `${API}/cargas/paletes/${p.id}/confirmacao`, { expectedVersion: p.version, confirmed: true }));
     p = um(c, 'Truck 01', 1);
-    c = await ok(await mutar(a.app, a.op, 'POST', `${API}/cargas/paletes/${p.id}/fisico`, { expectedVersion: p.version, revision: p.revision }));
+    c = await ok(mutar(a.app, a.op, 'POST', `${API}/cargas/paletes/${p.id}/fisico`, { expectedVersion: p.version, revision: p.revision }));
     p = um(c, 'Truck 01', 1);
-    c = await ok(await mutar(a.app, a.sup, 'POST', `${API}/cargas/paletes/${p.id}/documentos`, { revision: p.revision, lineId: p.lines[0]?.id, state: 'CONFERIDO' }), 201);
+    c = await ok(mutar(a.app, a.sup, 'POST', `${API}/cargas/paletes/${p.id}/documentos`, { revision: p.revision, lineId: p.lines[0]?.id, state: 'CONFERIDO' }), 201);
     const ve = c.vehicles[0];
-    c = await ok(await mutar(a.app, a.sup, 'PUT', `${API}/cargas/veiculos/${truck}`, { expectedVersion: ve?.version, name: null, plate: 'ABC1D23', rows: 8, cols: 2, layoutConfirmed: true }));
+    c = await ok(mutar(a.app, a.sup, 'PUT', `${API}/cargas/veiculos/${truck}`, { expectedVersion: ve?.version, name: null, plate: 'ABC1D23', rows: 8, cols: 2, layoutConfirmed: true }));
     expect(c.vehicles[0]?.pending).toEqual([]);
-    c = await ok(await mutar(a.app, a.sup, 'POST', `${API}/cargas/veiculos/${truck}/situacao`, { expectedVersion: c.vehicles[0]?.version, action: 'FECHAR' }));
+    c = await ok(mutar(a.app, a.sup, 'POST', `${API}/cargas/veiculos/${truck}/situacao`, { expectedVersion: c.vehicles[0]?.version, action: 'FECHAR' }));
     expect(c.vehicles[0]?.state).toBe('FECHADO');
     p = um(c, 'Truck 01', 1);
     // Carga fechada não aceita mudança silenciosa.

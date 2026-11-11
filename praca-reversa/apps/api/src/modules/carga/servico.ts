@@ -100,7 +100,7 @@ async function travarPalete(tx: Transacao, escopoId: string, paleteId: string): 
   const [p] = await tx.$queryRaw<PaleteTravado[]>`
     SELECT id::text, veiculo_id::text, numero, posicao, posicao_confirmada, tipo, palete_origem_id::text, revisao, fisico_revisao, situacao, versao
       FROM palete_embarque WHERE id = ${paleteId}::uuid AND escopo_id = ${escopoId}::uuid FOR UPDATE`;
-  if (!p || p.veiculo_id !== v.id) throw new ErroHttp(409, 'CONFLITO_VERSAO', 'O palete mudou de veículo enquanto a operação era preparada. Recarregue e confira.');
+  if (p?.veiculo_id !== v.id) throw new ErroHttp(409, 'CONFLITO_VERSAO', 'O palete mudou de veículo enquanto a operação era preparada. Recarregue e confira.');
   return { p, v };
 }
 
@@ -168,7 +168,7 @@ async function prepararLinhas(tx: Transacao, escopoId: string, janelaId: string,
   const ocorrencias = await lerOcorrencias(tx, escopoId, pedidas.map((p) => p.ref));
   for (const p of pedidas) {
     const o = ocorrencias.get(p.ref.id);
-    if (!o || o.kind !== p.ref.kind) throw naoEncontrado('Ocorrência de origem não encontrada neste escopo (NF do palete). Atualize a lista.');
+    if (o?.kind !== p.ref.kind) throw naoEncontrado('Ocorrência de origem não encontrada neste escopo (NF do palete). Atualize a lista.');
   }
   const origens = await travarOrigens(
     tx,
@@ -265,7 +265,12 @@ async function linhasAtuais(tx: Transacao, paleteId: string): Promise<{ id: stri
 async function substituirLinhas(tx: Transacao, escopoId: string, paleteId: string, novas: readonly LinhaPronta[], agora: Date): Promise<{ mudou: boolean; antes: { alvo: string; volumes: number }[] }> {
   const atuais = await linhasAtuais(tx, paleteId);
   const antes = atuais.map((a) => ({ alvo: a.alvo, volumes: a.volumes }));
-  const igual = atuais.length === novas.length && atuais.every((a, i) => a.alvo === novas[i]?.ref.id && a.volumes === novas[i]?.volumes);
+  const igual =
+    atuais.length === novas.length &&
+    atuais.every((a, i) => {
+      const n = novas.at(i);
+      return a.alvo === n?.ref.id && a.volumes === n.volumes;
+    });
   if (igual) return { mudou: false, antes };
   // Linhas que permanecem (mesma ocorrência): atualiza volumes e ordem; mantém o id (o histórico documental continua ligado).
   const porAlvo = new Map(atuais.map((a) => [a.alvo, a]));

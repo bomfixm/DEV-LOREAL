@@ -61,8 +61,8 @@ test.describe('Expedição DHL', () => {
     const o1 = await origem(page, [30, 12], 'Comercial Fictícia A');
     const o2 = await origem(page, [18], 'Distribuidora Fictícia B');
     const o3 = await origem(page, [20, 6], 'Remetente Fictício C');
-    c = (await api(page, 'POST', `/api/v1/cargas/veiculos/${carreta}/paletes`, { kind: 'FULL', number: 1, position: 1, sourcePalletId: o1.id })) as unknown as Carga;
-    c = (await api(page, 'POST', `/api/v1/cargas/veiculos/${carreta}/paletes`, { kind: 'FULL', number: 2, position: 2, sourcePalletId: o2.id })) as unknown as Carga;
+    await api(page, 'POST', `/api/v1/cargas/veiculos/${carreta}/paletes`, { kind: 'FULL', number: 1, position: 1, sourcePalletId: o1.id });
+    await api(page, 'POST', `/api/v1/cargas/veiculos/${carreta}/paletes`, { kind: 'FULL', number: 2, position: 2, sourcePalletId: o2.id });
     c = (await api(page, 'POST', `/api/v1/cargas/veiculos/${carreta}/paletes`, {
       kind: 'FRACIONADO',
       number: 7,
@@ -79,7 +79,7 @@ test.describe('Expedição DHL', () => {
     // P01 confirmado e conferido; P07 com físico conferido e uma NF faltante no administrativo.
     c = (await api(page, 'POST', `/api/v1/cargas/paletes/${p1.id}/confirmacao`, { expectedVersion: p1.version, confirmed: true })) as unknown as Carga;
     const p1b = c.vehicles[0]?.pallets.find((p) => p.number === 1);
-    if (p1b) c = (await api(page, 'POST', `/api/v1/cargas/paletes/${p1b.id}/fisico`, { expectedVersion: p1b.version, revision: p1b.revision })) as unknown as Carga;
+    if (p1b) await api(page, 'POST', `/api/v1/cargas/paletes/${p1b.id}/fisico`, { expectedVersion: p1b.version, revision: p1b.revision });
     c = (await api(page, 'POST', `/api/v1/cargas/paletes/${p7.id}/fisico`, { expectedVersion: p7.version, revision: p7.revision })) as unknown as Carga;
     const p7b = c.vehicles[0]?.pallets.find((p) => p.number === 7);
     if (p7b) {
@@ -120,5 +120,31 @@ test.describe('Expedição DHL', () => {
     await page.getByTestId('adm-P07').click();
     await expect(page.getByTestId('checklist-docs')).toContainText('Faltante');
     await page.screenshot({ path: nome('4-administrativo'), fullPage: true });
+    if (ehCelular(testInfo)) return;
+
+    // Impressões (a janela de impressão do navegador é substituída por captura em modo de impressão).
+    await page.evaluate(() => {
+      window.print = () => undefined;
+    });
+    const imprimir = async (acao: () => Promise<void>, arquivo: string, tipo: string) => {
+      await acao();
+      await expect(page.locator(`[data-testid="carga-impressao"][data-tipo="${tipo}"]`)).toBeAttached();
+      await page.emulateMedia({ media: 'print' });
+      await page.pdf({ path: `${PASTA}/${arquivo}.pdf`, format: 'A4', landscape: true, printBackground: true });
+      await page.screenshot({ path: `${PASTA}/${arquivo}.png`, fullPage: true });
+      await page.emulateMedia({ media: 'screen' });
+      await page.reload();
+      await page.evaluate(() => {
+        window.print = () => undefined;
+      });
+    };
+    await imprimir(async () => { await page.getByTestId('imprimir-docs').click(); }, 'impressao-lista-documentos', 'DOCUMENTOS');
+    await page.getByTestId('visao-operacao').click();
+    await imprimir(async () => { await page.getByTestId('palete-P07').click(); await page.getByTestId('imprimir-espelho-final').click(); }, 'impressao-espelho-final', 'ESPELHO');
+    await imprimir(async () => { await page.getByTestId('palete-P07').click(); await page.getByTestId('imprimir-etiqueta').click(); }, 'impressao-etiqueta', 'ETIQUETA');
+    await imprimir(async () => { await page.getByRole('button', { name: 'Imprimir prévia do mapa' }).click(); }, 'impressao-mapa-previa', 'MAPA');
+    // A etiqueta impressa aparece como emitida e atual no detalhe.
+    await page.getByTestId('palete-P07').click();
+    await expect(page.getByTestId('carga-detalhe')).toContainText('Etiqueta final');
   });
 });

@@ -130,6 +130,15 @@ button.mapa-celula { cursor: pointer; }
   .tela-carga .mapa-veiculo:not(.mapa-veiculo--impressao) .mapa-celula-livre-texto { font-size: 0.7rem; }
 }
 
+/* Impressão em lote (etiquetas e espelhos de vários paletes do veículo). */
+.carga-lote { display: grid; gap: 8px; margin-top: 12px; padding: 10px 14px; border: 1px solid var(--cor-borda, #ccc); border-radius: 10px; }
+.carga-lote > summary { cursor: pointer; font-weight: 600; }
+.carga-lote-contagem { font-weight: 400; color: var(--texto-suave, #666); }
+.carga-lote-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 4px 16px; max-height: 240px; overflow: auto; margin: 0; padding: 0; list-style: none; }
+.carga-lote-lista .campo-check { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.carga-lote-lista span { font-size: .85em; }
+.carga-lote-pendente { color: var(--tom-aviso-texto, #8a5a00); }
+
 /* Impressão: só a folha pedida. Na tela não aparece. */
 .carga-impressao { display: none; }
 @media (max-width: 900px) {

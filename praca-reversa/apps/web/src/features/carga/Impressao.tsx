@@ -1,4 +1,5 @@
 import type { CargaJanela, PaleteEmbarque, TipoEmissao, VeiculoCarga } from '@praca-reversa/contracts';
+import { useMemo } from 'react';
 import { formatarDataHora } from '../../utils/datas';
 import { EspelhoEmbarque } from '../espelhos/EspelhoEmbarque';
 import { layoutDoEmbarque } from '../espelhos/layout-armazenamento';
@@ -10,6 +11,8 @@ export interface PedidoImpressao {
   final: boolean;
   veiculoId: string;
   paleteId: string | null;
+  /** Impressão em lote (etiquetas ou espelhos de vários paletes do veículo, nesta ordem). */
+  lote?: string[];
   /** Espelho: layout capturado na emissão (o editor não muda um pedido já aberto). */
   layout?: LayoutEspelho;
 }
@@ -145,13 +148,21 @@ function MapaCarga({ carga, veiculo, final }: { carga: CargaJanela; veiculo: Vei
 
 export function ImpressaoCarga({ carga, pedido, aoPronto }: { carga: CargaJanela; pedido: PedidoImpressao; aoPronto: () => void }) {
   const veiculo = carga.vehicles.find((v) => v.id === pedido.veiculoId);
+  // Lista e layout estáveis entre renderizações: a paginação só mede de novo quando mudam.
+  const paletes = useMemo(() => {
+    const ids = pedido.lote ?? (pedido.paleteId === null ? [] : [pedido.paleteId]);
+    return ids.flatMap((id) => veiculo?.pallets.filter((x) => x.id === id && x.state === 'ATIVO') ?? []);
+  }, [veiculo, pedido]);
+  const layout = useMemo(() => pedido.layout ?? layoutDoEmbarque(), [pedido]);
   if (!veiculo) return null;
   const p = veiculo.pallets.find((x) => x.id === pedido.paleteId);
   return (
-    <div className="carga-impressao" data-testid="carga-impressao" data-tipo={pedido.kind}>
+    <div className="carga-impressao" data-testid="carga-impressao" data-tipo={pedido.kind} data-paletes={paletes.length}>
       {pedido.kind === 'MAPA' && <MapaCarga carga={carga} veiculo={veiculo} final={pedido.final} />}
-      {pedido.kind === 'ETIQUETA' && p && <Etiqueta carga={carga} veiculo={veiculo} p={p} final={pedido.final} />}
-      {pedido.kind === 'ESPELHO' && p && <EspelhoEmbarque carga={carga} veiculo={veiculo} p={p} final={pedido.final} layout={pedido.layout ?? layoutDoEmbarque()} aoPronto={aoPronto} />}
+      {pedido.kind === 'ETIQUETA' && paletes.map((x) => <Etiqueta key={x.id} carga={carga} veiculo={veiculo} p={x} final={pedido.final} />)}
+      {pedido.kind === 'ESPELHO' && paletes.length > 0 && (
+        <EspelhoEmbarque carga={carga} veiculo={veiculo} paletes={paletes} final={pedido.final} layout={layout} aoPronto={aoPronto} />
+      )}
       {pedido.kind === 'DOCUMENTOS' && p && <ListaDocumentos carga={carga} veiculo={veiculo} p={p} />}
     </div>
   );

@@ -62,7 +62,31 @@ function useMutacao(aoResultado: (c: CargaJanela) => void, aoMensagem: (m: Mensa
       setOcupado(false);
     }
   }
-  return { executar, ocupado };
+  /** Várias mutações em sequência, sem parar na primeira falha: devolve as que deram certo e o motivo das outras. */
+  async function executarVarios<T>(itens: T[], pedido: (x: T) => { assinatura: string; url: string; corpo: unknown }): Promise<{ ok: T[]; falhas: { item: T; texto: string }[] }> {
+    setOcupado(true);
+    aoMensagem(null);
+    const ok: T[] = [];
+    const falhas: { item: T; texto: string }[] = [];
+    try {
+      for (const x of itens) {
+        const r = pedido(x);
+        try {
+          const c = await enviarJson('POST', r.url, CargaJanelaSchema, { corpo: r.corpo, idempotencia: chaves.para(r.assinatura) });
+          chaves.concluir(r.assinatura);
+          aoResultado(c);
+          ok.push(x);
+        } catch (e) {
+          chaves.concluir(r.assinatura, e);
+          falhas.push({ item: x, texto: mensagemDeFalha(e) });
+        }
+      }
+    } finally {
+      setOcupado(false);
+    }
+    return { ok, falhas };
+  }
+  return { executar, executarVarios, ocupado };
 }
 
 export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: RotaCarga; aoNavegar: Navegar }) {
@@ -146,6 +170,28 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
       `${nome} ${final ? 'final' : 'rascunho'} registrada: abrindo a impressão.`,
     );
     if (c) setImpressao({ kind, final, veiculoId: v.id, paleteId: p?.id ?? null, ...(kind === 'ESPELHO' ? { layout: layoutDoEmbarque() } : {}) });
+  }
+
+  /** Lote: registra a emissão de cada palete e abre uma impressão só com os que foram registrados. */
+  async function emitirLote(kind: 'ETIQUETA' | 'ESPELHO', final: boolean, v: VeiculoCarga, ps: PaleteEmbarque[]) {
+    const nome = kind === 'ETIQUETA' ? 'Etiquetas' : final ? 'Espelhos finais' : 'Espelhos (rascunho)';
+    const agora = String(Date.now());
+    const { ok, falhas } = await m.executarVarios(ps, (p) => ({
+      assinatura: `emitir:${kind}:${String(final)}:${p.id}:${String(p.revision)}:${agora}`,
+      url: `${API}/paletes/${p.id}/emissoes`,
+      corpo: { kind, final },
+    }));
+    const fora = falhas.map((f) => `${f.item.label}: ${f.texto}`).join(' · ');
+    if (ok.length === 0) {
+      setMensagem({ tipo: 'erro', texto: `${nome}: nada foi registrado nem impresso. ${fora}` });
+      return;
+    }
+    setMensagem(
+      falhas.length === 0
+        ? { tipo: 'ok', texto: `${nome} de ${String(ok.length)} palete(s) registrados: abrindo a impressão.` }
+        : { tipo: 'aviso', texto: `${nome}: ${String(ok.length)} de ${String(ps.length)} registrados e na impressão. Ficaram de fora — ${fora}` },
+    );
+    setImpressao({ kind, final, veiculoId: v.id, paleteId: null, lote: ok.map((p) => p.id), ...(kind === 'ESPELHO' ? { layout: layoutDoEmbarque() } : {}) });
   }
 
   if (janelas.carga?.estado !== 'pronto') return <EstadoTela carga={janelas.carga} titulo="Não foi possível carregar as janelas" aoTentarNovamente={janelas.recarregar} />;
@@ -308,6 +354,14 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
                 m={m}
                 aoEmitir={(final) => void emitir('MAPA', final, veiculo, null)}
               />
+              {podePreparar && (
+                <ImpressaoLote
+                  veiculo={veiculo}
+                  m={m}
+                  aoImprimir={(kind, final, ps) => void emitirLote(kind, final, veiculo, ps)}
+                  aoEditarEspelho={(id) => { setEditorEspelho(id); }}
+                />
+              )}
               <p className="carga-baixa" data-testid="carga-baixa">
                 {dados.stockEffect}
               </p>
@@ -400,6 +454,96 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
 }
 
 type Mut = ReturnType<typeof useMutacao>;
+
+/**
+ * Impressão em lote do veículo: marca os paletes (todos por padrão, na ordem
+ * das posições) e emite etiquetas ou espelhos de uma vez, numa impressão só.
+ * O espelho final só entra para os paletes com o físico conferido.
+ */
+function ImpressaoLote({
+  veiculo,
+  m,
+  aoImprimir,
+  aoEditarEspelho,
+}: {
+  veiculo: VeiculoCarga;
+  m: Mut;
+  aoImprimir: (kind: 'ETIQUETA' | 'ESPELHO', final: boolean, ps: PaleteEmbarque[]) => void;
+  aoEditarEspelho: (paleteId: string) => void;
+}) {
+  // Guarda os desmarcados: palete novo no veículo já entra marcado.
+  const [desmarcados, setDesmarcados] = useState<ReadonlySet<string>>(new Set());
+  const ativos = veiculo.pallets
+    .filter((p) => p.state === 'ATIVO')
+    .sort((a, b) => (a.position ?? 99) - (b.position ?? 99) || a.number - b.number);
+  if (ativos.length === 0) return null;
+  const marcados = ativos.filter((p) => !desmarcados.has(p.id));
+  const conferidos = marcados.filter((p) => p.physical.checked);
+  const primeiro = marcados[0];
+  const alternar = (id: string) => {
+    const s = new Set(desmarcados);
+    if (s.has(id)) s.delete(id);
+    else s.add(id);
+    setDesmarcados(s);
+  };
+  return (
+    <details className="carga-lote" data-testid="impressao-lote">
+      <summary>
+        Imprimir vários paletes <span className="carga-lote-contagem">({marcados.length} de {ativos.length} marcados)</span>
+      </summary>
+      <div className="acoes-linha">
+        <button type="button" className="botao-link botao-compacto" onClick={() => setDesmarcados(new Set())}>
+          Marcar todos
+        </button>
+        <button type="button" className="botao-link botao-compacto" onClick={() => setDesmarcados(new Set(ativos.map((p) => p.id)))}>
+          Desmarcar todos
+        </button>
+      </div>
+      <ul className="carga-lote-lista">
+        {ativos.map((p) => (
+          <li key={p.id}>
+            <label className="campo-check">
+              <input type="checkbox" checked={!desmarcados.has(p.id)} onChange={() => alternar(p.id)} data-testid={`lote-${p.label}`} />
+              <strong>{p.label}</strong>
+              <span>
+                {p.position === null ? 'sem posição' : `pos. ${String(p.position).padStart(2, '0')}`} · {p.lines.length} NF · {p.volumes} vol.
+              </span>
+              <span className={p.physical.checked ? 'marca-ok' : 'carga-lote-pendente'}>{p.physical.checked ? '✓ físico' : 'físico pendente'}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      <div className="acoes-linha">
+        <button type="button" className="botao-secundario botao-compacto" disabled={m.ocupado || marcados.length === 0} onClick={() => aoImprimir('ETIQUETA', true, marcados)} data-testid="lote-etiquetas">
+          Etiquetas ({marcados.length})
+        </button>
+        <button type="button" className="botao-secundario botao-compacto" disabled={m.ocupado || marcados.length === 0} onClick={() => aoImprimir('ESPELHO', false, marcados)} data-testid="lote-espelhos-rascunho">
+          Espelhos rascunho ({marcados.length})
+        </button>
+        <button
+          type="button"
+          className="botao-secundario botao-compacto"
+          disabled={m.ocupado || conferidos.length === 0}
+          onClick={() => aoImprimir('ESPELHO', true, conferidos)}
+          title="Via do cliente: só paletes com o físico conferido"
+          data-testid="lote-espelhos-finais"
+        >
+          Espelhos finais ({conferidos.length})
+        </button>
+        {primeiro !== undefined && (
+          <button type="button" className="botao-link botao-compacto" onClick={() => aoEditarEspelho(primeiro.id)}>
+            Layout do espelho
+          </button>
+        )}
+      </div>
+      {conferidos.length < marcados.length && (
+        <p className="campo-ajuda" data-testid="lote-aviso-final">
+          {marcados.length - conferidos.length} palete(s) marcado(s) sem físico conferido ficam fora dos espelhos finais.
+        </p>
+      )}
+    </details>
+  );
+}
 
 function ResumoVeiculo({ veiculo }: { veiculo: VeiculoCarga }) {
   return (

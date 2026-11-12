@@ -196,6 +196,44 @@ test.describe('Expedição DHL', () => {
     await page.emulateMedia({ media: 'screen' });
     await page.reload();
 
+    // Lote: vários paletes do veículo numa impressão só; o espelho final leva só os de físico conferido (P01 e P07).
+    await page.evaluate(() => {
+      window.print = () => undefined;
+    });
+    const lote = page.getByTestId('impressao-lote');
+    await lote.locator('summary').click();
+    await expect(lote).toContainText('4 de 4 marcados');
+    await expect(page.getByTestId('lote-espelhos-finais')).toHaveText('Espelhos finais (2)');
+    await page.getByTestId('lote-P02').uncheck();
+    await expect(page.getByTestId('lote-espelhos-rascunho')).toHaveText('Espelhos rascunho (3)');
+    await expect(page.getByTestId('lote-aviso-final')).toContainText('1 palete(s)');
+    await page.screenshot({ path: nome('7-impressao-lote'), fullPage: true });
+    await page.getByTestId('lote-espelhos-rascunho').click();
+    const impressaoLote = page.locator('[data-testid="carga-impressao"][data-tipo="ESPELHO"]');
+    await expect(impressaoLote).toHaveAttribute('data-paletes', '3');
+    await expect(page.getByTestId('carga-mensagem')).toContainText('3 palete(s)');
+    const paletesNoLote = await impressaoLote.locator('.espelho-folha').evaluateAll((fs) => [...new Set(fs.map((f) => (f as HTMLElement).dataset.palete ?? ''))]);
+    expect(paletesNoLote).toHaveLength(3);
+    await page.emulateMedia({ media: 'print' });
+    await page.pdf({ path: `${PASTA}/impressao-espelhos-lote.pdf`, format: 'A4', landscape: true, printBackground: true });
+    await page.emulateMedia({ media: 'screen' });
+    await page.reload();
+    await page.evaluate(() => {
+      window.print = () => undefined;
+    });
+    await page.getByTestId('impressao-lote').locator('summary').click();
+    await page.getByTestId('lote-espelhos-finais').click();
+    await expect(page.locator('[data-testid="carga-impressao"][data-tipo="ESPELHO"]')).toHaveAttribute('data-paletes', '2');
+    await expect(page.locator('[data-testid="carga-impressao"] [data-campo="rascunho"]')).toHaveCount(0);
+    await page.reload();
+    await page.evaluate(() => {
+      window.print = () => undefined;
+    });
+    await page.getByTestId('impressao-lote').locator('summary').click();
+    await page.getByTestId('lote-etiquetas').click();
+    await expect(page.locator('[data-testid="carga-impressao"][data-tipo="ETIQUETA"] .impr-etiqueta')).toHaveCount(4);
+    await page.reload();
+
     // A etiqueta impressa aparece como emitida e atual no detalhe.
     await page.getByTestId('palete-P07').click();
     await expect(page.getByTestId('carga-detalhe')).toContainText('Etiqueta final');

@@ -1,66 +1,127 @@
-import { API_PREFIXO, LoteEspelhosSchema, PracaSchema, type ConteudoPalete, type LoteEspelhos } from '@praca-reversa/contracts';
-import { useMemo, useRef, useState } from 'react';
-import { paraEndereco } from '../../base';
+import { API_PREFIXO, LoteEspelhosSchema, PracaSchema, type LoteEspelhos } from '@praca-reversa/contracts';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRecurso } from '../../api/use-recurso';
 import { EstadoTela } from '../../components/Moldura';
 import { IconeImprimir, IconeMais, IconeMenos } from '../../components/Icones';
 import type { MargensMapa } from '../mapa/controlador-mapa';
 import { MapaPraca, type MapaPracaHandle } from '../mapa/MapaPraca';
 import '../mapa/escolher-no-mapa.css';
-import { formatarData, formatarDataHora } from '../../utils/datas';
-import { paginarEspelho } from './paginas';
+import { formatarDataHora } from '../../utils/datas';
+import { EditorLayout } from './EditorLayout';
+import { FolhaEspelho } from './FolhaEspelho';
+import { carregarFontes } from './fontes';
+import { aplicarLayout, layoutsDosPaletes } from './layout-armazenamento';
+import { assinaturaLayout, LAYOUT_PADRAO, MODELOS_DO_SISTEMA, type LayoutEspelho } from './layout-modelo';
 import { alternarGrupo, indiceDoMapa, ordenarParaImpressao } from './selecao';
+import { usePaginacao } from './usePaginacao';
+import { medirFolha, problemasDaFolha } from './verificacao';
 import './espelhos.css';
+import './editor-layout.css';
 
 const MARGENS: MargensMapa = { topo: 12, direita: 56, base: 12, esquerda: 12 };
 
-function observacao(d: ConteudoPalete): string {
-  if (d.check?.state === 'CONFERIDO_COM_DIFERENCA') return `CONFERIDO COM DIFERENÇA ${d.check.at === null ? '' : formatarData(d.check.at)}`;
-  if (d.check?.state === 'CONFERIDO') return `CONFERIDO ${d.check.at === null ? '' : formatarData(d.check.at)}`;
-  if (d.inventoryCheck?.state === 'INFORMADA' && d.inventoryCheck.date !== null) return `CONFERÊNCIA INFORMADA ${d.inventoryCheck.date.split('-').reverse().join('/')}`;
-  if (d.count.state === 'REALIZADA') return `CONTAGEM REGISTRADA${d.count.at === null ? '' : ` ${formatarData(d.count.at)}`}`;
-  return 'AGUARDANDO CONFERÊNCIA';
+interface Verificacao {
+  folhas: number;
+  erros: { codigo: string; texto: string }[];
+  avisos: { codigo: string; texto: string }[];
 }
-function Folhas({ lote }: { lote: LoteEspelhos }) {
-  return <div className="espelhos-folhas">{lote.items.flatMap((p) => {
-    const paginas = paginarEspelho(p.contents.items, p);
-    return paginas.map((items, n) => <section className="espelho-folha" key={`${p.id}-${String(n)}`} aria-label={`Espelho ${p.code}, página ${String(n + 1)}`}>
-      <img className="espelho-moldura" src={paraEndereco('/espelhos-moldura.png')} alt="" /><div className="espelho-interior">
-        {lote.scope.demo && <strong className="espelho-demo">DEMONSTRAÇÃO — DADOS FICTÍCIOS</strong>}
-        <h2>{p.address === null ? 'ENDEREÇO NÃO CONFIRMADO' : p.row === 'GR' ? p.address : `RUA ${p.address}`}</h2>
-        <h3>PALETE {p.code}</h3>
-        {paginas.length > 1 && <p className="espelho-continuacao">Continuação · {n + 1}/{paginas.length}</p>}
-        <table><colgroup>{[10, 5, 10, 15, 7, 7, 25, 12, 9].map((w, i) => <col key={i} style={{ width: `${String(w)}%` }} />)}</colgroup>
-          <thead><tr>{['DLV', 'TIPO', 'NÚMERO', 'OBS. OPERAÇÃO', 'VOLUMES', 'LIDO', 'REMETENTE', 'RUA', 'PALETE NUMBER'].map((h) => <th key={h}>{h}</th>)}</tr></thead>
-          <tbody>{items.length === 0 ? <tr><td colSpan={9}>SEM CONTEÚDO REGISTRADO — CONFERÊNCIA PENDENTE</td></tr> : items.map((d) => <tr key={d.id}>
-            <td>{d.delivery ?? '—'}</td><td>{d.documentType ?? '—'}</td><td>{d.documentNumber ?? '—'}</td><td>{observacao(d)}</td>
-            <td>{d.count.expected ?? '—'}</td><td>{d.count.counted ?? '—'}</td><td>{d.sender ?? '—'}</td><td>{p.address ?? 'PENDENTE'}</td><td>{p.code}</td>
-          </tr>)}</tbody>
-        </table>
-        <footer>{lote.scope.name} · Emitido em {formatarDataHora(lote.generatedAt)}<br />Volumes = previsto informado · Lido = contagem registrada · — = não informado</footer>
-      </div>
-    </section>);
-  })}</div>;
-}
+
+/**
+ * Folhas da prévia/impressão: cada palete com o layout aplicado a ele. A
+ * paginação espera a medição das linhas; depois, cada folha é conferida
+ * (campo fora do papel, conteúdo cortado, sobreposição) antes de liberar a impressão.
+ */
+const Folhas = memo(function Folhas({ lote, layouts, aoVerificar }: { lote: LoteEspelhos; layouts: ReadonlyMap<string, LayoutEspelho>; aoVerificar: (v: Verificacao | null) => void }) {
+  const entradas = useMemo(() => lote.items.map((p) => ({ chave: `${lote.generatedAt}|${p.id}`, palete: p, layout: layouts.get(p.id) ?? LAYOUT_PADRAO })), [lote, layouts]);
+  const { pronto, paginas, medidor } = usePaginacao(entradas);
+  const raiz = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const quadro = requestAnimationFrame(() => {
+      if (!pronto || raiz.current === null) { aoVerificar(null); return; }
+      const folhas = [...raiz.current.querySelectorAll<HTMLElement>('.espelho-folha')];
+      const v: Verificacao = { folhas: folhas.length, erros: [], avisos: [] };
+      let k = 0;
+      for (const e of entradas) {
+        const pg = paginas.get(e.chave);
+        for (const nota of pg?.grandes ?? []) v.erros.push({ codigo: e.palete.code, texto: `Tabela de notas: a nota ${nota.documentNumber ?? nota.delivery ?? ''} não cabe na altura da tabela.` });
+        for (let n = 0; n < (pg?.folhas.length ?? 1); n += 1) {
+          const el = folhas[k];
+          k += 1;
+          if (el === undefined) continue;
+          for (const p of problemasDaFolha(medirFolha(el), e.layout.margem)) (p.gravidade === 'erro' ? v.erros : v.avisos).push({ codigo: e.palete.code, texto: p.texto });
+        }
+      }
+      aoVerificar(v);
+    });
+    return () => { cancelAnimationFrame(quadro); };
+  }, [pronto, paginas, entradas, aoVerificar]);
+  return <div className="espelhos-folhas" ref={raiz} data-pronto={pronto ? 'sim' : 'nao'}>
+    {entradas.flatMap((e) => {
+      const folhas = paginas.get(e.chave)?.folhas ?? [[]];
+      return folhas.map((linhas, n) => <FolhaEspelho
+        key={`${e.palete.id}-${String(n)}`}
+        contexto={{ palete: e.palete, pagina: n, totalPaginas: folhas.length, escopo: lote.scope, geradoEm: lote.generatedAt }}
+        linhas={linhas}
+        layout={e.layout}
+      />);
+    })}
+    {medidor}
+  </div>;
+});
+
+const nomeDoLayout = (l: LayoutEspelho): string => MODELOS_DO_SISTEMA.find((m) => assinaturaLayout(m.layout) === assinaturaLayout(l))?.nome ?? 'personalizado';
+
 export function TelaEspelhos({ aoVoltar }: { aoVoltar: () => void }) {
   const praca = useRecurso(`${API_PREFIXO}/praca`, PracaSchema);
   const mapa = useRef<MapaPracaHandle>(null);
   const [marcados, setMarcados] = useState<ReadonlySet<string>>(new Set());
   const [pedido, setPedido] = useState<string | null>(null);
   const previa = useRecurso(pedido, LoteEspelhosSchema);
+  const [editando, setEditando] = useState(false);
+  const [recemAplicados, setRecemAplicados] = useState<{ lote: string; mapa: ReadonlyMap<string, LayoutEspelho> } | null>(null);
+  const [verificacao, setVerificacao] = useState<Verificacao | null>(null);
+  const [avisoAplicado, setAvisoAplicado] = useState<string | null>(null);
+  const [impressao, setImpressao] = useState<{ lote: LoteEspelhos; layouts: ReadonlyMap<string, LayoutEspelho> } | null>(null);
   const dados = praca.carga?.estado === 'pronto' ? praca.carga.dados : null;
   const layout = dados?.layout ?? null;
   const indice = useMemo(() => (dados === null || layout === null ? null : indiceDoMapa(layout, dados.pallets)), [dados, layout]);
-  if (praca.carga?.estado !== 'pronto' || dados === null) return <EstadoTela carga={praca.carga} titulo="Não foi possível carregar o mapa" aoTentarNovamente={praca.recarregar} />;
   const lote = previa.carga?.estado === 'pronto' ? previa.carga.dados : null;
+  // Layout aplicado de cada palete do lote (lido de novo depois de "Aplicar").
+  const lidos = useMemo(() => (lote === null ? null : layoutsDosPaletes(lote.items.map((p) => p.id))), [lote]);
+  const layouts = lote !== null && recemAplicados?.lote === lote.generatedAt ? recemAplicados.mapa : lidos;
+  const aoVerificar = useCallback((v: Verificacao | null) => { setVerificacao(v); }, []);
+
+  // Fim da impressão: volta a mostrar a prévia viva.
+  useEffect(() => {
+    const fim = () => { setImpressao(null); };
+    window.addEventListener('afterprint', fim);
+    return () => { window.removeEventListener('afterprint', fim); };
+  }, []);
+  useEffect(() => {
+    if (impressao === null) return;
+    let ativo = true;
+    // Fontes carregadas e folhas desenhadas com a versão capturada antes de abrir a impressão.
+    void carregarFontes([...impressao.layouts.values()]).then(() => {
+      requestAnimationFrame(() => requestAnimationFrame(() => { if (ativo) window.print(); }));
+    });
+    return () => { ativo = false; };
+  }, [impressao]);
+
+  if (praca.carga?.estado !== 'pronto' || dados === null) return <EstadoTela carga={praca.carga} titulo="Não foi possível carregar o mapa" aoTentarNovamente={praca.recarregar} />;
   const alterar = (novo: Set<string>) => {
     setMarcados(novo);
     setPedido(null);
+    setEditando(false);
+    setAvisoAplicado(null);
   };
   const grupo = (ids: readonly string[] | undefined) => {
     alterar(alternarGrupo(marcados, ids ?? []));
   };
   const total = marcados.size;
+  const folhasLote = impressao?.lote ?? lote;
+  const layoutsLote = impressao?.layouts ?? layouts;
+  const usados = layouts === null ? [] : [...new Set([...layouts.values()].map(nomeDoLayout))];
+  const podeImprimir = lote !== null && lote.items.length > 0 && verificacao !== null && verificacao.erros.length === 0 && impressao === null;
   return <main className="principal principal--pagina tela-espelhos" data-testid="tela-espelhos"><div className="pagina-conteudo">
     <header className="pagina-topo nao-imprimir"><h2>Imprimir espelhos</h2>
       <p>Escolha no mapa: clique no <strong>nome da rua</strong> para marcar a rua inteira, no <strong>F##</strong> para marcar a fileira ou num <strong>palete</strong> para marcar só ele. Clique de novo para desmarcar. O que está marcado fica <strong>branco</strong>.</p>
@@ -105,6 +166,28 @@ export function TelaEspelhos({ aoVoltar }: { aoVoltar: () => void }) {
       </div>
     </div>
     {previa.carga !== null && previa.carga.estado !== 'pronto' && <div className="nao-imprimir"><EstadoTela carga={previa.carga} titulo="Não foi possível gerar os espelhos" aoTentarNovamente={previa.recarregar} /></div>}
-    {lote !== null && <><div className="espelhos-imprimir nao-imprimir"><p>{lote.items.length} espelho(s), {lote.items.reduce((s, p) => s + paginarEspelho(p.contents.items, p).length, 0)} folha(s). Gerado em {formatarDataHora(lote.generatedAt)}.</p><p>Use A4 paisagem, escala 100%, sem cabeçalho e rodapé do navegador. Você também pode escolher “Salvar como PDF”.</p><button type="button" className="botao-primario" disabled={lote.items.length === 0} onClick={() => { window.print(); }}><IconeImprimir /> Imprimir espelhos</button></div><Folhas lote={lote} /></>}
+    {lote !== null && layouts !== null && <div className="espelhos-imprimir nao-imprimir" data-testid="espelhos-acoes">
+      <p>{lote.items.length} espelho(s){verificacao === null ? ', preparando folhas…' : `, ${String(verificacao.folhas)} folha(s)`}. Gerado em {formatarDataHora(lote.generatedAt)}. Layout: <strong data-testid="espelhos-layout-usado">{usados.join(' + ')}</strong>.</p>
+      {avisoAplicado !== null && <p className="espelhos-aplicado" role="status">{avisoAplicado}</p>}
+      {verificacao !== null && verificacao.erros.length > 0 && <div className="espelhos-problemas" role="alert" data-testid="espelhos-problemas"><strong>Ajuste antes de imprimir — conteúdo sairia cortado:</strong><ul>{verificacao.erros.slice(0, 12).map((e, i) => <li key={i}>Espelho {e.codigo}: {e.texto}</li>)}</ul>{verificacao.erros.length > 12 && <p>e mais {verificacao.erros.length - 12}.</p>}</div>}
+      {verificacao !== null && verificacao.avisos.length > 0 && <details className="espelhos-avisos"><summary>{verificacao.avisos.length} aviso(s) de alinhamento (não impedem a impressão)</summary><ul>{verificacao.avisos.slice(0, 20).map((e, i) => <li key={i}>Espelho {e.codigo}: {e.texto}</li>)}</ul></details>}
+      <p>Use A4 paisagem, escala 100%, sem cabeçalho e rodapé do navegador. Para baixar, escolha “Salvar como PDF” na janela de impressão.</p>
+      <div className="acoes-linha">
+        <button type="button" className="botao-secundario" disabled={lote.items.length === 0} onClick={() => { setAvisoAplicado(null); setEditando(true); }} data-testid="espelhos-editar">Editar layout</button>
+        <button type="button" className="botao-primario" disabled={!podeImprimir} onClick={() => { setImpressao({ lote, layouts }); }}><IconeImprimir /> Imprimir espelhos</button>
+      </div>
+    </div>}
+    {folhasLote !== null && layoutsLote !== null && <Folhas lote={folhasLote} layouts={layoutsLote} aoVerificar={aoVerificar} />}
+    {editando && lote !== null && layouts !== null && <EditorLayout
+      lote={lote}
+      aplicados={layouts}
+      aoSair={() => { setEditando(false); }}
+      aoAplicar={(ids, novo) => {
+        aplicarLayout(ids, novo);
+        setRecemAplicados({ lote: lote.generatedAt, mapa: layoutsDosPaletes(lote.items.map((p) => p.id)) });
+        setEditando(false);
+        setAvisoAplicado(`Layout aplicado a ${String(ids.length)} espelho(s) deste lote. Os demais paletes e o padrão do sistema não mudaram.`);
+      }}
+    />}
   </div></main>;
 }

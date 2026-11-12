@@ -1,14 +1,33 @@
-import type { ConteudoPalete } from '@praca-reversa/contracts';
-/** Reserva espaço para texto longo; nunca corta notas para caber na folha. */
-export function paginarEspelho(items: readonly ConteudoPalete[], local: { code: string; address: string | null }): ConteudoPalete[][] {
-  const pages: ConteudoPalete[][] = [[]];
-  let height = 0;
-  for (const item of items) {
-    const lines = Math.max(3, Math.ceil(local.code.length / 8), Math.ceil((local.address?.length ?? 0) / 11), Math.ceil((item.sender?.length ?? 0) / 23), Math.ceil((item.delivery?.length ?? 0) / 9), Math.ceil((item.documentNumber?.length ?? 0) / 10), Math.ceil((item.documentType?.length ?? 0) / 5));
-    const rowHeight = 5 + lines * 4.2;
-    if (height + rowHeight > 92 && (pages.at(-1)?.length ?? 0) > 0) { pages.push([]); height = 0; }
-    pages.at(-1)?.push(item);
-    height += rowHeight;
-  }
-  return pages;
+/**
+ * Paginação da tabela de notas pela altura medida de cada linha (em mm), com a
+ * fonte, a largura e o espaçamento do layout aplicado. Nunca corta nem descarta
+ * linha: o que não cabe vai para a folha seguinte, que repete o cabeçalho e a
+ * identificação do palete. Uma linha mais alta que a área inteira fica sozinha
+ * numa folha e é sinalizada (`grandes`) para ajuste antes de imprimir.
+ */
+export interface Paginacao {
+  /** Índices das linhas em cada folha (sempre ao menos uma folha). */
+  folhas: number[][];
+  /** Índices de linhas que não cabem nem sozinhas na área da tabela. */
+  grandes: number[];
+}
+/** Folga para arredondamento de bordas entre a medição e a impressão. */
+const FOLGA_MM = 0.6;
+
+export function paginarPorAltura(linhas: readonly number[], cabecalho: number, alturaTabela: number): Paginacao {
+  const disponivel = alturaTabela - cabecalho - FOLGA_MM;
+  const folhas: number[][] = [[]];
+  const grandes: number[] = [];
+  let usado = 0;
+  linhas.forEach((altura, i) => {
+    const atual = folhas.at(-1) ?? [];
+    if (usado + altura > disponivel && atual.length > 0) {
+      folhas.push([]);
+      usado = 0;
+    }
+    folhas.at(-1)?.push(i);
+    usado += altura;
+    if (altura > disponivel) grandes.push(i);
+  });
+  return { folhas, grandes };
 }

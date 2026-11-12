@@ -20,6 +20,7 @@ import {
   PosicaoEmbarqueSchema,
   TransferirEmbarqueSchema,
   identidadeEmbarque,
+  nomeArquivoSeguro,
   type EventosEmbarque,
   type OrigemEmbarque,
   type Escopo,
@@ -28,7 +29,8 @@ import {
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Banco, Transacao } from '../../db/cliente.js';
-import { naoEncontrado } from '../../http/erros.js';
+import { naoEncontrado, requisicaoInvalida } from '../../http/erros.js';
+import { analisarBipagemEmbarque } from './bipagem.js';
 import { contextoDe, escopoAtivoDe, type Autenticacao, type Dependencias } from '../acesso/contexto.js';
 import { executarIdempotente } from '../idempotencia/executar.js';
 import { chaveIdempotencia, responder, validar } from '../idempotencia/http.js';
@@ -115,6 +117,29 @@ export function registrarRotasCarga(app: FastifyInstance, deps: Dependencias, au
     const { id } = validar(Id, request.params, 'Identificador de janela inválido.');
     const { codigo } = validar(BuscaOrigem, request.query, 'Informe o código do palete de origem.');
     return origemPorCodigo(deps.db, escopoAtivoDe(request), id, codigo);
+  });
+
+  // Bipagem do palete fracionado: só leitura (origens e disponível); autenticação e permissão antes de ler o corpo.
+  void app.register((sub, _opcoes, pronto) => {
+    const limite = deps.importacaoPlanilha.maxBytes;
+    sub.addContentTypeParser('application/octet-stream', { parseAs: 'buffer', bodyLimit: limite }, (_request, corpo, feito) => {
+      feito(null, corpo);
+    });
+    sub.post(`${API_PREFIXO}/cargas/janelas/:id/bipagem`, { bodyLimit: limite, onRequest: [auth.autenticar, auth.exigirPermissao('expedicao.preparar')] }, async (request) => {
+      const { id } = validar(Id, request.params, 'Identificador de janela inválido.');
+      if (!Buffer.isBuffer(request.body)) throw requisicaoInvalida('Envie o arquivo da bipagem como application/octet-stream.');
+      const cabecalho = request.headers['x-arquivo-nome'];
+      let nome = 'bipagem';
+      if (typeof cabecalho === 'string') {
+        try {
+          nome = nomeArquivoSeguro(decodeURIComponent(cabecalho));
+        } catch {
+          throw requisicaoInvalida('Nome do arquivo inválido.');
+        }
+      }
+      return analisarBipagemEmbarque(deps.db, escopoAtivoDe(request).id, id, request.body, nome, deps.importacaoPlanilha);
+    });
+    pronto();
   });
 
   app.get(`${API_PREFIXO}/cargas/veiculos/:id/historico`, { preHandler: auth.exigirPermissao('janela.consultar') }, async (request): Promise<EventosEmbarque> => {

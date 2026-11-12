@@ -163,6 +163,52 @@ export const OrigemEmbarqueSchema = z.object({
 });
 export type OrigemEmbarque = z.infer<typeof OrigemEmbarqueSchema>;
 
+/**
+ * Bipagem de um palete de embarque fracionado (planilha "Etiquetas": Tipo, Número,
+ * Volumes, Lidos, Remetente). Só leitura: para cada NF do arquivo, as origens na
+ * praça onde ela está e quanto ainda pode embarcar. A gravação é a criação normal
+ * do palete fracionado (mesmas validações).
+ */
+export const OrigemBipagemEmbarqueSchema = OcorrenciaOrigemSchema.extend({
+  palletId: z.uuid(),
+  palletCode: z.string(),
+  address: z.string().nullable(),
+  onSite: z.boolean(),
+  /** Já sai FULL em outra carga ativa (não pode ser fracionado). */
+  fullIn: z.string().nullable(),
+});
+export type OrigemBipagemEmbarque = z.infer<typeof OrigemBipagemEmbarqueSchema>;
+
+export const ProblemaBipagemEmbarqueSchema = z.enum(['SEM_ORIGEM', 'ESCOLHER', 'SEM_SALDO']);
+export type ProblemaBipagemEmbarque = z.infer<typeof ProblemaBipagemEmbarqueSchema>;
+
+export const LinhaBipagemEmbarqueSchema = z.object({
+  row: z.number().int().positive(),
+  type: z.string().nullable(),
+  number: z.string(),
+  sender: z.string().nullable(),
+  /** Lidos: volumes bipados para este palete de embarque. */
+  volumes: z.number().int().positive(),
+  /** Coluna "Volumes" da nota, quando vem. */
+  expectedVolumes: z.number().int().nonnegative().nullable(),
+  candidates: z.array(OrigemBipagemEmbarqueSchema),
+  /** Origem sugerida: a única com saldo suficiente; nula = escolher ou pendente. */
+  suggested: z.uuid().nullable(),
+  /** SEM_ORIGEM: NF não está em nenhum palete; ESCOLHER: mais de uma origem serve; SEM_SALDO: nenhuma origem tem os volumes. */
+  problem: ProblemaBipagemEmbarqueSchema.nullable(),
+});
+export type LinhaBipagemEmbarque = z.infer<typeof LinhaBipagemEmbarqueSchema>;
+
+export const AnaliseBipagemEmbarqueSchema = z.object({
+  fileName: z.string(),
+  sheet: z.string().nullable(),
+  lines: z.array(LinhaBipagemEmbarqueSchema),
+  /** Linhas com Lidos = 0 (não entram). */
+  withoutReads: z.number().int().nonnegative(),
+  errors: z.array(z.object({ row: z.number().int().positive(), messages: z.array(z.string()) })),
+});
+export type AnaliseBipagemEmbarque = z.infer<typeof AnaliseBipagemEmbarqueSchema>;
+
 export const LinhaEmbarqueSchema = z.object({
   id: z.uuid(),
   occurrence: z.object({ kind: TipoOcorrenciaSchema, id: z.uuid() }),

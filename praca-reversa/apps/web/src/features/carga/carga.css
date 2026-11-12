@@ -139,6 +139,13 @@ button.mapa-celula { cursor: pointer; }
 .carga-lote-lista span { font-size: .85em; }
 .carga-lote-pendente { color: var(--tom-aviso-texto, #8a5a00); }
 
+/* Palete fracionado pela bipagem: pendentes destacadas; Lidos "de N" quando a nota tem outro total. */
+.carga-bipagem { display: grid; gap: 8px; }
+.carga-bipagem-resumo { margin: 0; }
+.carga-bipagem table select { max-width: 100%; }
+.carga-bipagem tr.carga-bipagem-pendente { background: var(--tom-aviso-fundo, #fff4d6); }
+.carga-bipagem-nota { color: var(--tom-aviso-texto, #8a5a00); font-size: .85em; font-weight: 700; }
+
 /* Impressão: só a folha pedida. Na tela não aparece. */
 .carga-impressao { display: none; }
 @media (max-width: 900px) {
@@ -256,3 +263,5 @@ button.mapa-celula { cursor: pointer; }
 .mapa-veiculo--impressao .mapa-celula-info { font-size: 6pt; line-height: 1; }
 .mapa-veiculo--impressao .mapa-celula-pos { font-size: 6pt; top: 0.5mm; left: 1mm; }
 .mapa-veiculo--impressao .mapa-veiculo-ponta { font-size: 7pt; padding: 1mm; }
+.carga-bipagem-remetente { display: block; color: var(--tinta-suave, #666); font-size: .85em; }
+.carga-bipagem table select { width: 100%; min-width: 14rem; }

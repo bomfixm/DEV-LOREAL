@@ -22,6 +22,7 @@ import { formatarDataHora } from '../../utils/datas';
 import { documentoDoEmbarque } from '../espelhos/conteudo-espelho';
 import { EditorLayout } from '../espelhos/EditorLayout';
 import { aplicarLayoutEmbarque, layoutDoEmbarque } from '../espelhos/layout-armazenamento';
+import { BipagemEmbarque } from './BipagemEmbarque';
 import { ImpressaoCarga, type PedidoImpressao } from './Impressao';
 import { MapaVeiculo } from './MapaVeiculo';
 import { SelecaoVeiculos } from './SelecaoVeiculos';
@@ -860,6 +861,29 @@ function NovoPalete({
             <span className="campo-rotulo">Número no veículo (vazio = {String(proximo).padStart(2, '0')})</span>
             <input type="number" min={1} max={veiculo.capacity} value={numero} onChange={(e) => setNumero(e.target.value)} placeholder={String(proximo)} data-testid="novo-numero" />
           </label>
+          {tipo === 'FRACIONADO' && (
+            <>
+              <BipagemEmbarque
+                janelaId={janelaId}
+                ocupado={m.ocupado}
+                aoAlocar={(lines) => {
+                  const corpo = { kind: 'FRACIONADO', number: numero.trim() === '' ? null : Number(numero), position: posicao, lines };
+                  void m
+                    .executar(
+                      `criar:${veiculo.id}:${JSON.stringify(corpo)}`,
+                      'POST',
+                      `${API}/veiculos/${veiculo.id}/paletes`,
+                      corpo,
+                      `Palete fracionado alocado na posição ${String(posicao)} pela bipagem (${String(lines.length)} NF(s); planejada, confirme no carregamento).`,
+                    )
+                    .then((c) => {
+                      if (c) aoCriado();
+                    });
+                }}
+              />
+              <p className="campo-ajuda">Ou monte à mão, buscando um palete de origem:</p>
+            </>
+          )}
           <div className="carga-busca-origem">
             <label className="campo">
               <span className="campo-rotulo">Palete de origem na praça</span>

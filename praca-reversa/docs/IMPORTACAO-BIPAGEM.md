@@ -75,3 +75,24 @@ API `apps/api/src/modules/importacao/bipagem.ts` (leitor, destino, classificaç�
 ## Testes
 
 `packages/contracts/src/bipagem.test.ts` e `apps/api/test/unidade/bipagem-leitor.test.ts` (os 11 casos do `testar_leitor.py`: amostra 63/41/22/47, Lidos ≠ Leituras, colunas ignoradas, zero, quantidade inválida, identificadores e CNPJ, mesma identidade, CNPJ/remetente diferentes, CNPJ ausente, tipo legado e NFD, cabeçalho e Última Leitura); `apps/api/test/banco/bipagem.test.ts` (prévia sem gravar, palete novo numerado, Revalidar/Importar separadamente, outro remetente, incompleta, repetição no arquivo, erro/zeros/descartado, posição ocupada depois da prévia, clique duplo, dois lotes na mesma posição, numeração com reservas e concorrência); E2E `e2e/bipagem.spec.ts` (computador e celular).
+
+## Bipagem de palete de embarque fracionado (Expedição, 12 nov. 2026)
+
+A mesma planilha "Etiquetas" (Tipo, Número, Volumes, Lidos, Remetente) pode montar um palete **fracionado** da Expedição. É um arquivo por palete de embarque, e Lidos são os volumes que vão nesse palete.
+
+**Como usar:** Expedição → veículo → posição livre → Fracionado → **Importar a bipagem deste palete** → Ler arquivo.
+
+**Leitura (`POST /api/v1/cargas/janelas/:id/bipagem`, `expedicao.preparar`):**
+- A rota só lê e não grava nada.
+- Para cada NF com Lidos > 0, ela lista as notas ativas da praça com o mesmo número (sem zeros à esquerda) e quanto ainda está disponível para esta janela.
+- Linhas com Lidos = 0 ou com erro aparecem no resumo e não entram.
+
+**Prévia:**
+- **Pronta:** a NF tem uma única origem com saldo e já vem marcada.
+- **Escolher:** mais de uma origem serve, e a pessoa escolhe.
+- **Sem saldo:** nenhuma origem tem os volumes. Fica pendente.
+- **Não encontrada:** a NF não está em nenhum palete. Fica pendente.
+- As pendentes ficam fora do palete.
+- A mesma NF da mesma origem em duas linhas vira uma linha só, com os volumes somados.
+
+**Alocar:** usa a criação normal do palete fracionado (`POST /cargas/veiculos/:id/paletes`). O servidor confere de novo o saldo, o FULL e se o palete de origem está na praça.

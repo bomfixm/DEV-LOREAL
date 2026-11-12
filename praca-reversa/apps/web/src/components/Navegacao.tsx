@@ -94,6 +94,7 @@ export function NavegacaoPrincipal({ sessao, rota, aoNavegar }: { sessao: Sessao
         className={classe}
         aria-current={ativo ? 'page' : undefined}
         data-dica={rotulo}
+        data-destino={destino.tipo}
         onClick={(evento) => {
           if (evento.button !== 0 || evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey) return;
           evento.preventDefault();

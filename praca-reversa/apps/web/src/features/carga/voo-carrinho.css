@@ -1,0 +1,39 @@
+/* "Pôr no carrinho": cartão do palete voando até a Expedição e o pulo do ícone ao receber. */
+.voo-palete {
+  position: fixed;
+  z-index: 3000;
+  padding: 10px 14px;
+  border: 2px solid #8a6d00;
+  border-radius: 10px;
+  background: #ffcc00;
+  color: #1a1a1a;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: .02em;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px #0004;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.voo-recebeu { animation: voo-pulo 650ms cubic-bezier(.3, 1.6, .5, 1); }
+.voo-recebeu svg { animation: voo-brilho 650ms ease-out; }
+@keyframes voo-pulo {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.28); }
+  55% { transform: scale(.92); }
+  80% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+@keyframes voo-brilho {
+  0%, 100% { filter: none; }
+  35% { filter: drop-shadow(0 0 6px #ffcc00) drop-shadow(0 0 2px #ffcc00); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .voo-recebeu, .voo-recebeu svg { animation: voo-brilho 650ms linear; }
+}
+
+/* Escolha do veículo na janela do palete. */
+.adicionar-expedicao { display: grid; gap: 8px; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--borda); border-radius: 10px; }
+.adicionar-expedicao-lista { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.adicionar-expedicao-lista button { display: grid; gap: 2px; text-align: left; }
+.adicionar-expedicao-lista small { color: var(--tinta-suave); font-weight: 400; }

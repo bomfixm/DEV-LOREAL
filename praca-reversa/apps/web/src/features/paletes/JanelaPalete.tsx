@@ -22,6 +22,7 @@ import { useChaves } from '../../api/chaves';
 import { IconeAlvo, IconeArquivo, IconeFechar, IconeImprimir } from '../../components/Icones';
 import { formatarDataHora } from '../../utils/datas';
 import { formatarQuantidade } from '../../utils/numeros';
+import { AdicionarExpedicao } from '../carga/AdicionarExpedicao';
 import { AcoesConteudo, type OcorrenciaSelecionada } from '../conteudos/AcoesConteudo';
 import { textoResultadoAcao } from '../conteudos/textos-resultado';
 import { agruparDocumentos, contarDocumentos } from './documentos';
@@ -767,6 +768,7 @@ export function JanelaPalete(props: PropsPalete) {
             Registrar conteúdo
           </button>
         )}
+        {props.permissoes.includes('expedicao.preparar') && (palete.flowState === 'EM_ESTOQUE' || palete.flowState === 'RESERVADO') && <AdicionarExpedicao palete={palete} aoAlterado={props.aoAlterado} />}
       </div>
       <div className="acoes-linha janela-acoes-secundarias">
         <button

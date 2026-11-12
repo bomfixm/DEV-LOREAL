@@ -12,13 +12,16 @@ import {
   type TipoVeiculo,
   type VeiculoCarga,
 } from '@praca-reversa/contracts';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useChaves, ehConflitoDeVersao } from '../../api/chaves';
 import { enviarJson, mensagemDeFalha, obterJson } from '../../api/cliente';
 import { useRecurso } from '../../api/use-recurso';
 import { EstadoTela, MensagemAcao } from '../../components/Moldura';
 import type { Navegar, Rota } from '../../rotas';
 import { formatarDataHora } from '../../utils/datas';
+import { documentoDoEmbarque } from '../espelhos/conteudo-espelho';
+import { EditorLayout } from '../espelhos/EditorLayout';
+import { aplicarLayoutEmbarque, layoutDoEmbarque } from '../espelhos/layout-armazenamento';
 import { ImpressaoCarga, type PedidoImpressao } from './Impressao';
 import { MapaVeiculo } from './MapaVeiculo';
 import { SelecaoVeiculos } from './SelecaoVeiculos';
@@ -90,11 +93,17 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
   const [movendo, setMovendo] = useState<string | null>(null);
   const [painelAberto, setPainelAberto] = useState(true);
   const [impressao, setImpressao] = useState<PedidoImpressao | null>(null);
+  // Espelho: só imprime depois de paginado (linhas medidas) e com as fontes carregadas.
+  const [impressaoPronta, setImpressaoPronta] = useState<PedidoImpressao | null>(null);
+  const aoImpressaoPronta = useCallback(() => { setImpressaoPronta(impressao); }, [impressao]);
+  // Editor do layout do espelho de embarque (palete de exemplo).
+  const [editorEspelho, setEditorEspelho] = useState<string | null>(null);
   const palete = veiculo?.pallets.find((p) => p.id === selecionado) ?? null;
   const paleteMovendo = veiculo?.pallets.find((p) => p.id === movendo) ?? null;
 
   useEffect(() => {
     if (impressao === null) return;
+    if (impressao.kind === 'ESPELHO' && impressaoPronta !== impressao) return;
     const t = window.setTimeout(() => {
       window.print();
     }, 150);
@@ -106,7 +115,7 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
       window.clearTimeout(t);
       window.removeEventListener('afterprint', fim);
     };
-  }, [impressao]);
+  }, [impressao, impressaoPronta]);
 
   const ir = (mudanca: Partial<RotaCarga>) => {
     setSelecionado(null);
@@ -136,7 +145,7 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
       { kind, final },
       `${nome} ${final ? 'final' : 'rascunho'} registrada: abrindo a impressão.`,
     );
-    if (c) setImpressao({ kind, final, veiculoId: v.id, paleteId: p?.id ?? null });
+    if (c) setImpressao({ kind, final, veiculoId: v.id, paleteId: p?.id ?? null, ...(kind === 'ESPELHO' ? { layout: layoutDoEmbarque() } : {}) });
   }
 
   if (janelas.carga?.estado !== 'pronto') return <EstadoTela carga={janelas.carga} titulo="Não foi possível carregar as janelas" aoTentarNovamente={janelas.recarregar} />;
@@ -325,6 +334,7 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
                         setSelecionado(null);
                       }}
                       aoEmitir={(kind, final) => void emitir(kind, final, veiculo, palete)}
+                      aoEditarEspelho={() => { setEditorEspelho(palete.id); }}
                     />
                   )
                 ) : posicao !== null && rota.visao === 'operacao' ? (
@@ -364,7 +374,27 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
           </div>
         )}
       </div>
-      {impressao !== null && dados !== null && <ImpressaoCarga carga={dados} pedido={impressao} />}
+      {impressao !== null && dados !== null && <ImpressaoCarga carga={dados} pedido={impressao} aoPronto={aoImpressaoPronta} />}
+      {editorEspelho !== null && dados !== null && veiculo !== null && (() => {
+        const doVeiculo = veiculo.pallets.filter((x) => x.state === 'ATIVO');
+        const inicio = Math.max(0, doVeiculo.findIndex((x) => x.id === editorEspelho));
+        return (
+          <EditorLayout
+            documentos={doVeiculo.map((x) => documentoDoEmbarque(dados, veiculo, x, true))}
+            geracao={dados.generatedAt}
+            inicio={inicio}
+            layoutInicial={layoutDoEmbarque()}
+            rotuloAplicar="Aplicar ao espelho de embarque"
+            explicacao="O layout vale para todas as vias do cliente impressas neste computador (rascunho e final). Para conferir, navegue pelos paletes deste veículo:"
+            aoSair={() => { setEditorEspelho(null); }}
+            aoAplicar={(novo) => {
+              aplicarLayoutEmbarque(novo);
+              setEditorEspelho(null);
+              setMensagem({ tipo: 'ok', texto: 'Layout do espelho de embarque aplicado. Vale para as próximas impressões deste computador; nenhum dado do palete mudou.' });
+            }}
+          />
+        );
+      })()}
     </main>
   );
 }
@@ -799,6 +829,7 @@ function DetalhePalete({
   m,
   aoMover,
   aoEmitir,
+  aoEditarEspelho,
 }: {
   p: PaleteEmbarque;
   veiculo: VeiculoCarga;
@@ -807,6 +838,7 @@ function DetalhePalete({
   m: Mut;
   aoMover: () => void;
   aoEmitir: (kind: TipoEmissao, final: boolean) => void;
+  aoEditarEspelho: () => void;
 }) {
   const [editando, setEditando] = useState(false);
   const [vol, setVol] = useState<Record<string, string>>({});
@@ -1056,6 +1088,9 @@ function DetalhePalete({
               data-testid="imprimir-espelho-final"
             >
               Espelho final (via cliente)
+            </button>
+            <button type="button" className="botao-link botao-compacto" onClick={aoEditarEspelho} data-testid="editar-layout-espelho">
+              Layout do espelho
             </button>
           </div>
         )}

@@ -65,3 +65,8 @@
 .tela-espelhos .pagina-topo { display: block; }
 .tela-espelhos .pagina-topo > h2 { margin: 0 0 6px; }
 .tela-espelhos .pagina-topo > p { max-width: 920px; margin: 0 0 12px; }
+
+/* Espelho de embarque: total do palete em destaque; aviso de rascunho em vermelho (como a demonstração). */
+.ef-tabela .ef-total td { font-weight: 700; border-top: .35mm solid #222; }
+.ef-tabela--cab-claro .ef-total td, .ef-tabela--horizontais .ef-total td { border-bottom: 0; }
+.ef-bloco--rascunho { color: #b00000; }

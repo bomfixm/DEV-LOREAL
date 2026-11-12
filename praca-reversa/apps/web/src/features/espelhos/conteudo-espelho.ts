@@ -1,12 +1,37 @@
-import type { ConteudoPalete, LoteEspelhos } from '@praca-reversa/contracts';
+import type { CargaJanela, ConteudoPalete, LoteEspelhos, PaleteEmbarque, VeiculoCarga } from '@praca-reversa/contracts';
 import { formatarData, formatarDataHora } from '../../utils/datas';
-import { CODIGO_FORMULARIO, type CampoId } from './layout-modelo';
+import { CODIGO_FORMULARIO, COLUNAS_DO_DOCUMENTO, type CampoId, type TipoDocumento } from './layout-modelo';
 
 /**
- * Texto de cada campo do espelho, sempre a partir do lote gerado pela API.
- * O editor muda só a apresentação: nenhum valor é digitado nem guardado.
+ * Texto de cada campo do espelho, sempre a partir dos dados da API. O editor
+ * muda só a apresentação: nenhum valor é digitado nem guardado.
  */
 export type PaleteDoLote = LoteEspelhos['items'][number];
+
+export interface LinhaTabela {
+  id: string;
+  celulas: readonly string[];
+  /** Linha de total: a primeira célula ocupa as colunas que faltam. */
+  total?: boolean;
+}
+export interface TextoCampo {
+  rotulo: string;
+  valor: string;
+  /** Texto usado quando o rótulo pequeno está desligado (ex.: "PALETE 03"). */
+  semRotulo?: string;
+}
+/** Um espelho pronto para desenhar: dados de um palete, sem nada de aparência. */
+export interface DocumentoEspelho {
+  /** Identificador estável (id do palete). */
+  id: string;
+  /** Código mostrado na navegação, nos avisos e em `data-palete`. */
+  codigo: string;
+  tipo: TipoDocumento;
+  cabecalho: readonly string[];
+  linhas: readonly LinhaTabela[];
+  vazio: string;
+  texto: (campo: Exclude<CampoId, 'tabela' | 'divisoria'>, pagina: number, totalPaginas: number) => TextoCampo | null;
+}
 
 export function observacao(d: ConteudoPalete): string {
   if (d.check?.state === 'CONFERIDO_COM_DIFERENCA') return `CONFERIDO COM DIFERENÇA ${d.check.at === null ? '' : formatarData(d.check.at)}`;
@@ -18,42 +43,99 @@ export function observacao(d: ConteudoPalete): string {
 
 const traco = (v: string | number | null | undefined): string => (v === null || v === undefined || v === '' ? '—' : String(v));
 
-/** Células de uma nota, na ordem de COLUNAS_TABELA. */
+/** Células de uma nota, na ordem das colunas do espelho da praça. */
 export function celulasDaNota(d: ConteudoPalete, p: PaleteDoLote): string[] {
   return [traco(d.delivery), traco(d.documentType), traco(d.documentNumber), observacao(d), traco(d.count.expected), traco(d.count.counted), traco(d.sender), p.address ?? 'PENDENTE', p.code];
 }
 
-export interface ContextoFolha {
-  palete: PaleteDoLote;
-  pagina: number;
-  totalPaginas: number;
-  escopo: LoteEspelhos['scope'];
-  geradoEm: string;
+function continuacao(pagina: number, total: number): TextoCampo | null {
+  if (total <= 1) return null;
+  return { rotulo: '', valor: `${pagina === 0 ? 'Folha' : 'Continuação · folha'} ${String(pagina + 1)}/${String(total)}` };
+}
+const DEMO: TextoCampo = { rotulo: '', valor: 'DEMONSTRAÇÃO — DADOS FICTÍCIOS' };
+
+/** Espelho da praça (tela Imprimir espelhos). */
+export function documentoDaPraca(p: PaleteDoLote, lote: Pick<LoteEspelhos, 'scope' | 'generatedAt'>): DocumentoEspelho {
+  return {
+    id: p.id,
+    codigo: p.code,
+    tipo: 'praca',
+    cabecalho: COLUNAS_DO_DOCUMENTO.praca,
+    linhas: p.contents.items.map((d) => ({ id: d.id, celulas: celulasDaNota(d, p) })),
+    vazio: 'SEM CONTEÚDO REGISTRADO — CONFERÊNCIA PENDENTE',
+    texto: (campo, pagina, total) => {
+      switch (campo) {
+        case 'endereco':
+          return { rotulo: 'ENDEREÇO', valor: p.address === null ? 'ENDEREÇO NÃO CONFIRMADO' : p.row === 'GR' ? p.address : `RUA ${p.address}` };
+        case 'palete':
+          return { rotulo: 'PALETE', valor: p.code, semRotulo: `PALETE ${p.code}` };
+        case 'continuacao':
+          return continuacao(pagina, total);
+        case 'demo':
+          return lote.scope.demo ? DEMO : null;
+        case 'emissao':
+          return { rotulo: '', valor: `${lote.scope.name} · Emitido em ${formatarDataHora(lote.generatedAt)}` };
+        case 'legenda':
+          return { rotulo: '', valor: 'Volumes = previsto informado · Lido = contagem registrada · — = não informado' };
+        case 'formulario':
+          return { rotulo: '', valor: CODIGO_FORMULARIO };
+        default:
+          return null;
+      }
+    },
+  };
 }
 
-/** Rótulo pequeno (opcional) e valor de cada campo de texto; `null` = não aparece nesta folha. */
-export function textoDoCampo(campo: Exclude<CampoId, 'tabela' | 'divisoria'>, c: ContextoFolha): { rotulo: string; valor: string } | null {
-  const p = c.palete;
-  switch (campo) {
-    case 'endereco':
-      return { rotulo: 'ENDEREÇO', valor: p.address === null ? 'ENDEREÇO NÃO CONFIRMADO' : p.row === 'GR' ? p.address : `RUA ${p.address}` };
-    case 'palete':
-      return { rotulo: 'PALETE', valor: p.code };
-    case 'continuacao':
-      if (c.totalPaginas <= 1) return null;
-      return { rotulo: '', valor: `${c.pagina === 0 ? 'Folha' : 'Continuação · folha'} ${String(c.pagina + 1)}/${String(c.totalPaginas)}` };
-    case 'demo':
-      return c.escopo.demo ? { rotulo: '', valor: 'DEMONSTRAÇÃO — DADOS FICTÍCIOS' } : null;
-    case 'emissao':
-      return { rotulo: '', valor: `${c.escopo.name} · Emitido em ${formatarDataHora(c.geradoEm)}` };
-    case 'legenda':
-      return { rotulo: '', valor: 'Volumes = previsto informado · Lido = contagem registrada · — = não informado' };
-    case 'formulario':
-      return { rotulo: '', valor: CODIGO_FORMULARIO };
-  }
+/**
+ * Espelho de embarque (Expedição, via do cliente): janela, veículo, número do
+ * palete e só as NFs/volumes desta saída. Sem observações internas, saldos da
+ * praça, outras janelas ou nomes internos (mesmo conteúdo de antes do editor).
+ */
+export function documentoDoEmbarque(carga: CargaJanela, veiculo: VeiculoCarga, p: PaleteEmbarque, final: boolean): DocumentoEspelho {
+  const numero = String(p.number).padStart(2, '0');
+  const placa = veiculo.plate ? ` · Placa ${veiculo.plate}` : '';
+  const fisico = p.physical.checked && p.physical.at ? ` (físico conferido em ${formatarDataHora(p.physical.at)})` : '';
+  return {
+    id: p.id,
+    codigo: `${veiculo.label} · ${p.label}`,
+    tipo: 'embarque',
+    cabecalho: COLUNAS_DO_DOCUMENTO.embarque,
+    linhas: [
+      ...p.lines.map((l) => ({ id: l.id, celulas: [traco(l.documentType), traco(l.documentNumber), traco(l.sender), traco(l.delivery), String(l.volumes), ''] })),
+      { id: `${p.id}:total`, celulas: ['TOTAL DO PALETE', String(p.volumes), ''], total: true },
+    ],
+    vazio: 'SEM NF NESTE PALETE',
+    texto: (campo, pagina, total) => {
+      switch (campo) {
+        case 'palete':
+          return { rotulo: 'PALETE', valor: numero, semRotulo: `PALETE ${numero}` };
+        case 'veiculo':
+          return { rotulo: 'VEÍCULO', valor: `${veiculo.label.toUpperCase()}${placa.toUpperCase()}` };
+        case 'janela':
+          return { rotulo: 'JANELA', valor: `${carga.window.code} — ${carga.window.name}`, semRotulo: `Janela ${carga.window.code} — ${carga.window.name}${placa}` };
+        case 'identidade':
+          return { rotulo: '', valor: `${p.identity} · ${p.kind === 'FULL' ? 'FULL' : 'FRACIONADO'} · Revisão ${String(p.revision)}` };
+        case 'continuacao':
+          return continuacao(pagina, total);
+        case 'rascunho':
+          return final ? null : { rotulo: '', valor: 'RASCUNHO — NÃO VALE PARA O EMBARQUE' };
+        case 'demo':
+          return carga.scope.demo ? DEMO : null;
+        case 'emissao':
+          return { rotulo: '', valor: `Via do cliente · ${carga.scope.name} · Emitido em ${formatarDataHora(carga.generatedAt)} · Volumes = conferidos para esta saída${fisico}` };
+        case 'formulario':
+          return { rotulo: '', valor: CODIGO_FORMULARIO };
+        default:
+          return null;
+      }
+    },
+  };
 }
 
 /** Texto de exemplo para campos que só aparecem em certos casos (mostrado esmaecido no editor). */
-export function textoFantasma(campo: 'continuacao' | 'demo'): string {
-  return campo === 'continuacao' ? 'Folha 1/2 (só com mais de uma folha)' : 'DEMONSTRAÇÃO — DADOS FICTÍCIOS (só no escopo de demonstração)';
+export function textoFantasma(campo: CampoId): string | null {
+  if (campo === 'continuacao') return 'Folha 1/2 (só com mais de uma folha)';
+  if (campo === 'demo') return 'DEMONSTRAÇÃO — DADOS FICTÍCIOS (só no escopo de demonstração)';
+  if (campo === 'rascunho') return 'RASCUNHO — NÃO VALE PARA O EMBARQUE (só no rascunho)';
+  return null;
 }

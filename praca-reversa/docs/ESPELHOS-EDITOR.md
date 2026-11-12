@@ -10,6 +10,17 @@ Branch `espelhos-editor-layout`, worktree `LR LOREAL-espelhos/`. Mudança só de
 4. **Aplicar aos N espelhos** grava o rascunho só nos paletes daquele lote. **Quais espelhos?** mostra a lista exata. **Cancelar** descarta o rascunho.
 5. **Imprimir espelhos** abre a impressão. Para gerar o PDF, escolha "Salvar como PDF". A impressão fica bloqueada enquanto houver conteúdo cortado e mostra qual espelho e qual campo precisam de ajuste.
 
+## Espelho de embarque (Expedição), 12 nov. 2026
+
+O espelho de embarque (via do cliente) usa o mesmo editor e a mesma folha. O conteúdo é o de antes: veículo, placa, janela, número do palete, identidade, tipo, revisão, NFs desta saída, total e coluna de conferência.
+
+- **Como editar:** Expedição → veículo → palete → bloco Impressão → **Layout do espelho**. A folha mostra o palete escolhido, e ‹ › percorre os paletes ativos do veículo. **Aplicar ao espelho de embarque** vale para todas as vias impressas neste computador, rascunho e final. Assim as vias de uma saída ficam iguais.
+- **Layout fixo na emissão:** ao clicar em "Espelho (rascunho)" ou "Espelho final", o layout é capturado junto com o pedido. A impressão só abre depois de paginar e carregar as fontes.
+- **Paginação:** antes era uma folha só, e com muitas NFs (até 300 por palete) o conteúdo passava da folha. Agora as NFs são paginadas, com cabeçalho e palete repetidos, e o total sai na última folha.
+- **Modelos:** *Operacional limpo* (padrão novo) e *Clássico (moldura DHL)*, este último perto da aparência anterior. Modelo salvo de um documento não aparece no outro.
+- **Limite:** o servidor registra a emissão (tipo, final, revisão), mas não o layout usado. Reimprimir um espelho final usa o layout atual deste computador.
+- **Arquivos:** `EspelhoEmbarque.tsx` (novo); `carga/Impressao.tsx` (troca o desenho antigo do espelho pelo novo; etiqueta, mapa e lista de documentos não mudaram); `carga/TelaCarga.tsx` (botão "Layout do espelho", editor, layout capturado na emissão e espera da paginação antes de imprimir); `e2e/carga.spec.ts`.
+
 ## Como funciona
 
 - **Modelo visual** (`layout-modelo.ts`): papel A4 paisagem fixo (área útil de 287 × 199 mm) e, para cada campo de identificador estável, posição e largura em mm e texto em pt. Tudo é validado com zod e mantido dentro da folha. Não há HTML, CSS livre nem fonte fora da lista.
@@ -26,7 +37,7 @@ Todos em `apps/web/src/features/espelhos/`, exceto os testes de tela.
 
 - Novos: `layout-modelo.ts`, `layout-armazenamento.ts`, `historico.ts`, `verificacao.ts`, `conteudo-espelho.ts`, `fontes.ts`, `FolhaEspelho.tsx`, `usePaginacao.tsx`, `EditorLayout.tsx`, `editor-layout.css`, `layout-editor.test.ts`; `e2e/espelhos-editor.spec.ts`; `docs/capturas/espelhos-editor/`.
 - Alterados: `TelaEspelhos.tsx`, `espelhos.css`, `paginas.ts` (paginação por altura medida no lugar da estimativa por caracteres), `paginas.test.ts` e `e2e/espelhos.spec.ts` (conferência de corte sem o antigo `<footer>`).
-- **Arquivos compartilhados tocados: nenhum.** Rotas, menu, API, contratos e estilos globais ficaram como estavam.
+- **Arquivos compartilhados tocados:** só `carga/Impressao.tsx` e `carga/TelaCarga.tsx`, na etapa do espelho de embarque (ver acima). Rotas, menu, API, contratos e estilos globais ficaram como estavam.
 
 ## Verificação feita
 

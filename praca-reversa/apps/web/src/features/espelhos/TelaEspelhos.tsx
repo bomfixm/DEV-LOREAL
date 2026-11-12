@@ -7,16 +7,15 @@ import type { MargensMapa } from '../mapa/controlador-mapa';
 import { MapaPraca, type MapaPracaHandle } from '../mapa/MapaPraca';
 import '../mapa/escolher-no-mapa.css';
 import { formatarDataHora } from '../../utils/datas';
+import { documentoDaPraca } from './conteudo-espelho';
 import { EditorLayout } from './EditorLayout';
 import { FolhaEspelho } from './FolhaEspelho';
 import { carregarFontes } from './fontes';
 import { aplicarLayout, layoutsDosPaletes } from './layout-armazenamento';
 import { assinaturaLayout, LAYOUT_PADRAO, MODELOS_DO_SISTEMA, type LayoutEspelho } from './layout-modelo';
 import { alternarGrupo, indiceDoMapa, ordenarParaImpressao } from './selecao';
-import { usePaginacao } from './usePaginacao';
+import { descreverLinha, usePaginacao } from './usePaginacao';
 import { medirFolha, problemasDaFolha } from './verificacao';
-import './espelhos.css';
-import './editor-layout.css';
 
 const MARGENS: MargensMapa = { topo: 12, direita: 56, base: 12, esquerda: 12 };
 
@@ -32,7 +31,7 @@ interface Verificacao {
  * (campo fora do papel, conteúdo cortado, sobreposição) antes de liberar a impressão.
  */
 const Folhas = memo(function Folhas({ lote, layouts, aoVerificar }: { lote: LoteEspelhos; layouts: ReadonlyMap<string, LayoutEspelho>; aoVerificar: (v: Verificacao | null) => void }) {
-  const entradas = useMemo(() => lote.items.map((p) => ({ chave: `${lote.generatedAt}|${p.id}`, palete: p, layout: layouts.get(p.id) ?? LAYOUT_PADRAO })), [lote, layouts]);
+  const entradas = useMemo(() => lote.items.map((p) => ({ chave: `${lote.generatedAt}|${p.id}`, documento: documentoDaPraca(p, lote), layout: layouts.get(p.id) ?? LAYOUT_PADRAO })), [lote, layouts]);
   const { pronto, paginas, medidor } = usePaginacao(entradas);
   const raiz = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -43,12 +42,12 @@ const Folhas = memo(function Folhas({ lote, layouts, aoVerificar }: { lote: Lote
       let k = 0;
       for (const e of entradas) {
         const pg = paginas.get(e.chave);
-        for (const nota of pg?.grandes ?? []) v.erros.push({ codigo: e.palete.code, texto: `Tabela de notas: a nota ${nota.documentNumber ?? nota.delivery ?? ''} não cabe na altura da tabela.` });
+        for (const linha of pg?.grandes ?? []) v.erros.push({ codigo: e.documento.codigo, texto: `Tabela de notas: a linha ${descreverLinha(linha)} não cabe na altura da tabela.` });
         for (let n = 0; n < (pg?.folhas.length ?? 1); n += 1) {
           const el = folhas[k];
           k += 1;
           if (el === undefined) continue;
-          for (const p of problemasDaFolha(medirFolha(el), e.layout.margem)) (p.gravidade === 'erro' ? v.erros : v.avisos).push({ codigo: e.palete.code, texto: p.texto });
+          for (const p of problemasDaFolha(medirFolha(el), e.layout.margem)) (p.gravidade === 'erro' ? v.erros : v.avisos).push({ codigo: e.documento.codigo, texto: p.texto });
         }
       }
       aoVerificar(v);
@@ -59,8 +58,10 @@ const Folhas = memo(function Folhas({ lote, layouts, aoVerificar }: { lote: Lote
     {entradas.flatMap((e) => {
       const folhas = paginas.get(e.chave)?.folhas ?? [[]];
       return folhas.map((linhas, n) => <FolhaEspelho
-        key={`${e.palete.id}-${String(n)}`}
-        contexto={{ palete: e.palete, pagina: n, totalPaginas: folhas.length, escopo: lote.scope, geradoEm: lote.generatedAt }}
+        key={`${e.documento.id}-${String(n)}`}
+        documento={e.documento}
+        pagina={n}
+        totalPaginas={folhas.length}
         linhas={linhas}
         layout={e.layout}
       />);
@@ -179,10 +180,15 @@ export function TelaEspelhos({ aoVoltar }: { aoVoltar: () => void }) {
     </div>}
     {folhasLote !== null && layoutsLote !== null && <Folhas lote={folhasLote} layouts={layoutsLote} aoVerificar={aoVerificar} />}
     {editando && lote !== null && layouts !== null && <EditorLayout
-      lote={lote}
-      aplicados={layouts}
+      documentos={lote.items.map((p) => documentoDaPraca(p, lote))}
+      geracao={lote.generatedAt}
+      layoutInicial={layouts.get(lote.items[0]?.id ?? '') ?? LAYOUT_PADRAO}
+      distintos={new Set([...layouts.values()].map(assinaturaLayout)).size}
+      rotuloAplicar={`Aplicar aos ${String(lote.items.length)} espelhos`}
+      explicacao={`A aplicação inclui exatamente estes ${String(lote.items.length)} espelho(s) da prévia gerada em ${new Date(lote.generatedAt).toLocaleTimeString('pt-BR')}. Para incluir ou tirar espelhos, cancele, mude a seleção no mapa e gere a prévia de novo:`}
       aoSair={() => { setEditando(false); }}
-      aoAplicar={(ids, novo) => {
+      aoAplicar={(novo) => {
+        const ids = lote.items.map((p) => p.id);
         aplicarLayout(ids, novo);
         setRecemAplicados({ lote: lote.generatedAt, mapa: layoutsDosPaletes(lote.items.map((p) => p.id)) });
         setEditando(false);

@@ -1,14 +1,18 @@
 import { z } from 'zod';
 
 /**
- * Modelo visual do espelho de palete (editor de layout, nov. 2026).
+ * Modelo visual dos espelhos (editor de layout, nov. 2026).
  *
  * Só aparência: posição, largura e estilo de cada campo do documento. Os
- * valores (palete, endereço, notas…) vêm sempre do lote gerado pela API e
- * nunca ficam guardados no modelo. Coordenadas em milímetros a partir do canto
+ * valores (palete, endereço, notas…) vêm sempre dos dados da API e nunca
+ * ficam guardados no modelo. Coordenadas em milímetros a partir do canto
  * superior esquerdo da folha útil (A4 paisagem dentro da margem de 5 mm da
  * impressora: 287 × 199 mm); tamanho do texto em pontos. A tela, o zoom e a
  * janela não mudam esses números.
+ *
+ * Dois documentos usam o mesmo editor: o espelho da praça ("praca", tela
+ * Imprimir espelhos) e o espelho de embarque da Expedição ("embarque", via do
+ * cliente). Cada um tem seus campos e colunas.
  */
 
 export const PAPEL = { formato: 'A4', orientacao: 'paisagem', largura: 287, altura: 199 } as const;
@@ -28,14 +32,26 @@ export const FONTES = [
 export type FonteId = (typeof FONTES)[number]['id'];
 export const cssDaFonte = (id: FonteId): string => FONTES.find((f) => f.id === id)?.css ?? FONTES[0].css;
 
-/** Campos do documento, com identificador estável. A tabela de notas é um bloco só. */
-export const CAMPOS = ['endereco', 'palete', 'continuacao', 'demo', 'tabela', 'emissao', 'legenda', 'formulario', 'divisoria'] as const;
-export type CampoId = (typeof CAMPOS)[number];
+export const DOCUMENTOS = ['praca', 'embarque'] as const;
+export type TipoDocumento = (typeof DOCUMENTOS)[number];
+
+/** Campos de cada documento, com identificador estável. A tabela é sempre um bloco só. */
+export const CAMPOS_DO_DOCUMENTO = {
+  praca: ['endereco', 'palete', 'continuacao', 'demo', 'tabela', 'emissao', 'legenda', 'formulario', 'divisoria'],
+  embarque: ['palete', 'veiculo', 'janela', 'identidade', 'continuacao', 'rascunho', 'demo', 'tabela', 'emissao', 'formulario', 'divisoria'],
+} as const;
+export type CampoId = (typeof CAMPOS_DO_DOCUMENTO)[TipoDocumento][number];
+export const camposDe = (l: { documento: TipoDocumento }): readonly CampoId[] => CAMPOS_DO_DOCUMENTO[l.documento];
+
 export const NOME_CAMPO: Record<CampoId, string> = {
   endereco: 'Endereço',
   palete: 'Número do palete',
-  continuacao: 'Continuação (n/N)',
+  veiculo: 'Veículo e placa',
+  janela: 'Janela',
+  identidade: 'Identidade, tipo e revisão',
+  continuacao: 'Folha / continuação (n/N)',
   demo: 'Aviso de demonstração',
+  rascunho: 'Aviso de rascunho',
   tabela: 'Tabela de notas',
   emissao: 'Escopo e emissão',
   legenda: 'Legenda',
@@ -45,11 +61,16 @@ export const NOME_CAMPO: Record<CampoId, string> = {
 /** Só elementos decorativos podem ser ocultados; dado do documento nunca some para "caber". */
 export const OCULTAVEIS: ReadonlySet<CampoId> = new Set(['formulario', 'divisoria']);
 /** Campos com rótulo pequeno opcional acima do valor. */
-export const COM_ROTULO: ReadonlySet<CampoId> = new Set(['endereco', 'palete']);
+export const COM_ROTULO: ReadonlySet<CampoId> = new Set(['endereco', 'palete', 'veiculo', 'janela']);
 /** Código impresso no formulário DHL (a moldura clássica já o traz no desenho). */
 export const CODIGO_FORMULARIO = 'SF-164133/01';
 
-export const COLUNAS_TABELA = ['DLV', 'TIPO', 'NÚMERO', 'OBS. OPERAÇÃO', 'VOLUMES', 'LIDO', 'REMETENTE', 'RUA', 'PALETE NUMBER'] as const;
+export const COLUNAS_DO_DOCUMENTO: Record<TipoDocumento, readonly string[]> = {
+  praca: ['DLV', 'TIPO', 'NÚMERO', 'OBS. OPERAÇÃO', 'VOLUMES', 'LIDO', 'REMETENTE', 'RUA', 'PALETE NUMBER'],
+  embarque: ['TIPO', 'NÚMERO', 'REMETENTE', 'DELIVERY', 'VOLUMES', 'CONFERÊNCIA'],
+};
+/** Colunas do espelho da praça (mantido para quem já usava o nome). */
+export const COLUNAS_TABELA = COLUNAS_DO_DOCUMENTO.praca;
 
 const mm = (min: number, max: number) => z.number().min(min).max(max);
 const EstiloSchema = z.object({
@@ -68,41 +89,57 @@ const BlocoSchema = z.object({
   rotulo: z.boolean(),
   visivel: z.boolean(),
 });
-export const LayoutEspelhoSchema = z.object({
-  versao: z.literal(1),
-  papel: z.object({ formato: z.literal('A4'), orientacao: z.literal('paisagem'), largura: z.literal(PAPEL.largura), altura: z.literal(PAPEL.altura) }),
-  /** Guia de área útil (não é impressa). */
-  margem: mm(0, 30),
-  moldura: z.enum(['dhl', 'nenhuma']),
-  tabela: z.object({
-    colunas: z.array(mm(2, 60)).length(COLUNAS_TABELA.length),
-    cabecalho: z.enum(['escuro', 'claro']),
-    linhas: z.enum(['grade', 'horizontais']),
-    /** Respiro vertical de cada célula, em mm. */
-    espacamento: mm(0.3, 6),
-  }),
-  blocos: z.object(Object.fromEntries(CAMPOS.map((c) => [c, BlocoSchema])) as Record<CampoId, typeof BlocoSchema>),
-});
+export const LayoutEspelhoSchema = z
+  .object({
+    versao: z.literal(1),
+    /** Modelos guardados antes do espelho de embarque não tinham o campo: eram da praça. */
+    documento: z.enum(DOCUMENTOS).default('praca'),
+    papel: z.object({ formato: z.literal('A4'), orientacao: z.literal('paisagem'), largura: z.literal(PAPEL.largura), altura: z.literal(PAPEL.altura) }),
+    /** Guia de área útil (não é impressa). */
+    margem: mm(0, 30),
+    moldura: z.enum(['dhl', 'nenhuma']),
+    tabela: z.object({
+      colunas: z.array(mm(2, 60)).min(2).max(12),
+      cabecalho: z.enum(['escuro', 'claro']),
+      linhas: z.enum(['grade', 'horizontais']),
+      /** Respiro vertical de cada célula, em mm. */
+      espacamento: mm(0.3, 6),
+    }),
+    blocos: z.record(z.string(), BlocoSchema),
+  })
+  .superRefine((l, ctx) => {
+    const esperados = CAMPOS_DO_DOCUMENTO[l.documento] as readonly string[];
+    const chaves = Object.keys(l.blocos);
+    if (chaves.length !== esperados.length || !esperados.every((c) => c in l.blocos)) ctx.addIssue({ code: 'custom', message: 'Campos do layout não correspondem ao documento.', path: ['blocos'] });
+    if (l.tabela.colunas.length !== COLUNAS_DO_DOCUMENTO[l.documento].length) ctx.addIssue({ code: 'custom', message: 'Colunas não correspondem ao documento.', path: ['tabela', 'colunas'] });
+  });
 export type EstiloTexto = z.infer<typeof EstiloSchema>;
 export type BlocoLayout = z.infer<typeof BlocoSchema>;
 export type LayoutEspelho = z.infer<typeof LayoutEspelhoSchema>;
 
 const arred = (v: number) => Math.round(v * 10) / 10;
+const BLOCO_RESERVA: BlocoLayout = { x: 10, y: 10, largura: 100, altura: null, estilo: { fonte: 'inter', tamanho: 9, negrito: false, alinhamento: 'esquerda' }, rotulo: false, visivel: true };
+
+/** Bloco de um campo (o layout validado sempre tem todos os campos do seu documento). */
+export function blocoDe(l: LayoutEspelho, campo: CampoId): BlocoLayout {
+  return l.blocos[campo] ?? LAYOUT_PADRAO_DE[l.documento].blocos[campo] ?? BLOCO_RESERVA;
+}
 
 /**
  * Valida um modelo vindo de fora (armazenamento, modelo salvo) e o mantém dentro
  * da folha. Não aceita HTML, CSS nem campos desconhecidos: só números e opções da lista.
  */
-export function lerLayout(valor: unknown): LayoutEspelho | null {
+export function lerLayout(valor: unknown, documento?: TipoDocumento): LayoutEspelho | null {
   const r = LayoutEspelhoSchema.safeParse(valor);
-  return r.success ? normalizarLayout(r.data) : null;
+  if (!r.success || (documento !== undefined && r.data.documento !== documento)) return null;
+  return normalizarLayout(r.data);
 }
 
 /** Garante que nenhum bloco comece fora da folha e que a largura caiba nela. */
 export function normalizarLayout(l: LayoutEspelho): LayoutEspelho {
-  const blocos = { ...l.blocos };
-  for (const c of CAMPOS) {
-    const b = blocos[c];
+  const blocos: Record<string, BlocoLayout> = {};
+  for (const c of camposDe(l)) {
+    const b = blocoDe(l, c);
     const largura = arred(Math.min(Math.max(b.largura, 5), PAPEL.largura));
     const x = arred(Math.min(Math.max(b.x, 0), PAPEL.largura - largura));
     const altura = b.altura === null ? null : arred(Math.min(Math.max(b.altura, 0.1), PAPEL.altura));
@@ -124,6 +161,7 @@ const bloco = (x: number, y: number, largura: number, e: EstiloTexto, extra: Par
  */
 export const OPERACIONAL_LIMPO: LayoutEspelho = {
   versao: 1,
+  documento: 'praca',
   papel: { ...PAPEL },
   margem: 8,
   moldura: 'nenhuma',
@@ -145,6 +183,7 @@ export const OPERACIONAL_LIMPO: LayoutEspelho = {
 /** Aparência anterior ao editor (moldura DHL, títulos centralizados, tabela com grade e cabeçalho escuro). */
 export const CLASSICO: LayoutEspelho = {
   versao: 1,
+  documento: 'praca',
   papel: { ...PAPEL },
   margem: 19,
   moldura: 'dhl',
@@ -162,12 +201,65 @@ export const CLASSICO: LayoutEspelho = {
   },
 };
 
+/**
+ * Espelho de embarque "Operacional limpo": veículo e janela à esquerda, número
+ * do palete grande à direita, NFs desta saída em tabela leve com espaço para a
+ * conferência à mão. Fundo branco; vermelho só nos avisos (demonstração, rascunho).
+ */
+export const EMBARQUE_LIMPO: LayoutEspelho = {
+  versao: 1,
+  documento: 'embarque',
+  papel: { ...PAPEL },
+  margem: 8,
+  moldura: 'nenhuma',
+  tabela: { colunas: [7, 13, 36, 16, 10, 18], cabecalho: 'claro', linhas: 'horizontais', espacamento: 2.2 },
+  blocos: {
+    veiculo: bloco(10, 9, 190, estilo('inter', 24, true, 'esquerda'), { rotulo: true }),
+    janela: bloco(10, 23, 175, estilo('inter', 11, false, 'esquerda'), { rotulo: true }),
+    identidade: bloco(10, 32.5, 175, estilo('inter', 8.5, false, 'esquerda')),
+    palete: bloco(207, 9, 70, estilo('inter', 40, true, 'direita'), { rotulo: true }),
+    continuacao: bloco(207, 30, 70, estilo('inter', 8, false, 'direita')),
+    rascunho: bloco(187, 34, 90, estilo('inter', 8, true, 'direita')),
+    demo: bloco(10, 37, 150, estilo('inter', 8, true, 'esquerda')),
+    divisoria: bloco(10, 42, 267, estilo('inter', 8, false, 'esquerda'), { altura: 0.4 }),
+    tabela: bloco(10, 46, 267, estilo('inter', 9.5, false, 'esquerda'), { altura: 130 }),
+    emissao: bloco(10, 180.5, 200, estilo('inter', 7, false, 'esquerda')),
+    formulario: bloco(217, 180.5, 60, estilo('inter', 7, false, 'direita')),
+  },
+};
+
+/** Espelho de embarque como era antes do editor (moldura DHL, centralizado, grade com cabeçalho escuro). */
+export const EMBARQUE_CLASSICO: LayoutEspelho = {
+  versao: 1,
+  documento: 'embarque',
+  papel: { ...PAPEL },
+  margem: 19,
+  moldura: 'dhl',
+  tabela: { colunas: [8, 14, 34, 18, 12, 14], cabecalho: 'escuro', linhas: 'grade', espacamento: 2 },
+  blocos: {
+    demo: bloco(19, 17.5, 249, estilo('arial', 9, true, 'centro')),
+    rascunho: bloco(19, 21.5, 249, estilo('arial', 9, true, 'centro')),
+    veiculo: bloco(19, 26, 249, estilo('arial', 22, true, 'centro')),
+    palete: bloco(19, 36, 249, estilo('arial', 20, true, 'centro')),
+    janela: bloco(19, 45, 249, estilo('arial', 12, true, 'centro')),
+    identidade: bloco(19, 51, 249, estilo('arial', 10, false, 'centro')),
+    continuacao: bloco(19, 56, 249, estilo('arial', 8, false, 'centro')),
+    tabela: bloco(19, 60, 249, estilo('arial', 9, true, 'centro'), { altura: 107 }),
+    emissao: bloco(19, 170.5, 249, estilo('arial', 7, false, 'esquerda')),
+    formulario: bloco(200, 186, 60, estilo('arial', 7, false, 'direita'), { visivel: false }),
+    divisoria: bloco(19, 58, 249, estilo('arial', 8, false, 'esquerda'), { altura: 0.3, visivel: false }),
+  },
+};
+
 export const MODELOS_DO_SISTEMA = [
   { id: 'sistema:operacional-limpo', nome: 'Operacional limpo', layout: OPERACIONAL_LIMPO },
   { id: 'sistema:classico', nome: 'Clássico (moldura DHL)', layout: CLASSICO },
+  { id: 'sistema:embarque-limpo', nome: 'Operacional limpo', layout: EMBARQUE_LIMPO },
+  { id: 'sistema:embarque-classico', nome: 'Clássico (moldura DHL)', layout: EMBARQUE_CLASSICO },
 ] as const;
 
-/** Padrão de quem nunca recebeu um layout aplicado. Aplicar a um lote não muda este valor. */
+/** Padrão de quem nunca recebeu um layout aplicado. Aplicar não muda estes valores. */
+export const LAYOUT_PADRAO_DE: Record<TipoDocumento, LayoutEspelho> = { praca: OPERACIONAL_LIMPO, embarque: EMBARQUE_LIMPO };
 export const LAYOUT_PADRAO = OPERACIONAL_LIMPO;
 
 /** Assinatura estável (mesmo layout → mesmo texto), usada para comparar e deduplicar. */
@@ -185,7 +277,7 @@ export const noPasso = (v: number): number => Math.round(v / PASSO_MM) * PASSO_M
 
 /** Altera um bloco e devolve o layout já dentro da folha. */
 export function alterarBloco(l: LayoutEspelho, campo: CampoId, mudanca: Partial<Omit<BlocoLayout, 'estilo'>> & { estilo?: Partial<EstiloTexto> }): LayoutEspelho {
-  const atual = l.blocos[campo];
+  const atual = blocoDe(l, campo);
   const novo: BlocoLayout = { ...atual, ...mudanca, estilo: { ...atual.estilo, ...mudanca.estilo } };
   return normalizarLayout({ ...l, blocos: { ...l.blocos, [campo]: novo } });
 }

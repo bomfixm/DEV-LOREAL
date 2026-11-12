@@ -1,6 +1,8 @@
 import type { CargaJanela, PaleteEmbarque, TipoEmissao, VeiculoCarga } from '@praca-reversa/contracts';
-import { paraEndereco } from '../../base';
 import { formatarDataHora } from '../../utils/datas';
+import { EspelhoEmbarque } from '../espelhos/EspelhoEmbarque';
+import { layoutDoEmbarque } from '../espelhos/layout-armazenamento';
+import type { LayoutEspelho } from '../espelhos/layout-modelo';
 import { MapaVeiculo } from './MapaVeiculo';
 
 export interface PedidoImpressao {
@@ -8,6 +10,8 @@ export interface PedidoImpressao {
   final: boolean;
   veiculoId: string;
   paleteId: string | null;
+  /** Espelho: layout capturado na emissão (o editor não muda um pedido já aberto). */
+  layout?: LayoutEspelho;
 }
 
 const Demo = ({ carga }: { carga: CargaJanela }) => (carga.scope.demo ? <p className="impr-demo">DEMONSTRAÇÃO — DADOS FICTÍCIOS</p> : null);
@@ -36,68 +40,6 @@ function Etiqueta({ carga, veiculo, p, final }: { carga: CargaJanela; veiculo: V
         {p.kind === 'FULL' ? `FULL · origem ${p.sourcePalletCode ?? ''}` : 'FRACIONADO'} · {p.lines.length} NF(s) · {p.volumes} volume(s) · revisão {p.revision}
       </p>
       <p className="impr-rodape">Emitida em {formatarDataHora(carga.generatedAt)}</p>
-    </section>
-  );
-}
-
-/**
- * Espelho de embarque (via do cliente): mesma moldura do espelho da praça,
- * com janela, veículo, número do palete e só as NFs/volumes desta saída.
- * Sem observações internas, saldos da praça, outras janelas ou nomes internos.
- */
-function EspelhoEmbarque({ carga, veiculo, p, final }: { carga: CargaJanela; veiculo: VeiculoCarga; p: PaleteEmbarque; final: boolean }) {
-  return (
-    <section className="impr-folha impr-espelho" aria-label={`Espelho ${p.identity}`}>
-      <img className="impr-moldura" src={paraEndereco('/espelhos-moldura.png')} alt="" />
-      <div className="impr-espelho-interior">
-        <Demo carga={carga} />
-        <Rascunho final={final} />
-        <h2>
-          {veiculo.label.toUpperCase()} · PALETE {String(p.number).padStart(2, '0')}
-        </h2>
-        <h3>
-          Janela {carga.window.code} — {carga.window.name}
-          {veiculo.plate ? ` · Placa ${veiculo.plate}` : ''}
-        </h3>
-        <p className="impr-espelho-identidade">
-          {p.identity} · {p.kind === 'FULL' ? 'FULL' : 'FRACIONADO'} · Revisão {p.revision}
-        </p>
-        <table>
-          <colgroup>
-            {[8, 14, 34, 18, 12, 14].map((w, i) => (
-              <col key={i} style={{ width: `${String(w)}%` }} />
-            ))}
-          </colgroup>
-          <thead>
-            <tr>
-              {['TIPO', 'NÚMERO', 'REMETENTE', 'DELIVERY', 'VOLUMES', 'CONFERÊNCIA'].map((h) => (
-                <th key={h}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {p.lines.map((l) => (
-              <tr key={l.id}>
-                <td>{l.documentType ?? '—'}</td>
-                <td>{l.documentNumber ?? '—'}</td>
-                <td>{l.sender ?? '—'}</td>
-                <td>{l.delivery ?? '—'}</td>
-                <td>{l.volumes}</td>
-                <td />
-              </tr>
-            ))}
-            <tr className="impr-total">
-              <td colSpan={4}>TOTAL DO PALETE</td>
-              <td>{p.volumes}</td>
-              <td />
-            </tr>
-          </tbody>
-        </table>
-        <footer>
-          Via do cliente · {carga.scope.name} · Emitido em {formatarDataHora(carga.generatedAt)} · Volumes = conferidos para esta saída
-          {p.physical.checked && p.physical.at ? ` (físico conferido em ${formatarDataHora(p.physical.at)})` : ''}
-        </footer>
-      </div>
     </section>
   );
 }
@@ -201,7 +143,7 @@ function MapaCarga({ carga, veiculo, final }: { carga: CargaJanela; veiculo: Vei
   );
 }
 
-export function ImpressaoCarga({ carga, pedido }: { carga: CargaJanela; pedido: PedidoImpressao }) {
+export function ImpressaoCarga({ carga, pedido, aoPronto }: { carga: CargaJanela; pedido: PedidoImpressao; aoPronto: () => void }) {
   const veiculo = carga.vehicles.find((v) => v.id === pedido.veiculoId);
   if (!veiculo) return null;
   const p = veiculo.pallets.find((x) => x.id === pedido.paleteId);
@@ -209,7 +151,7 @@ export function ImpressaoCarga({ carga, pedido }: { carga: CargaJanela; pedido: 
     <div className="carga-impressao" data-testid="carga-impressao" data-tipo={pedido.kind}>
       {pedido.kind === 'MAPA' && <MapaCarga carga={carga} veiculo={veiculo} final={pedido.final} />}
       {pedido.kind === 'ETIQUETA' && p && <Etiqueta carga={carga} veiculo={veiculo} p={p} final={pedido.final} />}
-      {pedido.kind === 'ESPELHO' && p && <EspelhoEmbarque carga={carga} veiculo={veiculo} p={p} final={pedido.final} />}
+      {pedido.kind === 'ESPELHO' && p && <EspelhoEmbarque carga={carga} veiculo={veiculo} p={p} final={pedido.final} layout={pedido.layout ?? layoutDoEmbarque()} aoPronto={aoPronto} />}
       {pedido.kind === 'DOCUMENTOS' && p && <ListaDocumentos carga={carga} veiculo={veiculo} p={p} />}
     </div>
   );

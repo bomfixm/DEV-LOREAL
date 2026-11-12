@@ -61,6 +61,7 @@ test('editor: A e B recebem o layout, C fica como estava; zoom não muda coorden
   await page.getByTestId('espelhos-editar').click();
   const editor = page.getByTestId('editor-layout');
   await expect(editor).toBeVisible();
+  await expect(editor).toHaveCSS('position', 'fixed');
   await expect(editor.getByRole('button', { name: 'Aplicar aos 2 espelhos' })).toBeVisible();
   const folhaEditor = editor.locator('.espelho-folha');
   await folhaEditor.locator('[data-campo-editor="palete"]').click();

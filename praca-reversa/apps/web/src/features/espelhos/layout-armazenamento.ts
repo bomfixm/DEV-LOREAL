@@ -1,4 +1,4 @@
-import { assinaturaLayout, LAYOUT_PADRAO, lerLayout, type LayoutEspelho } from './layout-modelo';
+import { assinaturaLayout, LAYOUT_PADRAO_DE, lerLayout, type LayoutEspelho, type TipoDocumento } from './layout-modelo';
 
 /**
  * Onde o layout aplicado fica guardado: neste computador (localStorage), por
@@ -62,15 +62,16 @@ export function memoriaDoNavegador(): MemoriaLayouts | null {
 }
 
 /** Layout aplicado a cada palete pedido (padrão do sistema quando não há, ou quando o guardado não passa na validação). */
-export function layoutsDosPaletes(ids: readonly string[], memoria: MemoriaLayouts | null = memoriaDoNavegador()): Map<string, LayoutEspelho> {
+export function layoutsDosPaletes(ids: readonly string[], memoria: MemoriaLayouts | null = memoriaDoNavegador(), documento: TipoDocumento = 'praca'): Map<string, LayoutEspelho> {
+  const padrao = LAYOUT_PADRAO_DE[documento];
   const b = ler(memoria);
   const cache = new Map<string, LayoutEspelho | null>();
   const r = new Map<string, LayoutEspelho>();
   for (const id of ids) {
     const assinatura = b.aplicados[id];
-    if (assinatura === undefined) { r.set(id, LAYOUT_PADRAO); continue; }
-    if (!cache.has(assinatura)) cache.set(assinatura, lerLayout(b.layouts[assinatura]));
-    r.set(id, cache.get(assinatura) ?? LAYOUT_PADRAO);
+    if (assinatura === undefined) { r.set(id, padrao); continue; }
+    if (!cache.has(assinatura)) cache.set(assinatura, lerLayout(b.layouts[assinatura], documento));
+    r.set(id, cache.get(assinatura) ?? padrao);
   }
   return r;
 }
@@ -113,4 +114,16 @@ export function excluirModelo(id: string, memoria: MemoriaLayouts | null = memor
   const b = ler(memoria);
   b.modelos = b.modelos.filter((m) => m.id !== id);
   gravar(memoria, b);
+}
+
+/**
+ * Espelho de embarque (Expedição): um layout só para todas as vias do cliente
+ * impressas neste computador — as vias de uma mesma saída ficam iguais.
+ */
+const CHAVE_EMBARQUE = 'documento:embarque';
+export const layoutDoEmbarque = (memoria: MemoriaLayouts | null = memoriaDoNavegador()): LayoutEspelho =>
+  layoutsDosPaletes([CHAVE_EMBARQUE], memoria, 'embarque').get(CHAVE_EMBARQUE) ?? LAYOUT_PADRAO_DE.embarque;
+export function aplicarLayoutEmbarque(layout: LayoutEspelho, memoria: MemoriaLayouts | null = memoriaDoNavegador()): void {
+  if (layout.documento !== 'embarque') throw new Error('Layout não é do espelho de embarque.');
+  aplicarLayout([CHAVE_EMBARQUE], layout, memoria);
 }

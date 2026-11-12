@@ -155,6 +155,47 @@ test.describe('Expedição DHL', () => {
     await imprimir(async () => { await page.getByTestId('palete-P07').click(); await page.getByTestId('imprimir-espelho-final').click(); }, 'impressao-espelho-final', 'ESPELHO');
     await imprimir(async () => { await page.getByTestId('palete-P07').click(); await page.getByTestId('imprimir-etiqueta').click(); }, 'impressao-etiqueta', 'ETIQUETA');
     await imprimir(async () => { await page.getByRole('button', { name: 'Imprimir prévia do mapa' }).click(); }, 'impressao-mapa-previa', 'MAPA');
+    // Espelho de embarque com o editor de layout (12 nov. 2026): a mesma folha dos espelhos da praça, paginada,
+    // com o layout aplicado neste computador; o pedido de impressão leva o layout capturado na emissão.
+    // Padrão (Operacional limpo do embarque), em rascunho: aviso, identidade e número sem sobreposição.
+    await page.getByTestId('palete-P07').click();
+    await page.getByRole('button', { name: 'Espelho (rascunho)' }).click();
+    const padrao = page.locator('[data-testid="carga-impressao"][data-tipo="ESPELHO"] .espelho-folha').first();
+    await expect(padrao).toBeAttached();
+    await page.emulateMedia({ media: 'print' });
+    const sobrepostos = await padrao.evaluate((folha) => {
+      const caixas = [...folha.querySelectorAll<HTMLElement>('[data-campo]')].map((el) => ({ c: el.dataset.campo, x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight }));
+      return caixas.flatMap((a, i) => caixas.slice(i + 1).filter((b) => a.x + 1 < b.x + b.w && b.x + 1 < a.x + a.w && a.y + 1 < b.y + b.h && b.y + 1 < a.y + a.h).map((b) => `${a.c ?? ''}×${b.c ?? ''}`));
+    });
+    expect(sobrepostos).toEqual([]);
+    await padrao.screenshot({ path: `${PASTA}/impressao-espelho-padrao.png` });
+    await page.emulateMedia({ media: 'screen' });
+    await page.reload();
+    await page.evaluate(() => {
+      window.print = () => undefined;
+    });
+    await page.getByTestId('palete-P07').click();
+    await page.getByTestId('editar-layout-espelho').click();
+    const editor = page.getByTestId('editor-layout');
+    await expect(editor).toBeVisible();
+    await expect(editor).toHaveCSS('position', 'fixed');
+    await expect(editor.getByTestId('ed-navegacao')).toContainText('P07');
+    await editor.locator('[data-campo-editor="palete"]').click();
+    await editor.getByTestId('ed-tamanho').fill('48');
+    await page.screenshot({ path: nome('6-editor-espelho'), fullPage: true });
+    await editor.getByTestId('ed-aplicar').click();
+    await expect(editor).toBeHidden();
+    await page.getByRole('button', { name: 'Espelho (rascunho)' }).click();
+    const folha = page.locator('[data-testid="carga-impressao"][data-tipo="ESPELHO"] .espelho-folha[data-documento="embarque"]').first();
+    await expect(folha).toBeAttached();
+    expect(await folha.locator('[data-campo="palete"]').evaluate((el) => (el as HTMLElement).style.fontSize)).toBe('48pt');
+    await expect(folha.locator('[data-campo="rascunho"]')).toContainText('RASCUNHO');
+    await expect(folha.locator('tbody tr.ef-total')).toContainText('TOTAL DO PALETE');
+    await page.emulateMedia({ media: 'print' });
+    await page.pdf({ path: `${PASTA}/impressao-espelho-editor.pdf`, format: 'A4', landscape: true, printBackground: true });
+    await page.emulateMedia({ media: 'screen' });
+    await page.reload();
+
     // A etiqueta impressa aparece como emitida e atual no detalhe.
     await page.getByTestId('palete-P07').click();
     await expect(page.getByTestId('carga-detalhe')).toContainText('Etiqueta final');

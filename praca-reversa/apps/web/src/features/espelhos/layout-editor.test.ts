@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { desfazer, iniciarHistorico, refazer, registrar, restaurar, substituir } from './historico';
-import { aplicarLayout, CHAVE_ARMAZENAMENTO, layoutsDosPaletes, modelosSalvos, salvarModelo, type MemoriaLayouts } from './layout-armazenamento';
-import { alterarBloco, assinaturaLayout, CLASSICO, LAYOUT_PADRAO, lerLayout, noPasso, OPERACIONAL_LIMPO, PAPEL, PX_POR_MM } from './layout-modelo';
+import { aplicarLayout, aplicarLayoutEmbarque, CHAVE_ARMAZENAMENTO, layoutDoEmbarque, layoutsDosPaletes, modelosSalvos, salvarModelo, type MemoriaLayouts } from './layout-armazenamento';
+import { alterarBloco, assinaturaLayout, blocoDe, CLASSICO, EMBARQUE_CLASSICO, EMBARQUE_LIMPO, LAYOUT_PADRAO, lerLayout, noPasso, OPERACIONAL_LIMPO, PAPEL, PX_POR_MM } from './layout-modelo';
 import { problemasDaFolha } from './verificacao';
 
+const P = (l: Parameters<typeof blocoDe>[0]) => blocoDe(l, 'palete');
 const memoria = (): MemoriaLayouts & { dados: Map<string, string> } => {
   const dados = new Map<string, string>();
   return { dados, getItem: (k) => dados.get(k) ?? null, setItem: (k, v) => { dados.set(k, v); } };
@@ -11,7 +12,7 @@ const memoria = (): MemoriaLayouts & { dados: Map<string, string> } => {
 
 describe('modelo de layout', () => {
   it('modelos do sistema são válidos e cabem na folha', () => {
-    for (const l of [OPERACIONAL_LIMPO, CLASSICO]) {
+    for (const l of [OPERACIONAL_LIMPO, CLASSICO, EMBARQUE_LIMPO, EMBARQUE_CLASSICO]) {
       expect(lerLayout(l)).toEqual(l);
       for (const b of Object.values(l.blocos)) {
         expect(b.x + b.largura).toBeLessThanOrEqual(PAPEL.largura);
@@ -21,8 +22,8 @@ describe('modelo de layout', () => {
   });
 
   it('recusa HTML, CSS, fonte fora da lista e campos fora dos limites', () => {
-    expect(lerLayout({ ...OPERACIONAL_LIMPO, blocos: { ...OPERACIONAL_LIMPO.blocos, palete: { ...OPERACIONAL_LIMPO.blocos.palete, estilo: { ...OPERACIONAL_LIMPO.blocos.palete.estilo, fonte: 'Comic Sans; color:red' } } } })).toBeNull();
-    expect(lerLayout({ ...OPERACIONAL_LIMPO, blocos: { ...OPERACIONAL_LIMPO.blocos, palete: { ...OPERACIONAL_LIMPO.blocos.palete, estilo: { ...OPERACIONAL_LIMPO.blocos.palete.estilo, tamanho: 500 } } } })).toBeNull();
+    expect(lerLayout({ ...OPERACIONAL_LIMPO, blocos: { ...OPERACIONAL_LIMPO.blocos, palete: { ...P(OPERACIONAL_LIMPO), estilo: { ...P(OPERACIONAL_LIMPO).estilo, fonte: 'Comic Sans; color:red' } } } })).toBeNull();
+    expect(lerLayout({ ...OPERACIONAL_LIMPO, blocos: { ...OPERACIONAL_LIMPO.blocos, palete: { ...P(OPERACIONAL_LIMPO), estilo: { ...P(OPERACIONAL_LIMPO).estilo, tamanho: 500 } } } })).toBeNull();
     expect(lerLayout({ ...OPERACIONAL_LIMPO, papel: { formato: 'A3', orientacao: 'paisagem', largura: 400, altura: 287 } })).toBeNull();
     expect(lerLayout('<script>alert(1)</script>')).toBeNull();
     expect(lerLayout({ ...OPERACIONAL_LIMPO, extra: '<b>x</b>' })).toEqual(OPERACIONAL_LIMPO);
@@ -30,9 +31,9 @@ describe('modelo de layout', () => {
 
   it('não deixa bloco sair da folha nem esconder campo de dado', () => {
     const l = alterarBloco(OPERACIONAL_LIMPO, 'palete', { x: 280, largura: 60, visivel: false });
-    expect(l.blocos.palete.x + l.blocos.palete.largura).toBeLessThanOrEqual(PAPEL.largura);
-    expect(l.blocos.palete.visivel).toBe(true);
-    expect(alterarBloco(OPERACIONAL_LIMPO, 'formulario', { visivel: false }).blocos.formulario.visivel).toBe(false);
+    expect(P(l).x + P(l).largura).toBeLessThanOrEqual(PAPEL.largura);
+    expect(P(l).visivel).toBe(true);
+    expect(blocoDe(alterarBloco(OPERACIONAL_LIMPO, 'formulario', { visivel: false }), 'formulario').visivel).toBe(false);
   });
 
   it('o mesmo deslocamento na tela dá a mesma coordenada em qualquer zoom', () => {
@@ -55,11 +56,11 @@ describe('histórico do rascunho', () => {
     h = desfazer(h);
     expect(h.presente).toBe(OPERACIONAL_LIMPO);
     h = refazer(h);
-    expect(h.presente.blocos.palete.x).toBe(150);
+    expect(P(h.presente).x).toBe(150);
     h = restaurar(h);
     expect(h.presente).toBe(OPERACIONAL_LIMPO);
     h = desfazer(h);
-    expect(h.presente.blocos.palete.x).toBe(150);
+    expect(P(h.presente).x).toBe(150);
   });
 });
 
@@ -79,7 +80,7 @@ describe('aplicar a um lote (A e B marcados, C fora)', () => {
     expect(depois.get(C)).toEqual(antesC);
     expect(depois.get('d-4')).toBe(LAYOUT_PADRAO);
     expect(LAYOUT_PADRAO).toBe(OPERACIONAL_LIMPO);
-    expect(OPERACIONAL_LIMPO.blocos.palete.x).toBe(192);
+    expect(P(OPERACIONAL_LIMPO).x).toBe(192);
 
     salvarModelo('Topo à direita', novo, new Date('2026-11-12T10:00:00Z'), m);
     const guardado = m.dados.get(CHAVE_ARMAZENAMENTO) ?? '';
@@ -112,5 +113,28 @@ describe('verificação da folha', () => {
     expect(p.filter((x) => x.gravidade === 'erro').map((x) => x.campo).sort()).toEqual(['palete', 'tabela']);
     expect(p.some((x) => x.gravidade === 'aviso' && x.texto.includes('sobrepostos'))).toBe(true);
     expect(p.some((x) => x.campo === 'emissao' && x.gravidade === 'aviso')).toBe(true);
+  });
+});
+
+describe('espelho de embarque (Expedição)', () => {
+  it('modelo de um documento não vale para o outro e campos têm de bater', () => {
+    expect(lerLayout(EMBARQUE_LIMPO, 'praca')).toBeNull();
+    expect(lerLayout(OPERACIONAL_LIMPO, 'embarque')).toBeNull();
+    expect(lerLayout({ ...EMBARQUE_LIMPO, blocos: OPERACIONAL_LIMPO.blocos })).toBeNull();
+    expect(lerLayout({ ...EMBARQUE_LIMPO, tabela: OPERACIONAL_LIMPO.tabela })).toBeNull();
+    // Layout guardado antes do embarque (sem "documento") continua sendo da praça.
+    const { documento: _semDocumento, ...antigo } = OPERACIONAL_LIMPO;
+    expect(lerLayout(antigo, 'praca')).toEqual(OPERACIONAL_LIMPO);
+  });
+
+  it('um layout só para as vias do cliente; não mexe nos espelhos da praça', () => {
+    const m = memoria();
+    expect(layoutDoEmbarque(m)).toBe(EMBARQUE_LIMPO);
+    aplicarLayout(['a-1'], CLASSICO, m);
+    const novo = alterarBloco(EMBARQUE_LIMPO, 'palete', { estilo: { tamanho: 48 } });
+    aplicarLayoutEmbarque(novo, m);
+    expect(blocoDe(layoutDoEmbarque(m), 'palete').estilo.tamanho).toBe(48);
+    expect(layoutsDosPaletes(['a-1'], m).get('a-1')).toEqual(CLASSICO);
+    expect(() => { aplicarLayoutEmbarque(OPERACIONAL_LIMPO, m); }).toThrow();
   });
 });

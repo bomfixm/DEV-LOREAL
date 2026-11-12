@@ -1,15 +1,15 @@
-import type { ConteudoPalete } from '@praca-reversa/contracts';
 import { memo, useLayoutEffect, useRef, type CSSProperties, type PointerEvent as PointerEventReact, type ReactNode } from 'react';
 import { paraEndereco } from '../../base';
-import { celulasDaNota, textoDoCampo, textoFantasma, type ContextoFolha, type PaleteDoLote } from './conteudo-espelho';
+import { textoFantasma, type DocumentoEspelho, type LinhaTabela } from './conteudo-espelho';
 import { carregarFontes } from './fontes';
-import { CAMPOS, COLUNAS_TABELA, cssDaFonte, NOME_CAMPO, type BlocoLayout, type CampoId, type LayoutEspelho } from './layout-modelo';
+import { blocoDe, camposDe, cssDaFonte, NOME_CAMPO, type BlocoLayout, type CampoId, type LayoutEspelho } from './layout-modelo';
+import './espelhos.css';
 
 /**
  * Uma folha do espelho desenhada a partir do layout (mm/pt). É o mesmo
- * componente na prévia, no editor e na impressão: o que se vê é o que sai no
- * PDF. Elementos do editor (contorno, alças) só existem com `edicao` e ficam
- * fora da impressão.
+ * componente na prévia, no editor e na impressão (praça e embarque): o que se
+ * vê é o que sai no PDF. Elementos do editor (contorno, alças) só existem com
+ * `edicao` e ficam fora da impressão.
  */
 export type ModoGesto = 'mover' | 'largura-esquerda' | 'largura-direita' | 'altura';
 export interface EdicaoFolha {
@@ -32,57 +32,64 @@ const posicao = (b: BlocoLayout, comAltura: boolean): CSSProperties => ({
   ...(comAltura && b.altura !== null ? { height: `${String(b.altura)}mm` } : {}),
 });
 
-/** Tabela de notas (bloco único). Usada na folha e na medição das linhas. */
-export function TabelaNotas({ layout, palete, linhas }: { layout: LayoutEspelho; palete: PaleteDoLote; linhas: readonly ConteudoPalete[] }) {
+/** Tabela do espelho (bloco único). Usada na folha e na medição das linhas. */
+export function TabelaEspelho({ layout, documento, linhas }: { layout: LayoutEspelho; documento: DocumentoEspelho; linhas: readonly LinhaTabela[] }) {
   const t = layout.tabela;
-  const b = layout.blocos.tabela;
+  const n = documento.cabecalho.length;
   const classe = `ef-tabela ef-tabela--cab-${t.cabecalho} ef-tabela--${t.linhas}`;
   const celula: CSSProperties = { paddingTop: `${String(t.espacamento)}mm`, paddingBottom: `${String(t.espacamento)}mm` };
-  return <table className={classe} style={estiloTexto(b)} data-conteudo="">
-    <colgroup>{t.colunas.map((w, i) => <col key={COLUNAS_TABELA[i]} style={{ width: `${String(w)}%` }} />)}</colgroup>
-    <thead><tr>{COLUNAS_TABELA.map((h) => <th key={h} style={celula}>{h}</th>)}</tr></thead>
+  return <table className={classe} style={estiloTexto(blocoDe(layout, 'tabela'))} data-conteudo="">
+    <colgroup>{documento.cabecalho.map((h, i) => <col key={h} style={{ width: `${String(t.colunas[i] ?? 100 / n)}%` }} />)}</colgroup>
+    <thead><tr>{documento.cabecalho.map((h) => <th key={h} style={celula}>{h}</th>)}</tr></thead>
     <tbody>{linhas.length === 0
-      ? <tr><td colSpan={COLUNAS_TABELA.length} style={celula}>SEM CONTEÚDO REGISTRADO — CONFERÊNCIA PENDENTE</td></tr>
-      : linhas.map((d) => <tr key={d.id}>{celulasDaNota(d, palete).map((v, i) => <td key={COLUNAS_TABELA[i]} style={celula}>{v}</td>)}</tr>)}</tbody>
+      ? <tr><td colSpan={n} style={celula}>{documento.vazio}</td></tr>
+      : linhas.map((l) => <tr key={l.id} className={l.total === true ? 'ef-total' : undefined}>{l.celulas.map((v, i) => <td key={i} style={celula} colSpan={l.total === true && i === 0 ? n - (l.celulas.length - 1) : undefined}>{v}</td>)}</tr>)}</tbody>
   </table>;
 }
 
 interface PropsFolha {
-  contexto: ContextoFolha;
-  linhas: readonly ConteudoPalete[];
+  documento: DocumentoEspelho;
+  pagina: number;
+  totalPaginas: number;
+  linhas: readonly LinhaTabela[];
   layout: LayoutEspelho;
   edicao?: EdicaoFolha;
-  rotulo?: string;
   refFolha?: (el: HTMLElement | null) => void;
 }
 
-export function FolhaEspelho({ contexto, linhas, layout, edicao, rotulo, refFolha }: PropsFolha) {
+export function FolhaEspelho({ documento, pagina, totalPaginas, linhas, layout, edicao, refFolha }: PropsFolha) {
   const blocos: ReactNode[] = [];
-  for (const campo of CAMPOS) {
-    const b = layout.blocos[campo];
+  for (const campo of camposDe(layout)) {
+    const b = blocoDe(layout, campo);
     let fantasma = false;
     let conteudo: ReactNode;
     if (campo === 'tabela') {
-      conteudo = <TabelaNotas layout={layout} palete={contexto.palete} linhas={linhas} />;
+      conteudo = <TabelaEspelho layout={layout} documento={documento} linhas={linhas} />;
     } else if (campo === 'divisoria') {
       if (!b.visivel && edicao === undefined) continue;
       fantasma = !b.visivel;
       conteudo = <div className="ef-linha" />;
     } else {
       if (!b.visivel && edicao === undefined) continue;
-      let texto = textoDoCampo(campo, contexto);
+      const texto = documento.texto(campo, pagina, totalPaginas);
       fantasma = !b.visivel;
+      let rotulo = '';
+      let valor: string;
       if (texto === null) {
-        if (edicao === undefined || (campo !== 'continuacao' && campo !== 'demo')) continue;
-        texto = { rotulo: '', valor: textoFantasma(campo) };
+        const exemplo = edicao === undefined ? null : textoFantasma(campo);
+        if (exemplo === null) continue;
+        valor = exemplo;
         fantasma = true;
+      } else {
+        rotulo = b.rotulo ? texto.rotulo : '';
+        valor = b.rotulo || texto.semRotulo === undefined ? texto.valor : texto.semRotulo;
       }
-      conteudo = <div data-conteudo="">{b.rotulo && texto.rotulo !== '' && <span className="ef-rotulo">{texto.rotulo}</span>}<span className={`ef-valor ef-valor--${campo}`}>{texto.valor}</span></div>;
+      conteudo = <div data-conteudo="">{rotulo !== '' && <span className="ef-rotulo">{rotulo}</span>}<span className={`ef-valor ef-valor--${campo}`}>{valor}</span></div>;
     }
     const selecionado = edicao?.selecionado === campo;
     const classe = ['ef-bloco', `ef-bloco--${campo}`, fantasma ? 'ef-bloco--fantasma' : '', selecionado ? 'ef-bloco--selecionado' : '', edicao?.comProblema.has(campo) === true ? 'ef-bloco--problema' : ''].filter((c) => c !== '').join(' ');
     const comAltura = campo === 'tabela' || campo === 'divisoria';
-    const estilo: CSSProperties = { ...posicao(b, comAltura), ...(campo === 'tabela' || campo === 'divisoria' ? {} : estiloTexto(b)) };
+    const estilo: CSSProperties = { ...posicao(b, comAltura), ...(comAltura ? {} : estiloTexto(b)) };
     blocos.push(<div
       key={campo}
       className={classe}
@@ -106,26 +113,26 @@ export function FolhaEspelho({ contexto, linhas, layout, edicao, rotulo, refFolh
       </>}
     </div>);
   }
-  return <section className={`espelho-folha${edicao === undefined ? '' : ' espelho-folha--edicao'}`} ref={refFolha} aria-label={rotulo ?? `Espelho ${contexto.palete.code}, página ${String(contexto.pagina + 1)}`} data-palete={contexto.palete.code}>
+  return <section className={`espelho-folha${edicao === undefined ? '' : ' espelho-folha--edicao'}`} ref={refFolha} aria-label={`Espelho ${documento.codigo}, página ${String(pagina + 1)}`} data-palete={documento.codigo} data-documento={documento.tipo}>
     {layout.moldura === 'dhl' && <img className="espelho-moldura" src={paraEndereco('/espelhos-moldura.png')} alt="" />}
     {blocos}
   </section>;
 }
 
-/** Altura medida da tabela de um palete com um layout: cabeçalho e cada linha (mm). */
+/** Altura medida da tabela de um documento com um layout: cabeçalho e cada linha (mm). */
 export interface MedidaTabela {
   cabecalho: number;
   linhas: number[];
 }
 export interface EntradaMedicao {
   chave: string;
-  palete: PaleteDoLote;
+  documento: DocumentoEspelho;
   layout: LayoutEspelho;
 }
 const MM_POR_PX = 25.4 / 96;
 
 /**
- * Renderiza fora da tela a tabela inteira de cada palete com a largura e o
+ * Renderiza fora da tela a tabela inteira de cada documento com a largura e o
  * estilo do layout e mede as linhas (sem zoom). A paginação usa essas alturas,
  * então a prévia e o PDF quebram as folhas nos mesmos pontos.
  */
@@ -154,8 +161,8 @@ function MedidorTabelas({ entradas, assinatura, aoMedir }: { entradas: readonly 
     return () => { ativo = false; };
   }, [assinatura]);
   return <div className="ef-medidor" ref={raiz} aria-hidden="true">
-    {entradas.map((e) => <div key={e.chave} data-medida={e.chave} style={{ width: `${String(e.layout.blocos.tabela.largura)}mm` }}>
-      <TabelaNotas layout={e.layout} palete={e.palete} linhas={e.palete.contents.items} />
+    {entradas.map((e) => <div key={e.chave} data-medida={e.chave} style={{ width: `${String(blocoDe(e.layout, 'tabela').largura)}mm` }}>
+      <TabelaEspelho layout={e.layout} documento={e.documento} linhas={e.documento.linhas} />
     </div>)}
   </div>;
 }

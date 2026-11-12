@@ -411,63 +411,67 @@ function CelulaConferencia({ parcelas }: { parcelas: readonly ConteudoPalete[] }
 
 /** Seleção por ocorrência (uma linha por conteúdo, nunca agrupada pela NF) para mover, validar ou cancelar. */
 function TabelaSelecao({ itens, selecionados, aoMudar }: { itens: readonly ConteudoPalete[]; selecionados: ReadonlySet<string>; aoMudar: (ids: readonly string[], marcado: boolean) => void }) {
+  // O <section> em volta é necessário: um contêiner com rolagem direto na grade da janela (altura limitada)
+  // encolhe a zero e a tabela some (as ações de mover/validar/cancelar nunca apareciam).
   return (
-    <div className="janela-tabela-rolagem" role="region" aria-label="Selecionar conteúdos" tabIndex={0}>
-      <table className="janela-tabela janela-tabela--fichas" data-testid="janela-tabela-selecao">
-        <thead>
-          <tr>
-            <th scope="col">
-              <input
-                type="checkbox"
-                aria-label={`Selecionar todos os ${String(itens.length)} conteúdos`}
-                checked={itens.length > 0 && itens.every((i) => selecionados.has(i.id))}
-                onChange={(e) => {
-                  aoMudar(
-                    itens.map((i) => i.id),
-                    e.target.checked,
-                  );
-                }}
-                data-testid="selecionar-todos"
-              />
-            </th>
-            <th scope="col">Documento</th>
-            <th scope="col">Remetente</th>
-            <th scope="col">Origem</th>
-            <th scope="col" className="numero">
-              Volumes
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {itens.map((i) => (
-            <tr key={i.id} data-testid="janela-linha-selecao" data-numero={i.documentNumber ?? ''}>
-              <td data-rotulo="Selecionar">
+    <section className="janela-secao" aria-label="Selecionar conteúdos">
+      <div className="janela-tabela-rolagem" role="region" aria-label="Selecionar conteúdos" tabIndex={0}>
+        <table className="janela-tabela janela-tabela--fichas" data-testid="janela-tabela-selecao">
+          <thead>
+            <tr>
+              <th scope="col">
                 <input
                   type="checkbox"
-                  aria-label={`Selecionar ${textoDocumento(i)}`}
-                  checked={selecionados.has(i.id)}
+                  aria-label={`Selecionar todos os ${String(itens.length)} conteúdos`}
+                  checked={itens.length > 0 && itens.every((i) => selecionados.has(i.id))}
                   onChange={(e) => {
-                    aoMudar([i.id], e.target.checked);
+                    aoMudar(
+                      itens.map((i) => i.id),
+                      e.target.checked,
+                    );
                   }}
-                  data-testid="selecionar-conteudo"
+                  data-testid="selecionar-todos"
                 />
-              </td>
-              <td data-rotulo="Documento">{textoDocumento(i)}</td>
-              <td data-rotulo="Remetente" className="janela-remetente">
-                {i.sender ?? NAO_INFORMADO}
-              </td>
-              <td data-rotulo="Origem">
-                {i.source ?? 'Registrado no aplicativo'}
-                {i.latestInventory === 'NAO_CONSTA' && <span className="janela-alerta"> · não consta do inventário atual</span>}
-              </td>
-              <td data-rotulo="Volumes" className="numero">
-                {i.count.counted === null ? NAO_INFORMADO : formatarQuantidade(i.count.counted)}
-              </td>
+              </th>
+              <th scope="col">Documento</th>
+              <th scope="col">Remetente</th>
+              <th scope="col">Origem</th>
+              <th scope="col" className="numero">
+                Volumes
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {itens.map((i) => (
+              <tr key={i.id} data-testid="janela-linha-selecao" data-numero={i.documentNumber ?? ''}>
+                <td data-rotulo="Selecionar">
+                  <input
+                    type="checkbox"
+                    aria-label={`Selecionar ${textoDocumento(i)}`}
+                    checked={selecionados.has(i.id)}
+                    onChange={(e) => {
+                      aoMudar([i.id], e.target.checked);
+                    }}
+                    data-testid="selecionar-conteudo"
+                  />
+                </td>
+                <td data-rotulo="Documento">{textoDocumento(i)}</td>
+                <td data-rotulo="Remetente" className="janela-remetente">
+                  {i.sender ?? NAO_INFORMADO}
+                </td>
+                <td data-rotulo="Origem">
+                  {i.source ?? 'Registrado no aplicativo'}
+                  {i.latestInventory === 'NAO_CONSTA' && <span className="janela-alerta"> · não consta do inventário atual</span>}
+                </td>
+                <td data-rotulo="Volumes" className="numero">
+                  {i.count.counted === null ? NAO_INFORMADO : formatarQuantidade(i.count.counted)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

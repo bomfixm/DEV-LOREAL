@@ -113,6 +113,8 @@ const SINONIMOS_BIPAGEM: Readonly<Record<string, readonly string[]>> = {
   senderCnpj: ['cnpj remetente', 'cnpj do remetente', 'remetente cnpj', 'cnpj cpf remetente', 'cpf cnpj remetente', 'cnpj'],
   sender: ['remetente', 'nome do remetente', 'remetente nome', 'nome remetente', 'razao social remetente', 'razao social do remetente'],
   lastRead: ['ultima leitura', 'data ultima leitura', 'data da ultima leitura', 'data leitura', 'data da leitura', 'ultima bipagem'],
+  // Volumes da nota (quantos deveriam vir); "Lidos" é a quantidade bipada. Título inteiro: "Volumes lidos" continua sendo Lidos.
+  expectedVolumes: ['volumes', 'volume', 'volumes da nota', 'volumes previstos', 'qtd volumes', 'qtde volumes', 'quantidade de volumes', 'total de volumes'],
 };
 
 /** Coluna sugerida para cada campo do tipo (igualdade com um sinônimo; cada coluna é usada uma vez). */

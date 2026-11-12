@@ -222,6 +222,15 @@ function Previa({
     (d) => d.action === "NOVO" || d.action === "IMPORTAR_SEPARADO",
   );
   const revalidadas = resumo.documents.filter((d) => d.action === "REVALIDADO");
+  // Volumes da nota x Lidos (coluna "Volumes" da exportação, quando vem).
+  const comDiferenca = resumo.documents.filter(
+    (d) => d.expectedVolumes !== null && d.expectedVolumes !== d.volumes,
+  );
+  const temPrevistos = resumo.documents.some((d) => d.expectedVolumes !== null);
+  const faltam = comDiferenca.reduce(
+    (s, d) => s + Math.max(0, (d.expectedVolumes ?? 0) - d.volumes),
+    0,
+  );
   return (
     <section
       className="cartao"
@@ -248,6 +257,21 @@ function Previa({
           </span>
           <span className="bipagem-contador-rotulo">linhas sem volumes</span>
         </li>
+        {comDiferenca.length > 0 && (
+          <li
+            className="bipagem-contador--atencao"
+            data-testid="bipagem-diferencas"
+          >
+            <span className="bipagem-contador-valor">
+              {comDiferenca.length}
+            </span>
+            <span className="bipagem-contador-rotulo">
+              {comDiferenca.length === 1 ? "nota" : "notas"} com lidos
+              diferente dos volumes
+              {faltam > 0 ? ` (faltam ${faltam.toLocaleString("pt-BR")})` : ""}
+            </span>
+          </li>
+        )}
         {c.rowsWithErrors > 0 && (
           <li
             className="bipagem-contador--atencao"
@@ -310,25 +334,47 @@ function Previa({
               <th scope="col">Tipo</th>
               <th scope="col">Número</th>
               <th scope="col">Remetente</th>
+              {temPrevistos && (
+                <th scope="col" className="numero">
+                  Volumes
+                </th>
+              )}
               <th scope="col" className="numero">
-                Volumes
+                {temPrevistos ? "Lidos" : "Volumes"}
               </th>
               <th scope="col">Situação</th>
               <th scope="col">Observação (opcional)</th>
             </tr>
           </thead>
           <tbody>
-            {resumo.documents.slice(0, mostrar).map((d) => (
+            {resumo.documents.slice(0, mostrar).map((d) => {
+              const diferenca =
+                d.expectedVolumes === null ? 0 : d.volumes - d.expectedVolumes;
+              return (
               <tr
                 key={d.row}
                 data-testid="bipagem-documento"
                 data-documento={`${d.type} ${d.number}`}
                 data-acao={d.action}
+                data-diferenca={diferenca === 0 ? undefined : diferenca}
+                className={diferenca === 0 ? undefined : "bipagem-linha--diferenca"}
               >
                 <td>{d.type}</td>
                 <td>{d.number}</td>
                 <td>{d.sender}</td>
-                <td className="numero">{d.volumes}</td>
+                {temPrevistos && (
+                  <td className="numero">{d.expectedVolumes ?? "—"}</td>
+                )}
+                <td className="numero">
+                  {d.volumes}
+                  {diferenca !== 0 && (
+                    <span className="bipagem-diferenca">
+                      {diferenca < 0
+                        ? `faltam ${String(-diferenca)}`
+                        : `${String(diferenca)} a mais`}
+                    </span>
+                  )}
+                </td>
                 <td>
                   <span
                     className={`bipagem-situacao bipagem-situacao--${d.action}`}
@@ -353,13 +399,21 @@ function Previa({
                   />
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
           <tfoot>
             <tr>
               <th scope="row" colSpan={3}>
                 Total a importar ({plural(aceitas.length, "nota", "notas")})
               </th>
+              {temPrevistos && (
+                <td className="numero" data-testid="bipagem-total-volumes">
+                  {aceitas
+                    .reduce((s, d) => s + (d.expectedVolumes ?? 0), 0)
+                    .toLocaleString("pt-BR")}
+                </td>
+              )}
               <td className="numero" data-testid="bipagem-total">
                 {c.volumesToAdd.toLocaleString("pt-BR")}
               </td>
@@ -445,6 +499,12 @@ function Previa({
               <li key={z.row}>
                 Linha {z.row}: {z.type ?? "?"} {z.number ?? ""} ·{" "}
                 {z.sender ?? "remetente não informado"}
+                {z.expectedVolumes !== null && z.expectedVolumes > 0 && (
+                  <strong className="bipagem-diferenca">
+                    nota com {plural(z.expectedVolumes, "volume", "volumes")},
+                    nenhum lido
+                  </strong>
+                )}
               </li>
             ))}
           </ul>

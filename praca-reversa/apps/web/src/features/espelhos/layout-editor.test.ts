@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { diferencaDeVolumes } from './conteudo-espelho';
 import { desfazer, iniciarHistorico, refazer, registrar, restaurar, substituir } from './historico';
 import { aplicarLayout, aplicarLayoutEmbarque, CHAVE_ARMAZENAMENTO, layoutDoEmbarque, layoutsDosPaletes, modelosSalvos, salvarModelo, type MemoriaLayouts } from './layout-armazenamento';
 import {
@@ -166,6 +167,17 @@ describe('vários itens e textos livres', () => {
   it('avisos de texto livre usam o nome do texto', () => {
     const p = problemasDaFolha([{ campo: 'txt-1', nome: 'Texto “Conferente”', x: 280, y: 10, largura: 30, altura: 5 }], 8);
     expect(p[0]?.texto).toBe('Texto “Conferente”: passa da borda da folha.');
+  });
+});
+
+describe('volumes x lidos no espelho da praça', () => {
+  const nota = (expected: string | null, counted: string | null) => ({ count: { state: 'REALIZADA', counted, expected, origin: 'BIPAGEM', at: null, by: null, reference: null } }) as Parameters<typeof diferencaDeVolumes>[0];
+  it('só destaca quando os dois existem e são diferentes', () => {
+    expect(diferencaDeVolumes(nota('18', '10'))).toBe(-8);
+    expect(diferencaDeVolumes(nota('5', '7'))).toBe(2);
+    expect(diferencaDeVolumes(nota('12', '12'))).toBeNull();
+    expect(diferencaDeVolumes(nota(null, '10'))).toBeNull();
+    expect(diferencaDeVolumes(nota('18', null))).toBeNull();
   });
 });
 

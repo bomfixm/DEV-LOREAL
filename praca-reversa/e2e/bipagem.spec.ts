@@ -129,7 +129,68 @@ async function percurso(page: Page, celular: boolean, capturas: boolean): Promis
   expect(await conteudo()).toHaveLength(4);
 }
 
+/** Exportação de nov. 2026: Tipo, Número, Volumes (da nota), Lidos, … (sem CNPJ nem Última Leitura). */
+function exportacaoComVolumes(s: string): Buffer {
+  const cab = ['Tipo', 'Número', 'Volumes', 'Lidos', 'Destino', 'Remetente', 'Destinatário', 'Baixa indevida', 'Posicao', 'Area'];
+  const linhas = [
+    ['NF-e', `6${s}1`, 18, 10, 'LOU', 'Remetente Fictício D', 'Destinatário Fictício', 'N', null, null],
+    ['NF-e', `6${s}2`, 12, 12, 'LOU', 'Remetente Fictício E', 'Destinatário Fictício', 'N', null, null],
+  ];
+  return Buffer.from(String.fromCharCode(0xfeff) + [cab, ...linhas].map((l) => l.map((c) => (c === null ? '' : String(c))).join(';')).join('\r\n') + '\r\n', 'utf8');
+}
+
 test.describe('Importar bipagem "Etiquetas"', () => {
+  test('Volumes x Lidos: a prévia e o espelho destacam só a nota com diferença @captura', async ({ page }, testInfo) => {
+    const celular = ehCelular(testInfo);
+    const s = randomUUID().replace(/\D/g, '').slice(0, 5).padEnd(5, '6');
+    await entrar(page, 'operador');
+    const praca = await obterPraca(page);
+    const ocupadas = new Set(praca.pallets.map((p) => p.positionId));
+    const livre = praca.layout.positions.find((p) => p.available && !ocupadas.has(p.id));
+    if (!livre) throw new Error('Sem posição livre no escopo de cadastro.');
+
+    await page.goto('/bipagem');
+    await page.getByTestId('bipagem-arquivo').setInputFiles({ name: `Etiquetas-volumes-${s}.csv`, mimeType: 'text/csv', buffer: exportacaoComVolumes(s) });
+    await page.getByTestId('bipagem-enviar').click();
+    await expect(page.getByTestId('bipagem-previa')).toBeVisible();
+    await expect(page.getByTestId('bipagem-diferencas')).toContainText('1');
+    await expect(page.getByTestId('bipagem-diferencas')).toContainText('faltam 8');
+    const comDiferenca = page.locator(`tr[data-documento="NF-e 6${s}1"]`);
+    await expect(comDiferenca).toHaveAttribute('data-diferenca', '-8');
+    await expect(comDiferenca).toContainText('faltam 8');
+    await expect(page.locator(`tr[data-documento="NF-e 6${s}2"]`)).not.toHaveAttribute('data-diferenca');
+    await expect(page.getByTestId('bipagem-total-volumes')).toHaveText('30');
+    await expect(page.getByTestId('bipagem-total')).toHaveText('22');
+    await capturar(page, `${celular ? 'celular' : 'computador'}-07-volumes-x-lidos`);
+    if (celular) await semRolagemHorizontal(page);
+
+    await page.locator(`path[data-posicao="${livre.code}"]`).dispatchEvent('click');
+    await page.getByTestId('bipagem-importar').click();
+    const titulo = page.getByTestId('bipagem-resultado-titulo');
+    await expect(titulo).toHaveText(/^Palete \S+ criado$/);
+    const numero = ((await titulo.textContent()) ?? '').replace(/^Palete /, '').replace(/ criado$/, '');
+    const criado = (await obterPraca(page)).pallets.find((p) => p.code === numero);
+    const itens = ((await (await page.request.get(`/api/v1/paletes/${criado?.id ?? ''}/conteudos`)).json()) as { items: { documentNumber: string; count: { counted: string | null; expected: string | null } }[] }).items;
+    expect(itens.map((i) => [i.documentNumber, i.count.expected, i.count.counted]).sort()).toEqual([[`6${s}1`, '18', '10'], [`6${s}2`, '12', '12']]);
+    if (celular) return;
+
+    // Espelho: "10 (−8)" no LIDO e só essa linha em destaque; a nota igual fica normal.
+    await page.goto('/espelhos');
+    await page.locator('path[data-palete-id]').first().waitFor({ state: 'attached' });
+    await page.locator(`path[data-codigo="${numero}"]`).click({ force: true });
+    await page.getByRole('button', { name: 'Gerar prévia', exact: true }).click();
+    await expect(page.locator('.espelhos-folhas[data-pronto="sim"]')).toBeVisible();
+    const folha = page.locator(`.espelhos-folhas .espelho-folha[data-palete="${numero}"]`).first();
+    await expect(folha.locator('tbody tr.ef-diferenca')).toHaveCount(1);
+    await expect(folha.locator('tbody tr.ef-diferenca')).toContainText(`6${s}1`);
+    await expect(folha.locator('tbody tr.ef-diferenca')).toContainText('10 (−8)');
+    await expect(folha.locator('tbody tr', { hasText: `6${s}2` })).not.toHaveClass(/ef-diferenca/);
+    await page.emulateMedia({ media: 'print' });
+    mkdirSync(PASTA, { recursive: true });
+    await folha.screenshot({ path: `${PASTA}/espelho-volumes-x-lidos.png` });
+    await page.emulateMedia({ media: 'screen' });
+  });
+
   test('arquivo → prévia → posição livre no mapa → palete novo numerado; o mesmo arquivo de novo: Revalidar e Importar separadamente', async ({ page }, testInfo) => {
     await percurso(page, ehCelular(testInfo), false);
   });

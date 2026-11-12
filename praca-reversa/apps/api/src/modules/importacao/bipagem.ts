@@ -56,7 +56,7 @@ import { celulaDe, lidosDaLinha, type Entrada, type LinhaClassificada } from './
 
 type Db = Banco | Transacao;
 
-export const CAMPOS_BIPAGEM = ['documentType', 'documentNumber', 'readVolumes', 'sender', 'senderCnpj', 'lastRead'] as const;
+export const CAMPOS_BIPAGEM = ['documentType', 'documentNumber', 'readVolumes', 'sender', 'senderCnpj', 'lastRead', 'expectedVolumes'] as const;
 type CampoBipagem = (typeof CAMPOS_BIPAGEM)[number];
 const OBRIGATORIOS: readonly CampoBipagem[] = ['documentType', 'documentNumber', 'readVolumes', 'sender'];
 
@@ -67,6 +67,7 @@ const CAMPOS: Readonly<Record<CampoBipagem, Campo>> = {
   sender: { campo: 'sender', rotulo: 'Remetente' },
   senderCnpj: { campo: 'senderCnpj', rotulo: 'CNPJ Remetente' },
   lastRead: { campo: 'lastRead', rotulo: 'Última Leitura' },
+  expectedVolumes: { campo: 'expectedVolumes', rotulo: 'Volumes' },
 };
 
 const MAX_VOLUMES = 100_000;
@@ -129,6 +130,8 @@ export interface LinhaBipagemLida {
   tipoCanonico: string | null;
   numeroDocumento: string | null;
   volumes: number | null;
+  /** Coluna "Volumes" (volumes da nota; opcional): `null` = sem a coluna, vazia ou inválida (aviso). */
+  previstos: number | null;
   /** CNPJ como lido e só os dígitos (11 a 14; `null` = ausente ou inválido, sem completar por suposição). */
   cnpj: string | null;
   cnpjDigitos: string | null;
@@ -154,25 +157,42 @@ function lerNumero(c: CelulaTabela | undefined, max: number): { valor: string | 
 
 /** Lidos: inteiro de 0 a 100.000 (vazio, negativo, fracionário ou texto = erro da linha; nunca vira zero). */
 export function lerLidos(c: CelulaTabela | undefined): { valor: number | null; erro?: MotivoLinha } {
-  const f = CAMPOS.readVolumes;
+  return lerQuantidade(c, CAMPOS.readVolumes, 'LIDOS');
+}
+
+/** Inteiro de volumes (Lidos ou Volumes): mesmas regras, mensagens com o nome da coluna. */
+function lerQuantidade(c: CelulaTabela | undefined, f: Campo, prefixo: string): { valor: number | null; erro?: MotivoLinha } {
+  const r = f.rotulo;
   const lido = textoLido(c);
-  if (c?.formula) return { valor: null, erro: motivo('FORMULA', f.campo, `Lidos: a célula tem fórmula (${lido ?? ''}); use o valor fixo.`) };
-  if (c === undefined || lido === null || lido.trim() === '') return { valor: null, erro: motivo('CAMPO_OBRIGATORIO', f.campo, 'Lidos vazio.') };
+  if (c?.formula) return { valor: null, erro: motivo('FORMULA', f.campo, `${r}: a célula tem fórmula (${lido ?? ''}); use o valor fixo.`) };
+  if (c === undefined || lido === null || lido.trim() === '') return { valor: null, erro: motivo('CAMPO_OBRIGATORIO', f.campo, `${r} vazio.`) };
   const t = lido.trim();
   let inteiro: string | null = null;
   if (c.tipo === 'NUMERO') {
     const d = decimalExato(t);
     if (d !== null && !d.negativo && d.fracao === '') inteiro = d.inteiro;
-    else if (d?.negativo) return { valor: null, erro: motivo('LIDOS_NEGATIVO', f.campo, `Lidos negativo (${t}).`) };
+    else if (d?.negativo) return { valor: null, erro: motivo(`${prefixo}_NEGATIVO`, f.campo, `${r} negativo (${t}).`) };
   } else if (/^\d+$/.test(t)) {
     inteiro = semZeros(t);
   } else if (/^-\s*\d/.test(t)) {
-    return { valor: null, erro: motivo('LIDOS_NEGATIVO', f.campo, `Lidos negativo (${t}).`) };
+    return { valor: null, erro: motivo(`${prefixo}_NEGATIVO`, f.campo, `${r} negativo (${t}).`) };
   }
-  if (inteiro === null) return { valor: null, erro: motivo('LIDOS_INVALIDO', f.campo, `Lidos "${t}" não é um número inteiro de volumes.`) };
+  if (inteiro === null) return { valor: null, erro: motivo(`${prefixo}_INVALIDO`, f.campo, `${r} "${t}" não é um número inteiro de volumes.`) };
   const n = Number(inteiro);
-  if (!Number.isSafeInteger(n) || n > MAX_VOLUMES) return { valor: null, erro: motivo('LIDOS_INVALIDO', f.campo, `Lidos acima de ${String(MAX_VOLUMES)} (${t}).`) };
+  if (!Number.isSafeInteger(n) || n > MAX_VOLUMES) return { valor: null, erro: motivo(`${prefixo}_INVALIDO`, f.campo, `${r} acima de ${String(MAX_VOLUMES)} (${t}).`) };
   return { valor: n };
+}
+
+/**
+ * Volumes da nota (coluna "Volumes", opcional): quantos deveriam vir. Vazio =
+ * não informado; valor inválido vira aviso (não impede a importação: Lidos é
+ * o que entra no palete).
+ */
+export function lerVolumesDaNota(c: CelulaTabela | undefined): { valor: number | null; aviso?: MotivoLinha } {
+  const lido = textoLido(c);
+  if (c === undefined || lido === null || lido.trim() === '') return { valor: null };
+  const r = lerQuantidade(c, CAMPOS.expectedVolumes, 'VOLUMES');
+  return r.erro === undefined ? { valor: r.valor } : { valor: null, aviso: { ...r.erro, message: `${r.erro.message} Ignorado: a nota fica sem volumes previstos.` } };
 }
 
 /**
@@ -258,6 +278,8 @@ export function interpretarBipagem(e: Entrada): LinhaBipagemLida[] {
     else remetente = rRemetente.valor;
     const ultima = lerUltimaLeitura(c('lastRead'));
     if (ultima.aviso) avisos.push(ultima.aviso);
+    const previstos = lerVolumesDaNota(c('expectedVolumes'));
+    if (previstos.aviso) avisos.push(previstos.aviso);
 
     // Lidos = 0 não exige identificação completa: a linha só é relatada.
     const zero = lidos.valor === 0;
@@ -272,6 +294,7 @@ export function interpretarBipagem(e: Entrada): LinhaBipagemLida[] {
       tipoCanonico: tipo?.original ?? null,
       numeroDocumento: numero.valor,
       volumes: lidos.valor,
+      previstos: previstos.valor,
       cnpj: cnpj.valor,
       cnpjDigitos: cnpj.digitos,
       remetente,
@@ -510,6 +533,7 @@ export function classificarBipagem(
     documentTypeCode: l.tipoCodigo,
     documentNumber: l.numeroDocumento,
     readVolumes: l.volumes === null ? null : String(l.volumes),
+    expectedVolumes: l.previstos === null ? null : String(l.previstos),
     sender: l.remetente,
     senderCnpj: l.cnpj,
     lastRead: l.ultimaLeitura,
@@ -554,6 +578,7 @@ export function classificarBipagem(
       senderCnpj: l.cnpj,
       sender: l.remetente ?? '',
       volumes,
+      expectedVolumes: l.previstos,
       lastRead: l.ultimaLeitura,
       action: acao,
       matches: coincidencias,
@@ -597,7 +622,7 @@ export function classificarBipagem(
   const linhas = lidas.map((l) => porLinha.get(l.numero)).filter((x): x is LinhaClassificada => x !== undefined);
   const semLeitura: RegistroSemLeitura[] = validas
     .filter((l) => l.volumes === 0)
-    .map((l) => ({ row: l.numero, type: l.tipoLido, number: l.numeroDocumento, senderCnpj: l.cnpj, sender: l.remetente }));
+    .map((l) => ({ row: l.numero, type: l.tipoLido, number: l.numeroDocumento, senderCnpj: l.cnpj, sender: l.remetente, expectedVolumes: l.previstos }));
   const erros = linhas.filter((l) => l.classificacao === 'INVALIDA').map((l) => ({ row: l.numero, messages: l.motivos.map((m) => m.message) }));
   const porTipo = new Map<string, { records: number; withReads: number; volumes: number }>();
   for (const l of validas) {
@@ -743,7 +768,8 @@ export async function gravarBipagem(
         conteudoId: id,
         vinculoId: null,
         volumesContados: l.volumes ?? 0,
-        volumesPrevistos: null,
+        // Coluna "Volumes" da nota: o espelho e a janela do palete comparam com os lidos.
+        volumesPrevistos: l.previstos,
         origem: 'BIPAGEM',
         referencia: `Bipagem ${lote.nomeArquivo}, linha ${String(l.numero)}`.slice(0, 200),
         loteImportacaoId: lote.id,

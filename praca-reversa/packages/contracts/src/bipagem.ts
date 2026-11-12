@@ -208,6 +208,8 @@ export const DocumentoBipagemSchema = z.object({
   sender: z.string().min(1),
   /** Lidos da linha (volumes reais lidos). */
   volumes: z.number().int().positive(),
+  /** Coluna "Volumes" da nota (quantos deveriam vir); `null` = sem a coluna, vazia ou inválida. Diferente de Lidos = destacar. */
+  expectedVolumes: z.number().int().nonnegative().nullable().default(null),
   /** "Última Leitura" como lida (AAAA-MM-DDTHH:MM[:SS], horário local da bipagem); `null` = sem a coluna ou vazia. */
   lastRead: z.string().nullable(),
   action: AcaoDocumentoBipagemSchema,
@@ -228,6 +230,8 @@ export const RegistroSemLeituraSchema = z.object({
   number: z.string().nullable(),
   senderCnpj: z.string().nullable(),
   sender: z.string().nullable(),
+  /** Coluna "Volumes" da nota (a nota tinha volumes e nenhum foi lido). */
+  expectedVolumes: z.number().int().nonnegative().nullable().default(null),
 });
 export type RegistroSemLeitura = z.infer<typeof RegistroSemLeituraSchema>;
 

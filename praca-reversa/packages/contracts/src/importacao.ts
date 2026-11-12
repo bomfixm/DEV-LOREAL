@@ -138,7 +138,7 @@ export const CampoSelecaoSchema = z.enum([
   'notes',
 ]);
 /** Bipagem real (etapa 1): só os cinco campos de negócio; as demais colunas do arquivo são ignoradas. */
-export const CampoBipagemSchema = z.enum(['documentType', 'documentNumber', 'readVolumes', 'senderCnpj', 'sender', 'lastRead']);
+export const CampoBipagemSchema = z.enum(['documentType', 'documentNumber', 'readVolumes', 'senderCnpj', 'sender', 'lastRead', 'expectedVolumes']);
 export type CampoImportacao =
   | z.infer<typeof CampoBipagemSchema>
   | z.infer<typeof CampoProdutoSchema>
@@ -296,6 +296,7 @@ export const CAMPOS_IMPORTACAO: Readonly<Record<TipoImportacao, readonly Definic
     { campo: 'sender', rotulo: 'Remetente', obrigatorio: true, identificador: true, ajuda: 'Nome do remetente.' },
     { campo: 'senderCnpj', rotulo: 'CNPJ Remetente', obrigatorio: false, identificador: true, ajuda: 'CNPJ do remetente, como texto; comparado só pelos 14 dígitos. Opcional.' },
     { campo: 'lastRead', rotulo: 'Última Leitura', obrigatorio: false, identificador: false, ajuda: 'Data e hora da bipagem, como lidas (sem fuso inventado). Opcional; não é a data de conferência.' },
+    { campo: 'expectedVolumes', rotulo: 'Volumes', obrigatorio: false, identificador: false, ajuda: 'Volumes da nota (quantos deveriam vir). Opcional; comparado com Lidos e guardado como volumes previstos.' },
   ],
 };
 

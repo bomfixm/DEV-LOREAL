@@ -44,7 +44,7 @@ export function TabelaEspelho({ layout, documento, linhas }: { layout: LayoutEsp
     <thead><tr>{documento.cabecalho.map((h) => <th key={h} style={celula}>{h}</th>)}</tr></thead>
     <tbody>{linhas.length === 0
       ? <tr><td colSpan={n} style={celula}>{documento.vazio}</td></tr>
-      : linhas.map((l) => <tr key={l.id} className={l.total === true ? 'ef-total' : undefined}>{l.celulas.map((v, i) => <td key={i} style={celula} colSpan={l.total === true && i === 0 ? n - (l.celulas.length - 1) : undefined}>{v}</td>)}</tr>)}</tbody>
+      : linhas.map((l) => <tr key={l.id} className={l.total === true ? 'ef-total' : l.destaque === true ? 'ef-diferenca' : undefined}>{l.celulas.map((v, i) => <td key={i} style={celula} colSpan={l.total === true && i === 0 ? n - (l.celulas.length - 1) : undefined}>{v}</td>)}</tr>)}</tbody>
   </table>;
 }
 

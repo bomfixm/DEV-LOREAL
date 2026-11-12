@@ -34,7 +34,7 @@ describe('leitor fixo da bipagem "Etiquetas"', () => {
     const r = reconhecerBipagem(conteudo, 'XLSX', LIMITES_PLANILHA_PADRAO);
     expect(r.tabela.opcoes.sheet).toBe('Etiquetas_1');
     // Tipo C, Número D, Lidos G, Remetente K, CNPJ J, Última Leitura I (índices a partir de 0).
-    expect(r.colunas).toEqual({ documentType: 2, documentNumber: 3, readVolumes: 6, sender: 10, senderCnpj: 9, lastRead: 8 });
+    expect(r.colunas).toEqual({ documentType: 2, documentNumber: 3, readVolumes: 6, sender: 10, senderCnpj: 9, lastRead: 8, expectedVolumes: null });
     const linhas = ler(conteudo);
     expect(linhas).toHaveLength(63);
     expect(linhas.filter((l) => l.erros.length > 0)).toEqual([]);
@@ -85,7 +85,28 @@ describe('leitor fixo da bipagem "Etiquetas"', () => {
   it('cabeçalhos normalizados em outra ordem e linha; arquivo sem CNPJ nem Última Leitura é aceito', () => {
     const r = reconhecerBipagem(Buffer.from('Relatório;;;\r\n  REMETENTE ;Leituras;lidos;numero;TIPO\r\nRemetente Fictício;9;2;000123;nf-e\r\n', 'utf8'), 'CSV', LIMITES_PLANILHA_PADRAO);
     expect(r.tabela.opcoes.headerRow).toBe(2);
-    expect(r.colunas).toEqual({ documentType: 4, documentNumber: 3, readVolumes: 2, sender: 0, senderCnpj: null, lastRead: null });
+    expect(r.colunas).toEqual({ documentType: 4, documentNumber: 3, readVolumes: 2, sender: 0, senderCnpj: null, lastRead: null, expectedVolumes: null });
+  });
+
+  it('exportação com Volumes e Lidos (nov. 2026): volumes da nota guardados à parte; Lidos continua sendo o que entra', () => {
+    const cab = 'Tipo;Número;Volumes;Lidos;Destino;Remetente;Destinatário;Baixa indevida;Posicao;Area';
+    const arquivo = Buffer.from(
+      [cab, 'NF-e;1000001;18;10;LOU;Remetente Fictício A;Destinatário Fictício;N;;', 'NF-e;1000002;12;12;LOU;Remetente Fictício B;Destinatário Fictício;N;;', 'NF-e;1000003;;4;LOU;Remetente Fictício C;Destinatário Fictício;N;;', 'NF-e;1000004;abc;3;LOU;Remetente Fictício D;Destinatário Fictício;N;;', 'NF-e;1000005;6;0;LOU;Remetente Fictício E;Destinatário Fictício;N;;'].join('\r\n'),
+      'utf8',
+    );
+    const r = reconhecerBipagem(arquivo, 'CSV', LIMITES_PLANILHA_PADRAO);
+    expect(r.colunas).toMatchObject({ documentType: 0, documentNumber: 1, expectedVolumes: 2, readVolumes: 3, sender: 5 });
+    const [faltando, igual, semVolumes, invalido, zero] = ler(arquivo);
+    expect(faltando).toMatchObject({ volumes: 10, previstos: 18, erros: [], avisos: [] });
+    expect(igual).toMatchObject({ volumes: 12, previstos: 12, erros: [] });
+    expect(semVolumes).toMatchObject({ volumes: 4, previstos: null, erros: [], avisos: [] });
+    // Volumes inválido só avisa: a nota entra pelos Lidos, sem volumes previstos.
+    expect(invalido).toMatchObject({ volumes: 3, previstos: null, erros: [] });
+    expect(invalido?.avisos.map((a) => a.code)).toEqual(['VOLUMES_INVALIDO']);
+    expect(zero).toMatchObject({ volumes: 0, previstos: 6 });
+    // "Volumes lidos" continua sendo Lidos (título inteiro), e não os volumes da nota.
+    const antigo = reconhecerBipagem(Buffer.from('Tipo;Número;Volumes lidos;Remetente\r\nNF-e;1;2;X\r\n', 'utf8'), 'CSV', LIMITES_PLANILHA_PADRAO);
+    expect(antigo.colunas).toMatchObject({ readVolumes: 2, expectedVolumes: null });
   });
 
   it('falta de coluna obrigatória: erro curto com o nome do que falta e a orientação de exportar no padrão', () => {

@@ -62,6 +62,23 @@
   margin-top: 12px;
 }
 
+/* Volumes da nota x Lidos: só a nota com diferença ganha destaque. */
+.bipagem-tabela tbody tr.bipagem-linha--diferenca {
+  background: var(--tom-aviso-fundo, #fff4d6);
+}
+.bipagem-diferenca {
+  display: block;
+  margin-top: 2px;
+  color: var(--tom-aviso-texto, #8a5a00);
+  font-size: 0.8em;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.lista-documentos .bipagem-diferenca {
+  display: inline;
+  margin-left: 8px;
+}
+
 .bipagem-mais > summary {
   cursor: pointer;
   font-weight: 600;

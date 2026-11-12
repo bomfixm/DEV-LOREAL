@@ -71,3 +71,6 @@
 .ef-tabela .ef-total td { font-weight: 700; border-top: .35mm solid #222; }
 .ef-tabela--cab-claro .ef-total td, .ef-tabela--horizontais .ef-total td { border-bottom: 0; }
 .ef-bloco--rascunho { color: #b00000; }
+
+/* Nota com lidos diferente dos volumes: cinza claro e negrito (aparece em impressora P&B). */
+.ef-tabela tbody tr.ef-diferenca td { background: #e4e4e4; font-weight: 700; }

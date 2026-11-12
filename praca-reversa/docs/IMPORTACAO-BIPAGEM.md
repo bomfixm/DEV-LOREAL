@@ -14,6 +14,7 @@ Um arquivo = **um único palete bipado**. Referência: `amostras/Bipagem-real.xl
 | K | Remetente | **Obrigatório**: nome do remetente |
 | J | CNPJ Remetente | Opcional: texto original guardado; comparado pelos 14 dígitos |
 | I | Última Leitura | Opcional: data/hora da bipagem, como lida (sem fuso inventado) |
+| — | Volumes | Opcional (exportação de nov. 2026: Tipo, Número, **Volumes**, **Lidos**, Destino, Remetente…): volumes da nota, guardados como volumes previstos e comparados com Lidos |
 | A, B, E, F, H, L, M | Status, Baixa indevida, Série, **Leituras**, Destino, Posicao, Area | **Ignorados** em qualquer regra (nem filtro, nem destino, nem quantidade) |
 
 As letras são da amostra; o leitor acha os cabeçalhos pelo nome (sem acentos, caixa, pontuação ou espaços), em qualquer ordem, aba ou nas 10 primeiras linhas. Faltando um obrigatório: "Não encontrei a coluna … Exporte de novo a bipagem de um palete no padrão "Etiquetas"…" — nada é gravado e não há mapeador.
@@ -26,6 +27,20 @@ Amostra conferida: 63 linhas, **41 com Lidos > 0 (47 volumes)**, **22 com Lidos 
 - **Tipo**: NF-e → código NF, Minuta → MI, NFD → NFD (original guardado; NF-e nunca vira NFD). Outro tipo = pendência.
 - **Número**: texto exato (zeros à esquerda preservados). **Remetente**: obrigatório com Lidos > 0.
 - **CNPJ**: opcional; número da planilha que perdeu zeros (11–14 dígitos) é completado até 14 com aviso; texto com outra quantidade de dígitos fica como lido, sem dígitos de comparação (aviso, nunca completado por suposição).
+- **Volumes x Lidos** (12 nov. 2026):
+  - **Leitura:**
+    - Quando a coluna "Volumes" vem, cada nota guarda os volumes da nota (`volumes_previstos` da contagem).
+    - O que entra no palete continua sendo Lidos.
+    - Vazio fica sem previsto.
+    - Inválido vira aviso, não erro: a nota entra sem previsto.
+    - "Volumes lidos" (título inteiro) continua sendo Lidos.
+  - **Prévia:**
+    - Ganha as colunas Volumes e Lidos.
+    - A nota com diferença fica destacada ("faltam 8" ou "2 a mais"), e um contador mostra quantas notas diferem.
+    - Lidos = 0 com Volumes > 0 aparece como "nota com N volumes, nenhum lido".
+  - **Espelho da praça:**
+    - O LIDO mostra "10 (−8)" e a linha sai em cinza e negrito.
+    - Nota igual ou sem previsto fica normal.
 - **Última Leitura**: célula de data, serial do Excel, "DD/MM/AAAA HH:MM[:SS]" ou ISO → `AAAA-MM-DDTHH:MM:SS` (horário local da bipagem). Não reconhecida = aviso. Não é conferência do palete.
 
 ## Destino e numeração

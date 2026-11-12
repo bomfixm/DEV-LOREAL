@@ -13,6 +13,8 @@ export interface LinhaTabela {
   celulas: readonly string[];
   /** Linha de total: a primeira célula ocupa as colunas que faltam. */
   total?: boolean;
+  /** Nota com lidos diferente dos volumes: linha em destaque (cinza e negrito, lê bem em P&B). */
+  destaque?: boolean;
 }
 export interface TextoCampo {
   rotulo: string;
@@ -43,9 +45,22 @@ export function observacao(d: ConteudoPalete): string {
 
 const traco = (v: string | number | null | undefined): string => (v === null || v === undefined || v === '' ? '—' : String(v));
 
-/** Células de uma nota, na ordem das colunas do espelho da praça. */
+/**
+ * Lidos menos volumes da nota (ex.: 10 lidos de 18 = −8). `null` quando são
+ * iguais ou falta um dos dois: aí o espelho fica normal.
+ */
+export function diferencaDeVolumes(d: Pick<ConteudoPalete, 'count'>): number | null {
+  const { expected, counted } = d.count;
+  if (expected === null || counted === null) return null;
+  const diferenca = Number(counted) - Number(expected);
+  return Number.isFinite(diferenca) && diferenca !== 0 ? diferenca : null;
+}
+
+/** Células de uma nota, na ordem das colunas do espelho da praça. Com diferença, o lido leva "(−n)" / "(+n)". */
 export function celulasDaNota(d: ConteudoPalete, p: PaleteDoLote): string[] {
-  return [traco(d.delivery), traco(d.documentType), traco(d.documentNumber), observacao(d), traco(d.count.expected), traco(d.count.counted), traco(d.sender), p.address ?? 'PENDENTE', p.code];
+  const diferenca = diferencaDeVolumes(d);
+  const lido = diferenca === null ? traco(d.count.counted) : `${traco(d.count.counted)} (${diferenca < 0 ? '−' : '+'}${String(Math.abs(diferenca))})`;
+  return [traco(d.delivery), traco(d.documentType), traco(d.documentNumber), observacao(d), traco(d.count.expected), lido, traco(d.sender), p.address ?? 'PENDENTE', p.code];
 }
 
 function continuacao(pagina: number, total: number): TextoCampo | null {
@@ -61,7 +76,7 @@ export function documentoDaPraca(p: PaleteDoLote, lote: Pick<LoteEspelhos, 'scop
     codigo: p.code,
     tipo: 'praca',
     cabecalho: COLUNAS_DO_DOCUMENTO.praca,
-    linhas: p.contents.items.map((d) => ({ id: d.id, celulas: celulasDaNota(d, p) })),
+    linhas: p.contents.items.map((d) => ({ id: d.id, celulas: celulasDaNota(d, p), ...(diferencaDeVolumes(d) === null ? {} : { destaque: true }) })),
     vazio: 'SEM CONTEÚDO REGISTRADO — CONFERÊNCIA PENDENTE',
     texto: (campo, pagina, total) => {
       switch (campo) {
@@ -76,7 +91,7 @@ export function documentoDaPraca(p: PaleteDoLote, lote: Pick<LoteEspelhos, 'scop
         case 'emissao':
           return { rotulo: '', valor: `${lote.scope.name} · Emitido em ${formatarDataHora(lote.generatedAt)}` };
         case 'legenda':
-          return { rotulo: '', valor: 'Volumes = previsto informado · Lido = contagem registrada · — = não informado' };
+          return { rotulo: '', valor: 'Volumes = volumes da nota · Lido = contagem registrada · (−n) = lidos a menos que os volumes (linha em destaque) · — = não informado' };
         case 'formulario':
           return { rotulo: '', valor: CODIGO_FORMULARIO };
         default:

@@ -1,0 +1,57 @@
+/* Editor de layout dos espelhos: folha em destaque, barra compacta no topo, propriedades recolhíveis. Nunca é impresso. */
+.editor-layout { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; background: #e9ecef; color: var(--tinta); font-size: 14px; }
+.ed-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 6px 12px; background: var(--superficie); border-bottom: 1px solid var(--borda); }
+.ed-grupo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ed-grupo--direita { margin-left: auto; }
+.ed-titulo { margin-right: 6px; font-size: 15px; }
+.editor-layout .ed-mini { min-height: 32px; padding: 4px 10px; font-size: 13px; }
+.editor-layout .botao-icone.ed-mini { min-width: 32px; padding: 4px 6px; }
+.editor-layout select, .editor-layout input[type='number'], .editor-layout input[type='text'], .editor-layout input:not([type]) { min-height: 32px; padding: 3px 6px; font-size: 13px; }
+.ed-zoom { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+.ed-nav { white-space: nowrap; }
+.ed-ativo { background: var(--amarelo-acao) !important; border-color: var(--amarelo-acao-borda) !important; }
+.ed-check { display: inline-flex; align-items: center; gap: 6px; }
+.ed-faixa { display: grid; gap: 6px; padding: 8px 12px; background: var(--superficie-2); border-bottom: 1px solid var(--borda); max-height: 30vh; overflow: auto; }
+.ed-lista p { margin: 4px 0 0; color: var(--tinta-suave); }
+.ed-chip { margin: 2px 4px 2px 0; padding: 2px 8px; border: 1px solid var(--borda); border-radius: 999px; background: var(--superficie); font: inherit; font-size: 12px; cursor: pointer; }
+.ed-salvar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ed-salvar label { display: flex; align-items: center; gap: 6px; }
+.ed-dica { margin: 0; color: var(--tinta-suave); font-size: 13px; }
+.ed-corpo { flex: 1; display: flex; min-height: 0; }
+.ed-palco { position: relative; flex: 1; overflow: auto; padding: 20px; display: flex; align-items: flex-start; justify-content: center; }
+.ed-folha { position: relative; flex: none; }
+.ed-escala { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+.ed-escala .espelho-folha { box-shadow: 0 2px 12px #0003; }
+.espelho-folha--edicao .ef-bloco { cursor: move; outline: 1px dashed transparent; touch-action: none; user-select: none; }
+.espelho-folha--edicao .ef-bloco:hover { outline-color: #0b57d080; }
+.espelho-folha--edicao .ef-bloco:focus-visible { outline: 2px solid var(--foco); }
+.espelho-folha--edicao .ef-bloco--selecionado { outline: 2px solid var(--foco) !important; outline-offset: .5mm; z-index: 2; }
+.espelho-folha--edicao .ef-bloco--problema { outline: 2px dashed #d40511; }
+.espelho-folha--edicao .ef-bloco--fantasma { opacity: .35; }
+.espelho-folha--edicao .ef-bloco--divisoria { min-height: 2mm; background-clip: content-box; }
+.ef-alca { position: absolute; z-index: 3; width: 2.4mm; height: 6mm; top: 50%; margin-top: -3mm; border: .3mm solid #fff; border-radius: .6mm; background: var(--foco); }
+.ef-alca--esquerda { left: -1.6mm; cursor: ew-resize; }
+.ef-alca--direita { right: -1.6mm; cursor: ew-resize; }
+.ef-alca--base { left: 50%; top: auto; bottom: -1.6mm; width: 6mm; height: 2.4mm; margin: 0 0 0 -3mm; cursor: ns-resize; }
+.ed-guias { position: absolute; inset: 0; pointer-events: none; }
+.ed-guia-area { position: absolute; border: .3mm dashed #0b57d066; }
+.ed-guia-centro { position: absolute; top: 0; bottom: 0; left: 50%; border-left: .3mm dashed #0b57d033; }
+.ed-guia-centro--ativa { border-left: .4mm solid #d40511; }
+.ed-painel { flex: none; width: 270px; overflow: auto; padding: 10px 12px; background: var(--superficie); border-left: 1px solid var(--borda); display: grid; align-content: start; gap: 10px; }
+.ed-painel-topo { display: flex; justify-content: space-between; align-items: center; }
+.ed-reabrir { position: absolute; right: 12px; bottom: 12px; }
+.ed-grade2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
+.ed-numero { display: grid; grid-template-columns: 1fr auto; gap: 2px 4px; align-items: center; }
+.ed-numero span { grid-column: 1 / -1; font-size: 12px; color: var(--tinta-suave); }
+.ed-numero input { width: 100%; min-width: 0; }
+.ed-numero small { color: var(--tinta-suave); }
+.ed-linha { display: grid; gap: 2px; font-size: 12px; color: var(--tinta-suave); }
+.ed-linha select { color: var(--tinta); }
+.ed-segmentado { display: flex; }
+.ed-segmentado button { flex: 1; min-height: 32px; border: 1px solid var(--borda-forte); background: var(--superficie); font: inherit; font-size: 13px; cursor: pointer; }
+.ed-segmentado button + button { border-left: 0; }
+.ed-campos { display: flex; flex-wrap: wrap; gap: 4px; }
+.ed-problemas { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.ed-problema button { text-align: left; font-size: 12px; }
+.ed-problema--erro button { color: var(--erro); font-weight: 600; }
+.ed-problema--aviso button { color: var(--tom-aviso-texto); }

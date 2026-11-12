@@ -1,12 +1,20 @@
-import { ConteudoPaleteSchema } from '@praca-reversa/contracts';
 import { expect, it } from 'vitest';
-import { paginarEspelho } from './paginas';
-it('distribui textos longos sem perder nem duplicar linhas e mantém folha para palete vazio', () => {
-  const item = ConteudoPaleteSchema.parse({ id: '00000000-0000-4000-8000-000000000001', kind: 'REGISTRADO', sender: 'R'.repeat(200), documentType: 'NFD', documentNumber: '0'.repeat(60), delivery: '0'.repeat(60), description: null, source: null, palletFull: null, version: 1, count: { state: 'AGUARDANDO', counted: null, expected: null, origin: null, at: null, by: null, reference: null }, createdAt: '2026-11-05T15:00:00.000Z' });
-  const items = Array.from({ length: 31 }, (_, n) => ({ ...item, id: String(n) }));
-  const pages = paginarEspelho(items, { code: 'P'.repeat(40), address: '15 - A101' });
-  expect(pages.length).toBeGreaterThan(1);
-  expect(pages.flat()).toEqual(items);
-  expect(pages.every((p) => p.length > 0)).toBe(true);
-  expect(paginarEspelho([], { code: '1', address: null })).toEqual([[]]);
+import { paginarPorAltura } from './paginas';
+
+it('distribui linhas pela altura medida sem perder nem duplicar e mantém folha para palete vazio', () => {
+  const linhas = Array.from({ length: 31 }, (_, n) => (n % 3 === 0 ? 14 : 6));
+  const { folhas, grandes } = paginarPorAltura(linhas, 8, 100);
+  expect(folhas.length).toBeGreaterThan(1);
+  expect(folhas.flat()).toEqual(linhas.map((_, i) => i));
+  expect(folhas.every((f) => f.length > 0)).toBe(true);
+  // Nenhuma folha passa da área disponível (100 − 8 de cabeçalho − folga).
+  expect(folhas.every((f) => f.reduce((s, i) => s + (linhas[i] ?? 0), 0) <= 100 - 8)).toBe(true);
+  expect(grandes).toEqual([]);
+  expect(paginarPorAltura([], 8, 100)).toEqual({ folhas: [[]], grandes: [] });
+});
+
+it('linha mais alta que a área fica sozinha e é sinalizada (não é cortada nem descartada)', () => {
+  const { folhas, grandes } = paginarPorAltura([10, 200, 10], 8, 100);
+  expect(folhas).toEqual([[0], [1], [2]]);
+  expect(grandes).toEqual([1]);
 });

@@ -49,14 +49,18 @@ test('espelhos: escolher no mapa por rua, fileira e palete; prévia e impressão
   await gerar.click();
   await expect(page.locator('.espelho-folha').first()).toBeVisible();
   expect(await page.locator('.espelho-folha').count()).toBeGreaterThanOrEqual(daFileira);
+  // Layout do editor (nov. 2026): a tabela não passa da área dela nem encosta no rodapé, e a conferência não aponta corte.
+  await expect(page.locator('.espelhos-folhas[data-pronto="sim"]')).toBeVisible();
   const semCortes = await page.locator('.espelho-folha').evaluateAll((folhas) =>
     folhas.every((folha) => {
-      const tabela = folha.querySelector('table');
-      const rodape = folha.querySelector('footer');
-      return tabela !== null && rodape !== null && tabela.getBoundingClientRect().bottom < rodape.getBoundingClientRect().top;
+      const area = folha.querySelector<HTMLElement>('[data-campo="tabela"]');
+      const tabela = area?.querySelector('table') ?? null;
+      const rodape = folha.querySelector('[data-campo="emissao"]');
+      return area !== null && tabela !== null && rodape !== null && tabela.scrollHeight <= area.clientHeight + 1 && tabela.getBoundingClientRect().bottom < rodape.getBoundingClientRect().top;
     }),
   );
   expect(semCortes).toBe(true);
+  await expect(page.getByTestId('espelhos-problemas')).toHaveCount(0);
 
   // Mudar a seleção invalida a prévia (não imprime o que não está marcado).
   await page.locator('.pr-rotulo-fileira.pr-rotulo-clicavel', { hasText: /^F02$/ }).first().dispatchEvent('click');

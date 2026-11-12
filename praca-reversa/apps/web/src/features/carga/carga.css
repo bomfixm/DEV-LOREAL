@@ -141,6 +141,67 @@ button.mapa-celula { cursor: pointer; }
   .mapa-celula-curto { display: flex; gap: 10px; font-size: 0.8rem; font-weight: 700; }
 }
 
+/* Tela de seleção: resumo da janela + um card por veículo (11 nov. 2026). */
+.carga-voltar { margin-right: 4px; }
+.selv { display: grid; gap: 16px; }
+.selv-suave { color: var(--tinta-suave); }
+.selv-resumo, .selv-lista { background: var(--superficie); border: 1px solid var(--borda); border-radius: 14px; padding: 16px 18px; box-shadow: var(--sombra); }
+.selv-resumo-topo, .selv-lista-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 14px; }
+.selv-resumo-topo h3, .selv-lista-topo h3 { margin: 0; font-size: 1.05rem; }
+.selv-resumo-topo .selv-suave { font-size: 0.85rem; }
+.selv-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.selv-kpi { display: grid; gap: 4px; padding: 2px 18px; border-left: 1px solid var(--borda); }
+.selv-kpi:first-child { border-left: 0; padding-left: 0; }
+.selv-kpi-rotulo { font-size: 0.85rem; color: var(--tinta-suave); }
+.selv-kpi-valor { font-size: 1.9rem; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.selv-kpi > span:last-child { font-size: 0.8rem; }
+.selv-ferramentas { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.selv-busca { min-height: 40px; min-width: 220px; padding: 6px 12px; border: 1px solid var(--borda-forte); border-radius: 10px; background: var(--superficie); color: inherit; font: inherit; }
+.selv-ferramentas .carga-visao { margin-left: 0; }
+.selv-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.selv-card { display: grid; gap: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; padding: 0; border: 1px solid var(--borda); border-radius: 14px; background: var(--tom-neutro-fundo); overflow: hidden; transition: border-color 0.12s, box-shadow 0.12s; }
+.selv-card:hover { border-color: var(--borda-forte); box-shadow: var(--sombra); }
+.selv-card:focus-visible { outline: 3px solid var(--amarelo-acao-borda); outline-offset: 2px; }
+.selv-card--cancelado { opacity: 0.6; }
+.selv-card-topo { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; padding: 14px 12px 6px 16px; min-height: 128px; }
+.selv-card-texto { display: grid; gap: 4px; align-content: start; align-self: stretch; min-width: 0; }
+.selv-card-titulo { font-size: 1.2rem; font-weight: 800; margin-top: 10px; }
+.selv-card-nome { font-size: 0.85rem; color: var(--tinta-suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.selv-card-numeros { font-size: 0.9rem; white-space: nowrap; }
+.selv-chip { justify-self: start; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--superficie); border: 1px solid var(--borda); font-size: 0.78rem; font-weight: 600; }
+.selv-ponto { width: 7px; height: 7px; border-radius: 50%; background: var(--borda-forte); }
+.selv-chip--info .selv-ponto { background: #2f6fb3; }
+.selv-chip--aviso .selv-ponto { background: #e08a00; }
+.selv-chip--ok .selv-ponto { background: var(--ok); }
+.selv-chip--cancelado .selv-ponto { background: var(--erro); }
+.selv-desenho { width: 56%; max-width: 220px; flex: none; height: auto; }
+.selv-chao { stroke: var(--borda); stroke-width: 1.5; }
+.selv-cabine { fill: var(--amarelo); stroke: #8a6d00; stroke-width: 1.2; }
+.selv-vidro { fill: #2b3a42; opacity: 0.85; }
+.selv-faixa { fill: var(--vermelho); }
+.selv-chassi { fill: #3c4248; }
+.selv-bau { fill: var(--superficie); stroke: var(--borda-forte); stroke-width: 1.4; }
+.selv-fatia--confirmada { fill: var(--ok); opacity: 0.85; }
+.selv-fatia--planejada { fill: var(--amarelo); stroke: #b38f00; stroke-width: 0.8; stroke-dasharray: 2 1.5; }
+.selv-pneu { fill: #24282c; }
+.selv-aro { fill: #b9bec4; }
+.selv-card-base { display: grid; gap: 8px; margin: 0 10px 10px; padding: 12px 14px; background: var(--superficie); border: 1px solid var(--borda); border-radius: 10px; }
+.selv-card-linha { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 0.88rem; }
+.selv-barra { display: block; height: 7px; border-radius: 999px; background: repeating-linear-gradient(135deg, var(--borda-suave) 0 4px, var(--superficie) 4px 7px); border: 1px solid var(--borda); overflow: hidden; }
+.selv-barra-cheia { display: block; height: 100%; background: var(--ok); border-radius: 999px; }
+.selv-pendencias { font-size: 0.8rem; }
+.selv-cancelados { margin-top: 14px; }
+.selv-cancelados summary { cursor: pointer; color: var(--tinta-suave); margin-bottom: 10px; }
+@media (max-width: 900px) {
+  .selv-resumo, .selv-lista { padding: 12px; border-radius: 12px; }
+  .selv-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 0; }
+  .selv-kpi:nth-child(odd) { border-left: 0; padding-left: 0; }
+  .selv-kpi { padding: 0 0 0 12px; }
+  .selv-kpi-valor { font-size: 1.4rem; }
+  .selv-busca { min-width: 0; flex: 1 1 100%; }
+  .selv-grade { grid-template-columns: minmax(0, 1fr); }
+}
+
 @page carga { size: A4 landscape; margin: 5mm; }
 @media print {
   body:has(.tela-carga) .barra-lateral, body:has(.tela-carga) nav, body:has(.tela-carga) header, body:has(.tela-carga) .rodape, body:has(.tela-carga) .aviso-conexao { display: none !important; }

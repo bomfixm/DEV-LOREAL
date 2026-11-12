@@ -9,6 +9,7 @@ import {
   type Sessao,
   type SituacaoDocEmbarque,
   type TipoEmissao,
+  type TipoVeiculo,
   type VeiculoCarga,
 } from '@praca-reversa/contracts';
 import { useEffect, useMemo, useState } from 'react';
@@ -20,6 +21,7 @@ import type { Navegar, Rota } from '../../rotas';
 import { formatarDataHora } from '../../utils/datas';
 import { ImpressaoCarga, type PedidoImpressao } from './Impressao';
 import { MapaVeiculo } from './MapaVeiculo';
+import { SelecaoVeiculos } from './SelecaoVeiculos';
 import { textoDocs } from './textos';
 import './carga.css';
 
@@ -81,7 +83,8 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
   const m = useMutacao(setResposta, setMensagem, recarregar);
 
   const ativos = dados?.vehicles.filter((v) => v.state !== 'CANCELADO') ?? [];
-  const veiculo = dados?.vehicles.find((v) => v.id === rota.veiculo) ?? ativos[0] ?? null;
+  // Sem veículo na rota: tela de seleção (cards). Com veículo: mapa daquele veículo.
+  const veiculo = dados?.vehicles.find((v) => v.id === rota.veiculo) ?? null;
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const [posicao, setPosicao] = useState<number | null>(null);
   const [movendo, setMovendo] = useState<string | null>(null);
@@ -111,6 +114,17 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
     setMovendo(null);
     aoNavegar({ ...rota, ...mudanca, tipo: 'carga' });
   };
+
+  function adicionarVeiculo(kind: TipoVeiculo) {
+    if (dados === null) return;
+    void m.executar(
+      `veiculo:${kind}:${dados.window.id}:${String(ativos.length)}`,
+      'POST',
+      `${API}/janelas/${dados.window.id}/veiculos`,
+      { kind },
+      kind === 'CARRETA' ? 'Carreta adicionada.' : 'Truck adicionado.',
+    );
+  }
 
   async function emitir(kind: TipoEmissao, final: boolean, v: VeiculoCarga, p: PaleteEmbarque | null) {
     const url = p === null ? `${API}/veiculos/${v.id}/mapa` : `${API}/paletes/${p.id}/emissoes`;
@@ -160,14 +174,17 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
               </button>
             </div>
           </div>
-          {dados !== null && (
+          {dados !== null && veiculo !== null && (
             <div className="carga-veiculos" role="tablist" aria-label="Veículos da janela">
+              <button type="button" className="botao-secundario botao-compacto carga-voltar" onClick={() => ir({ veiculo: null })} data-testid="carga-voltar">
+                ‹ Veículos
+              </button>
               {ativos.map((v) => (
                 <button
                   key={v.id}
                   type="button"
                   role="tab"
-                  aria-selected={veiculo?.id === v.id}
+                  aria-selected={veiculo.id === v.id}
                   className={`carga-veiculo-chip carga-veiculo-chip--${v.state.toLowerCase()}`}
                   onClick={() => ir({ veiculo: v.id })}
                   data-testid={`veiculo-${v.label}`}
@@ -181,32 +198,6 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
                   {v.state === 'FECHADO' && <span className="carga-selo-fechado"> · Fechada</span>}
                 </button>
               ))}
-              {podePreparar && (
-                <>
-                  <button
-                    type="button"
-                    className="botao-secundario botao-compacto"
-                    disabled={m.ocupado}
-                    onClick={() =>
-                      void m.executar(`veiculo:CARRETA:${dados.window.id}:${String(ativos.length)}`, 'POST', `${API}/janelas/${dados.window.id}/veiculos`, { kind: 'CARRETA' }, 'Carreta adicionada.')
-                    }
-                    data-testid="adicionar-carreta"
-                  >
-                    + Carreta (28)
-                  </button>
-                  <button
-                    type="button"
-                    className="botao-secundario botao-compacto"
-                    disabled={m.ocupado}
-                    onClick={() =>
-                      void m.executar(`veiculo:TRUCK:${dados.window.id}:${String(ativos.length)}`, 'POST', `${API}/janelas/${dados.window.id}/veiculos`, { kind: 'TRUCK' }, 'Truck adicionado.')
-                    }
-                    data-testid="adicionar-truck"
-                  >
-                    + Truck (16)
-                  </button>
-                </>
-              )}
             </div>
           )}
           <MensagemAcao mensagem={mensagem} testId="carga-mensagem" />
@@ -219,9 +210,9 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
             <EstadoTela carga={carga.carga} titulo="Não foi possível carregar a carga" aoTentarNovamente={carga.recarregar} />
           </div>
         ) : veiculo === null ? (
-          <p className="estado-vazio nao-imprimir" data-testid="carga-sem-veiculo">
-            Nenhum veículo nesta janela. {podePreparar ? 'Adicione uma carreta ou um truck acima.' : ''}
-          </p>
+          <div className="nao-imprimir">
+            <SelecaoVeiculos dados={dados} podePreparar={podePreparar} ocupado={m.ocupado} aoAbrir={(v) => ir({ veiculo: v.id })} aoAdicionar={adicionarVeiculo} />
+          </div>
         ) : (
           <div className={`carga-corpo nao-imprimir${painelAberto ? '' : ' carga-corpo--sem-painel'}`}>
             <section className="carga-centro" aria-label={`Mapa ${veiculo.label}`}>

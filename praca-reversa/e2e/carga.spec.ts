@@ -87,6 +87,19 @@ test.describe('Expedição DHL', () => {
       await api(page, 'POST', `/api/v1/cargas/paletes/${p7b.id}/documentos`, { revision: p7b.revision, lineId: p7b.lines[1]?.id, state: 'FALTANTE', note: 'Segunda via não veio' });
     }
 
+    // Seleção: resumo da janela e um card por veículo; o card abre o mapa.
+    await page.goto(`/expedicao?janela=${janela.id}`);
+    await expect(page.getByTestId('selecao-veiculos')).toBeVisible();
+    await expect(page.getByTestId('kpi-veiculos')).toContainText('3');
+    await expect(page.getByTestId('kpi-paletes')).toContainText('3/72');
+    await expect(page.getByTestId('card-Carreta 01')).toContainText('Carregando');
+    await expect(page.getByTestId('card-Carreta 02')).toContainText('Não iniciada');
+    await page.screenshot({ path: nome('0-selecao'), fullPage: true });
+    await page.getByTestId('card-Carreta 01').click();
+    await expect(page).toHaveURL(new RegExp(`veiculo=${carreta}`));
+    await page.getByTestId('carga-voltar').click();
+    await expect(page.getByTestId('selecao-veiculos')).toBeVisible();
+
     // Operação: mapa da carreta.
     await page.goto(`/expedicao?janela=${janela.id}&veiculo=${carreta}`);
     await expect(page.getByTestId('tela-carga')).toBeVisible();

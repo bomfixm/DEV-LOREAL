@@ -2,7 +2,7 @@ import { blocoDe, camposDe, FONTES, type FonteId, type LayoutEspelho } from './l
 
 /** Carrega as fontes usadas antes de medir/imprimir (evita trocar de fonte no meio e mudar quebras). */
 export async function carregarFontes(layouts: readonly LayoutEspelho[]): Promise<void> {
-  const usadas = new Set(layouts.flatMap((l) => camposDe(l).map((c) => blocoDe(l, c).estilo.fonte)));
+  const usadas = new Set(layouts.flatMap((l) => [...camposDe(l).map((c) => blocoDe(l, c).estilo.fonte), ...l.textos.map((t) => t.estilo.fonte)]));
   const pedidos = FONTES.filter((f) => usadas.has(f.id)).flatMap((f) => [`400 12pt ${f.carregar}`, `700 12pt ${f.carregar}`]);
   await Promise.all(pedidos.map((p) => document.fonts.load(p).catch(() => [])));
   await document.fonts.ready;

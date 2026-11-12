@@ -10,6 +10,25 @@ Branch `espelhos-editor-layout`, worktree `LR LOREAL-espelhos/`. Mudança só de
 4. **Aplicar aos N espelhos** grava o rascunho só nos paletes daquele lote. **Quais espelhos?** mostra a lista exata. **Cancelar** descarta o rascunho.
 5. **Imprimir espelhos** abre a impressão. Para gerar o PDF, escolha "Salvar como PDF". A impressão fica bloqueada enquanto houver conteúdo cortado e mostra qual espelho e qual campo precisam de ajuste.
 
+### Vários itens de uma vez e texto livre (12 nov. 2026)
+
+- **Selecionar vários:**
+  - Shift (ou Ctrl) + clique soma ou tira um item.
+  - Arrastar numa parte vazia da folha seleciona tudo o que a área tocar. Com Shift, soma à seleção.
+  - Ctrl+A seleciona tudo e Esc limpa.
+- **Com vários selecionados:**
+  - Arrastar qualquer um move o grupo inteiro. O grupo para na borda, sem deformar.
+  - As setas movem todos.
+  - O painel muda fonte, tamanho, negrito e alinhamento de todos. **A− / A+** muda 1 pt em cada item, mantendo a diferença de tamanho entre eles.
+  - **Alinhar posições** alinha os itens pelas esquerdas, pelos centros, pelas direitas ou pelos topos.
+- **Texto livre:**
+  - **+ Texto** (barra de cima) acrescenta um texto, por exemplo "Conferente: ____". Ele é editado no painel, com fonte, tamanho e alinhamento (esquerda, centro ou direita), e se move como qualquer campo.
+  - Delete exclui o texto selecionado.
+  - O texto é o mesmo em todos os espelhos que recebem o layout e entra nos modelos salvos.
+  - Só texto puro: no máximo 300 caracteres e 30 textos por layout. HTML aparece como texto e não é interpretado.
+  - Texto vazio não é impresso.
+  - Layouts antigos, sem textos, continuam válidos.
+
 ## Espelho de embarque (Expedição), 12 nov. 2026
 
 O espelho de embarque (via do cliente) usa o mesmo editor e a mesma folha. O conteúdo é o de antes: veículo, placa, janela, número do palete, identidade, tipo, revisão, NFs desta saída, total e coluna de conferência.

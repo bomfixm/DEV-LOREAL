@@ -51,6 +51,15 @@
 .ed-segmentado button { flex: 1; min-height: 32px; border: 1px solid var(--borda-forte); background: var(--superficie); font: inherit; font-size: 13px; cursor: pointer; }
 .ed-segmentado button + button { border-left: 0; }
 .ed-campos { display: flex; flex-wrap: wrap; gap: 4px; }
+.ed-palco:focus { outline: none; }
+.ed-laco { position: absolute; z-index: 5; border: .3mm solid var(--foco); background: #0b57d01f; pointer-events: none; }
+.ed-tamanho-rapido { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.ed-alinhar { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.ed-tamanho-rapido button, .ed-alinhar button { min-width: 0; }
+.ed-painel > * { min-width: 0; }
+.ed-texto { width: 100%; min-height: 70px; padding: 6px; font: inherit; font-size: 13px; resize: vertical; box-sizing: border-box; }
+.ed-sel-lista { margin: 0; padding-left: 18px; font-size: 12px; color: var(--tinta-suave); }
+.editor-layout .botao-perigo-texto { color: var(--erro); }
 .ed-problemas { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
 .ed-problema button { text-align: left; font-size: 12px; }
 .ed-problema--erro button { color: var(--erro); font-weight: 600; }

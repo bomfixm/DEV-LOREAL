@@ -89,6 +89,21 @@ const BlocoSchema = z.object({
   rotulo: z.boolean(),
   visivel: z.boolean(),
 });
+/** Textos livres: identificador próprio (nunca colide com um campo), só texto puro — React escapa tudo, sem HTML. */
+export const PREFIXO_TEXTO = 'txt-';
+export const MAX_TEXTOS = 30;
+export const MAX_CARACTERES_TEXTO = 300;
+const TextoLivreSchema = z.object({
+  id: z.string().regex(/^txt-[a-z0-9]{1,20}$/u),
+  // eslint-disable-next-line no-control-regex -- recusa caracteres de controle (só quebra de linha e tabulação passam)
+  texto: z.string().max(MAX_CARACTERES_TEXTO).refine((s) => !/[\u0000-\u0008\u000b-\u001f\u007f]/u.test(s), 'Caractere de controle no texto.'),
+  x: mm(0, PAPEL.largura),
+  y: mm(0, PAPEL.altura),
+  largura: mm(5, PAPEL.largura),
+  estilo: EstiloSchema,
+});
+export type TextoLivre = z.infer<typeof TextoLivreSchema>;
+
 export const LayoutEspelhoSchema = z
   .object({
     versao: z.literal(1),
@@ -106,8 +121,11 @@ export const LayoutEspelhoSchema = z
       espacamento: mm(0.3, 6),
     }),
     blocos: z.record(z.string(), BlocoSchema),
+    /** Textos acrescentados pelo usuário (layouts antigos não tinham: lista vazia). */
+    textos: z.array(TextoLivreSchema).max(MAX_TEXTOS).default([]),
   })
   .superRefine((l, ctx) => {
+    if (new Set(l.textos.map((t) => t.id)).size !== l.textos.length) ctx.addIssue({ code: 'custom', message: 'Texto repetido no layout.', path: ['textos'] });
     const esperados = CAMPOS_DO_DOCUMENTO[l.documento] as readonly string[];
     const chaves = Object.keys(l.blocos);
     if (chaves.length !== esperados.length || !esperados.every((c) => c in l.blocos)) ctx.addIssue({ code: 'custom', message: 'Campos do layout não correspondem ao documento.', path: ['blocos'] });
@@ -148,7 +166,11 @@ export function normalizarLayout(l: LayoutEspelho): LayoutEspelho {
   }
   const soma = l.tabela.colunas.reduce((s, v) => s + v, 0);
   const colunas = l.tabela.colunas.map((v) => arred((v / soma) * 100));
-  return { ...l, blocos, tabela: { ...l.tabela, colunas } };
+  const textos = l.textos.map((t) => {
+    const largura = arred(Math.min(Math.max(t.largura, 5), PAPEL.largura));
+    return { ...t, largura, x: arred(Math.min(Math.max(t.x, 0), PAPEL.largura - largura)), y: arred(Math.min(Math.max(t.y, 0), PAPEL.altura - 2)), estilo: { ...t.estilo, tamanho: arred(Math.min(Math.max(t.estilo.tamanho, 5), 72)) } };
+  });
+  return { ...l, blocos, tabela: { ...l.tabela, colunas }, textos };
 }
 
 const estilo = (fonte: FonteId, tamanho: number, negrito: boolean, alinhamento: EstiloTexto['alinhamento']): EstiloTexto => ({ fonte, tamanho, negrito, alinhamento });
@@ -167,6 +189,7 @@ export const OPERACIONAL_LIMPO: LayoutEspelho = {
   moldura: 'nenhuma',
   // OBS. OPERAÇÃO cabe "AGUARDANDO CONFERÊNCIA" numa linha; remetente longo quebra dentro da própria coluna.
   tabela: { colunas: [10, 4.5, 9.5, 19, 7, 5, 26, 8, 11], cabecalho: 'claro', linhas: 'horizontais', espacamento: 1.6 },
+  textos: [],
   blocos: {
     endereco: bloco(10, 9, 180, estilo('inter', 30, true, 'esquerda'), { rotulo: true }),
     palete: bloco(192, 9, 85, estilo('inter', 24, true, 'direita'), { rotulo: true }),
@@ -188,6 +211,7 @@ export const CLASSICO: LayoutEspelho = {
   margem: 19,
   moldura: 'dhl',
   tabela: { colunas: [10, 5, 10, 15, 7, 7, 25, 12, 9], cabecalho: 'escuro', linhas: 'grade', espacamento: 2 },
+  textos: [],
   blocos: {
     demo: bloco(19, 20, 249, estilo('arial', 10, true, 'centro')),
     endereco: bloco(19, 26, 249, estilo('arial', 26, true, 'centro')),
@@ -213,6 +237,7 @@ export const EMBARQUE_LIMPO: LayoutEspelho = {
   margem: 8,
   moldura: 'nenhuma',
   tabela: { colunas: [7, 13, 36, 16, 10, 18], cabecalho: 'claro', linhas: 'horizontais', espacamento: 2.2 },
+  textos: [],
   blocos: {
     veiculo: bloco(10, 9, 190, estilo('inter', 24, true, 'esquerda'), { rotulo: true }),
     janela: bloco(10, 23, 175, estilo('inter', 11, false, 'esquerda'), { rotulo: true }),
@@ -236,6 +261,7 @@ export const EMBARQUE_CLASSICO: LayoutEspelho = {
   margem: 19,
   moldura: 'dhl',
   tabela: { colunas: [8, 14, 34, 18, 12, 14], cabecalho: 'escuro', linhas: 'grade', espacamento: 2 },
+  textos: [],
   blocos: {
     demo: bloco(19, 17.5, 249, estilo('arial', 9, true, 'centro')),
     rascunho: bloco(19, 21.5, 249, estilo('arial', 9, true, 'centro')),
@@ -274,6 +300,97 @@ export function assinaturaLayout(l: LayoutEspelho): string {
 
 /** Arredonda ao passo de 0,5 mm (arraste e teclado): o mesmo gesto dá o mesmo número em qualquer zoom. */
 export const noPasso = (v: number): number => Math.round(v / PASSO_MM) * PASSO_MM;
+
+// ---------- Itens do editor: campos do documento e textos livres ----------
+
+/** Item selecionável: um campo (`CampoId`) ou um texto livre (`txt-…`). */
+export type ItemId = string;
+export const ehTexto = (id: ItemId): boolean => id.startsWith(PREFIXO_TEXTO);
+const ehCampo = (l: LayoutEspelho, id: ItemId): id is CampoId => (camposDe(l) as readonly string[]).includes(id);
+export const itensDe = (l: LayoutEspelho): ItemId[] => [...camposDe(l), ...l.textos.map((t) => t.id)];
+
+/** Nome mostrado no editor e nos avisos. */
+export function nomeDoItem(l: LayoutEspelho, id: ItemId): string {
+  if (ehCampo(l, id)) return NOME_CAMPO[id];
+  const t = l.textos.find((x) => x.id === id);
+  if (t === undefined) return 'Texto';
+  const curto = t.texto.replace(/\s+/gu, ' ').trim();
+  return `Texto “${curto.length > 24 ? `${curto.slice(0, 24)}…` : curto || 'vazio'}”`;
+}
+
+/** Caixa de um item no formato de bloco (texto livre: altura automática, sem rótulo). */
+export function caixaDoItem(l: LayoutEspelho, id: ItemId): BlocoLayout {
+  if (ehCampo(l, id)) return blocoDe(l, id);
+  const t = l.textos.find((x) => x.id === id);
+  return t === undefined ? BLOCO_RESERVA : { x: t.x, y: t.y, largura: t.largura, altura: null, estilo: t.estilo, rotulo: false, visivel: true };
+}
+
+type Mudanca = Partial<Omit<BlocoLayout, 'estilo'>> & { estilo?: Partial<EstiloTexto> };
+
+/** Altera um campo ou texto livre; devolve o layout já dentro da folha. */
+export function alterarItem(l: LayoutEspelho, id: ItemId, m: Mudanca & { texto?: string }): LayoutEspelho {
+  if (ehCampo(l, id)) {
+    const { texto: _texto, ...resto } = m;
+    return alterarBloco(l, id, resto);
+  }
+  const textos = l.textos.map((t) => (t.id !== id ? t : {
+    ...t,
+    x: m.x ?? t.x,
+    y: m.y ?? t.y,
+    largura: m.largura ?? t.largura,
+    estilo: { ...t.estilo, ...m.estilo },
+    texto: m.texto === undefined ? t.texto : m.texto.slice(0, MAX_CARACTERES_TEXTO),
+  }));
+  return normalizarLayout({ ...l, textos });
+}
+
+/** Aplica a mesma mudança (calculada por item) a vários itens. */
+export function alterarItens(l: LayoutEspelho, ids: readonly ItemId[], m: (caixa: BlocoLayout, id: ItemId) => Mudanca): LayoutEspelho {
+  return ids.reduce((acc, id) => alterarItem(acc, id, m(caixaDoItem(acc, id), id)), l);
+}
+
+/**
+ * Move vários itens juntos a partir das posições em `origem` (início do
+ * arraste). O deslocamento é limitado para o grupo inteiro caber na folha,
+ * então o desenho do grupo não se deforma na borda.
+ */
+export function deslocarItens(l: LayoutEspelho, ids: readonly ItemId[], dx: number, dy: number, origem: LayoutEspelho = l): LayoutEspelho {
+  const caixas = ids.map((id) => ({ id, c: caixaDoItem(origem, id) }));
+  if (caixas.length === 0) return l;
+  const limitar = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
+  const ddx = limitar(dx, Math.max(...caixas.map(({ c }) => -c.x)), Math.min(...caixas.map(({ c }) => PAPEL.largura - c.x - c.largura)));
+  const ddy = limitar(dy, Math.max(...caixas.map(({ c }) => -c.y)), Math.min(...caixas.map(({ c }) => PAPEL.altura - c.y - Math.max(c.altura ?? 0, 2))));
+  return caixas.reduce((acc, { id, c }) => alterarItem(acc, id, { x: arred(c.x + ddx), y: arred(c.y + ddy) }), l);
+}
+
+/** Alinha as posições dos itens entre si (pela caixa do grupo). */
+export function alinharItens(l: LayoutEspelho, ids: readonly ItemId[], modo: 'esquerda' | 'centro' | 'direita' | 'topo'): LayoutEspelho {
+  const caixas = ids.map((id) => caixaDoItem(l, id));
+  if (caixas.length < 2) return l;
+  const esquerda = Math.min(...caixas.map((c) => c.x));
+  const direita = Math.max(...caixas.map((c) => c.x + c.largura));
+  const topo = Math.min(...caixas.map((c) => c.y));
+  return alterarItens(l, ids, (c) => (modo === 'esquerda' ? { x: esquerda } : modo === 'direita' ? { x: direita - c.largura } : modo === 'centro' ? { x: (esquerda + direita) / 2 - c.largura / 2 } : { y: topo }));
+}
+
+/** Aumenta ou diminui o texto de cada item (a linha divisória não tem texto). */
+export function ajustarTamanho(l: LayoutEspelho, ids: readonly ItemId[], delta: number): LayoutEspelho {
+  return alterarItens(l, ids.filter((id) => id !== 'divisoria'), (c) => ({ estilo: { tamanho: Math.min(Math.max(c.estilo.tamanho + delta, 5), 72) } }));
+}
+
+/** Acrescenta um texto livre com o próximo id livre (`txt-1`, `txt-2`…). Além do limite, devolve null. */
+export function adicionarTexto(l: LayoutEspelho, texto = 'Novo texto'): { layout: LayoutEspelho; id: string } | null {
+  if (l.textos.length >= MAX_TEXTOS) return null;
+  let n = 1;
+  while (l.textos.some((t) => t.id === `${PREFIXO_TEXTO}${String(n)}`)) n += 1;
+  const id = `${PREFIXO_TEXTO}${String(n)}`;
+  const novo: TextoLivre = { id, texto, x: Math.max(l.margem, 10), y: 100, largura: 90, estilo: estilo('inter', 12, false, 'esquerda') };
+  return { layout: normalizarLayout({ ...l, textos: [...l.textos, novo] }), id };
+}
+
+export function removerTextos(l: LayoutEspelho, ids: readonly ItemId[]): LayoutEspelho {
+  return { ...l, textos: l.textos.filter((t) => !ids.includes(t.id)) };
+}
 
 /** Altera um bloco e devolve o layout já dentro da folha. */
 export function alterarBloco(l: LayoutEspelho, campo: CampoId, mudanca: Partial<Omit<BlocoLayout, 'estilo'>> & { estilo?: Partial<EstiloTexto> }): LayoutEspelho {

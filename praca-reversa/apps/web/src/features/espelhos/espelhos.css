@@ -20,6 +20,7 @@
 .ef-bloco { position: absolute; box-sizing: border-box; color: #111; line-height: 1.18; overflow-wrap: anywhere; white-space: normal; }
 .ef-rotulo { display: block; margin-bottom: .6mm; color: #555; font-size: 7.5pt; font-weight: 600; letter-spacing: .08em; line-height: 1.2; }
 .ef-valor { display: block; }
+.ef-texto-livre { white-space: pre-wrap; }
 .ef-bloco--demo { color: #b00000; }
 .ef-bloco--emissao, .ef-bloco--legenda, .ef-bloco--formulario, .ef-bloco--continuacao { color: #444; }
 .ef-bloco--tabela { overflow: hidden; }

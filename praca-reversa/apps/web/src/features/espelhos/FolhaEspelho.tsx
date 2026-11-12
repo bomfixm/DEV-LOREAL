@@ -2,7 +2,7 @@ import { memo, useLayoutEffect, useRef, type CSSProperties, type PointerEvent as
 import { paraEndereco } from '../../base';
 import { textoFantasma, type DocumentoEspelho, type LinhaTabela } from './conteudo-espelho';
 import { carregarFontes } from './fontes';
-import { blocoDe, camposDe, cssDaFonte, NOME_CAMPO, type BlocoLayout, type CampoId, type LayoutEspelho } from './layout-modelo';
+import { blocoDe, camposDe, cssDaFonte, NOME_CAMPO, nomeDoItem, type BlocoLayout, type ItemId, type LayoutEspelho } from './layout-modelo';
 import './espelhos.css';
 
 /**
@@ -13,19 +13,20 @@ import './espelhos.css';
  */
 export type ModoGesto = 'mover' | 'largura-esquerda' | 'largura-direita' | 'altura';
 export interface EdicaoFolha {
-  selecionado: CampoId | null;
-  comProblema: ReadonlySet<CampoId>;
-  aoPressionar: (campo: CampoId, modo: ModoGesto, evento: PointerEventReact<HTMLElement>) => void;
-  aoFocar: (campo: CampoId) => void;
+  /** Itens selecionados (campos e textos livres); as alças só aparecem com um item só. */
+  selecionados: ReadonlySet<ItemId>;
+  comProblema: ReadonlySet<ItemId>;
+  aoPressionar: (id: ItemId, modo: ModoGesto, evento: PointerEventReact<HTMLElement>) => void;
+  aoFocar: (id: ItemId) => void;
 }
 
-const estiloTexto = (b: BlocoLayout): CSSProperties => ({
+const estiloTexto = (b: Pick<BlocoLayout, 'estilo'>): CSSProperties => ({
   fontFamily: cssDaFonte(b.estilo.fonte),
   fontSize: `${String(b.estilo.tamanho)}pt`,
   fontWeight: b.estilo.negrito ? 700 : 400,
   textAlign: b.estilo.alinhamento === 'esquerda' ? 'left' : b.estilo.alinhamento === 'centro' ? 'center' : 'right',
 });
-const posicao = (b: BlocoLayout, comAltura: boolean): CSSProperties => ({
+const posicao = (b: Pick<BlocoLayout, 'x' | 'y' | 'largura' | 'altura'>, comAltura: boolean): CSSProperties => ({
   left: `${String(b.x)}mm`,
   top: `${String(b.y)}mm`,
   width: `${String(b.largura)}mm`,
@@ -57,6 +58,28 @@ interface PropsFolha {
   refFolha?: (el: HTMLElement | null) => void;
 }
 
+function propsDeEdicao(edicao: EdicaoFolha | undefined, id: ItemId, nome: string): Record<string, unknown> {
+  if (edicao === undefined) return {};
+  const selecionado = edicao.selecionados.has(id);
+  return {
+    tabIndex: 0,
+    role: 'button',
+    'aria-label': `${nome}${selecionado ? ' (selecionado)' : ''}`,
+    'aria-pressed': selecionado,
+    onPointerDown: (e: PointerEventReact<HTMLElement>) => { edicao.aoPressionar(id, 'mover', e); },
+    onFocus: () => { edicao.aoFocar(id); },
+  };
+}
+
+function Alcas({ edicao, id, altura }: { edicao: EdicaoFolha | undefined; id: ItemId; altura: boolean }) {
+  if (edicao?.selecionados.size !== 1 || !edicao.selecionados.has(id)) return null;
+  return <>
+    <span className="ef-alca ef-alca--esquerda" aria-hidden="true" onPointerDown={(e) => { e.stopPropagation(); edicao.aoPressionar(id, 'largura-esquerda', e); }} />
+    <span className="ef-alca ef-alca--direita" aria-hidden="true" onPointerDown={(e) => { e.stopPropagation(); edicao.aoPressionar(id, 'largura-direita', e); }} />
+    {altura && <span className="ef-alca ef-alca--base" aria-hidden="true" onPointerDown={(e) => { e.stopPropagation(); edicao.aoPressionar(id, 'altura', e); }} />}
+  </>;
+}
+
 export function FolhaEspelho({ documento, pagina, totalPaginas, linhas, layout, edicao, refFolha }: PropsFolha) {
   const blocos: ReactNode[] = [];
   for (const campo of camposDe(layout)) {
@@ -86,7 +109,7 @@ export function FolhaEspelho({ documento, pagina, totalPaginas, linhas, layout, 
       }
       conteudo = <div data-conteudo="">{rotulo !== '' && <span className="ef-rotulo">{rotulo}</span>}<span className={`ef-valor ef-valor--${campo}`}>{valor}</span></div>;
     }
-    const selecionado = edicao?.selecionado === campo;
+    const selecionado = edicao?.selecionados.has(campo) === true;
     const classe = ['ef-bloco', `ef-bloco--${campo}`, fantasma ? 'ef-bloco--fantasma' : '', selecionado ? 'ef-bloco--selecionado' : '', edicao?.comProblema.has(campo) === true ? 'ef-bloco--problema' : ''].filter((c) => c !== '').join(' ');
     const comAltura = campo === 'tabela' || campo === 'divisoria';
     const estilo: CSSProperties = { ...posicao(b, comAltura), ...(comAltura ? {} : estiloTexto(b)) };
@@ -96,21 +119,30 @@ export function FolhaEspelho({ documento, pagina, totalPaginas, linhas, layout, 
       style={estilo}
       data-campo={fantasma ? undefined : campo}
       data-campo-editor={campo}
-      {...(edicao === undefined ? {} : {
-        tabIndex: 0,
-        role: 'button',
-        'aria-label': `${NOME_CAMPO[campo]}${selecionado ? ' (selecionado)' : ''}`,
-        'aria-pressed': selecionado,
-        onPointerDown: (e: PointerEventReact<HTMLElement>) => { edicao.aoPressionar(campo, 'mover', e); },
-        onFocus: () => { edicao.aoFocar(campo); },
-      })}
+      {...propsDeEdicao(edicao, campo, NOME_CAMPO[campo])}
     >
       {conteudo}
-      {edicao !== undefined && selecionado && <>
-        <span className="ef-alca ef-alca--esquerda" aria-hidden="true" onPointerDown={(e) => { e.stopPropagation(); edicao.aoPressionar(campo, 'largura-esquerda', e); }} />
-        <span className="ef-alca ef-alca--direita" aria-hidden="true" onPointerDown={(e) => { e.stopPropagation(); edicao.aoPressionar(campo, 'largura-direita', e); }} />
-        {campo === 'tabela' && <span className="ef-alca ef-alca--base" aria-hidden="true" onPointerDown={(e) => { e.stopPropagation(); edicao.aoPressionar(campo, 'altura', e); }} />}
-      </>}
+      <Alcas edicao={edicao} id={campo} altura={campo === 'tabela'} />
+    </div>);
+  }
+  // Textos livres: texto puro (sem HTML), quebra de linha preservada; vazio não é impresso.
+  for (const t of layout.textos) {
+    const vazio = t.texto.trim() === '';
+    if (vazio && edicao === undefined) continue;
+    const nome = nomeDoItem(layout, t.id);
+    const selecionado = edicao?.selecionados.has(t.id) === true;
+    const classe = ['ef-bloco', 'ef-bloco--texto', vazio ? 'ef-bloco--fantasma' : '', selecionado ? 'ef-bloco--selecionado' : '', edicao?.comProblema.has(t.id) === true ? 'ef-bloco--problema' : ''].filter((c) => c !== '').join(' ');
+    blocos.push(<div
+      key={t.id}
+      className={classe}
+      style={{ ...posicao({ ...t, altura: null }, false), ...estiloTexto(t) }}
+      data-campo={vazio ? undefined : t.id}
+      data-nome={nome}
+      data-campo-editor={t.id}
+      {...propsDeEdicao(edicao, t.id, nome)}
+    >
+      <div data-conteudo="" className="ef-texto-livre">{vazio ? '(texto vazio)' : t.texto}</div>
+      <Alcas edicao={edicao} id={t.id} altura={false} />
     </div>);
   }
   return <section className={`espelho-folha${edicao === undefined ? '' : ' espelho-folha--edicao'}`} ref={refFolha} aria-label={`Espelho ${documento.codigo}, página ${String(pagina + 1)}`} data-palete={documento.codigo} data-documento={documento.tipo}>

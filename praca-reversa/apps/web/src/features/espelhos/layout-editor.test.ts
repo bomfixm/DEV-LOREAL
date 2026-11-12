@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { desfazer, iniciarHistorico, refazer, registrar, restaurar, substituir } from './historico';
 import { aplicarLayout, aplicarLayoutEmbarque, CHAVE_ARMAZENAMENTO, layoutDoEmbarque, layoutsDosPaletes, modelosSalvos, salvarModelo, type MemoriaLayouts } from './layout-armazenamento';
-import { alterarBloco, assinaturaLayout, blocoDe, CLASSICO, EMBARQUE_CLASSICO, EMBARQUE_LIMPO, LAYOUT_PADRAO, lerLayout, noPasso, OPERACIONAL_LIMPO, PAPEL, PX_POR_MM } from './layout-modelo';
+import {
+  adicionarTexto, ajustarTamanho, alinharItens, alterarBloco, alterarItem, assinaturaLayout, blocoDe, caixaDoItem, CLASSICO, deslocarItens, EMBARQUE_CLASSICO, EMBARQUE_LIMPO, LAYOUT_PADRAO, lerLayout,
+  MAX_TEXTOS, nomeDoItem, noPasso, OPERACIONAL_LIMPO, PAPEL, PX_POR_MM, removerTextos,
+} from './layout-modelo';
 import { problemasDaFolha } from './verificacao';
 
 const P = (l: Parameters<typeof blocoDe>[0]) => blocoDe(l, 'palete');
@@ -113,6 +116,56 @@ describe('verificação da folha', () => {
     expect(p.filter((x) => x.gravidade === 'erro').map((x) => x.campo).sort()).toEqual(['palete', 'tabela']);
     expect(p.some((x) => x.gravidade === 'aviso' && x.texto.includes('sobrepostos'))).toBe(true);
     expect(p.some((x) => x.campo === 'emissao' && x.gravidade === 'aviso')).toBe(true);
+  });
+});
+
+describe('vários itens e textos livres', () => {
+  it('textos livres: só texto puro, ids únicos, limite; layout antigo sem textos continua válido', () => {
+    const a = adicionarTexto(OPERACIONAL_LIMPO, 'Conferente: ______');
+    expect(a?.id).toBe('txt-1');
+    const b = adicionarTexto(a?.layout ?? OPERACIONAL_LIMPO);
+    expect(b?.id).toBe('txt-2');
+    const l = alterarItem(b?.layout ?? OPERACIONAL_LIMPO, 'txt-1', { x: 500, estilo: { tamanho: 14, alinhamento: 'centro' } });
+    const t1 = l.textos.find((t) => t.id === 'txt-1');
+    expect(t1).toMatchObject({ texto: 'Conferente: ______', estilo: { tamanho: 14, alinhamento: 'centro' } });
+    expect((t1?.x ?? 0) + (t1?.largura ?? 0)).toBeLessThanOrEqual(PAPEL.largura);
+    expect(lerLayout(l)).toEqual(l);
+    expect(nomeDoItem(l, 'txt-1')).toBe('Texto “Conferente: ______”');
+    // Id fora do padrão, caractere de controle ou repetido: recusado.
+    expect(lerLayout({ ...l, textos: [{ ...t1, id: 'endereco' }] })).toBeNull();
+    expect(lerLayout({ ...l, textos: [{ ...t1, texto: 'a\u0007b' }] })).toBeNull();
+    expect(lerLayout({ ...l, textos: [t1, t1] })).toBeNull();
+    // Texto com tags fica como texto (nada é interpretado).
+    expect(alterarItem(l, 'txt-1', { texto: '<b>x</b>' }).textos[0]?.texto).toBe('<b>x</b>');
+    const { textos: _semTextos, ...antigo } = OPERACIONAL_LIMPO;
+    expect(lerLayout(antigo)).toEqual(OPERACIONAL_LIMPO);
+    let cheio = OPERACIONAL_LIMPO;
+    for (let i = 0; i < MAX_TEXTOS; i += 1) cheio = adicionarTexto(cheio)?.layout ?? cheio;
+    expect(adicionarTexto(cheio)).toBeNull();
+    expect(removerTextos(l, ['txt-1']).textos.map((t) => t.id)).toEqual(['txt-2']);
+  });
+
+  it('grupo: move junto sem sair da folha, alinha e muda o tamanho de todos', () => {
+    const ids = ['endereco', 'palete', 'demo'];
+    const movido = deslocarItens(OPERACIONAL_LIMPO, ids, 0, 10);
+    expect(ids.map((id) => caixaDoItem(movido, id).y)).toEqual(ids.map((id) => caixaDoItem(OPERACIONAL_LIMPO, id).y + 10));
+    // Para a direita além da borda: o grupo para quando o palete (mais à direita) encosta; as distâncias se mantêm.
+    const borda = deslocarItens(OPERACIONAL_LIMPO, ids, 100, 0);
+    const p = caixaDoItem(borda, 'palete');
+    expect(p.x + p.largura).toBe(PAPEL.largura);
+    expect(caixaDoItem(borda, 'palete').x - caixaDoItem(borda, 'endereco').x).toBe(caixaDoItem(OPERACIONAL_LIMPO, 'palete').x - caixaDoItem(OPERACIONAL_LIMPO, 'endereco').x);
+    const esq = alinharItens(OPERACIONAL_LIMPO, ['palete', 'continuacao', 'demo'], 'esquerda');
+    expect(new Set(['palete', 'continuacao', 'demo'].map((id) => caixaDoItem(esq, id).x))).toEqual(new Set([10]));
+    const topo = alinharItens(OPERACIONAL_LIMPO, ['endereco', 'demo'], 'topo');
+    expect(caixaDoItem(topo, 'demo').y).toBe(9);
+    const maior = ajustarTamanho(OPERACIONAL_LIMPO, ['emissao', 'legenda', 'divisoria'], 2);
+    expect([caixaDoItem(maior, 'emissao').estilo.tamanho, caixaDoItem(maior, 'legenda').estilo.tamanho]).toEqual([9, 9]);
+    expect(ajustarTamanho(OPERACIONAL_LIMPO, ['emissao'], -50).blocos.emissao?.estilo.tamanho).toBe(5);
+  });
+
+  it('avisos de texto livre usam o nome do texto', () => {
+    const p = problemasDaFolha([{ campo: 'txt-1', nome: 'Texto “Conferente”', x: 280, y: 10, largura: 30, altura: 5 }], 8);
+    expect(p[0]?.texto).toBe('Texto “Conferente”: passa da borda da folha.');
   });
 });
 

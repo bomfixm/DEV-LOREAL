@@ -160,6 +160,77 @@ test('editor: A e B recebem o layout, C fica como estava; zoom não muda coorden
   expect(await estilo(page, C)).toMatchObject({ left: '210mm', fonte: '24pt' });
 });
 
+test('editor: vários itens de uma vez (Shift + clique e seleção por área) e texto livre alinhado', async ({ page }, info) => {
+  test.skip(info.project.name !== 'computador', 'Impressão de espelhos é só no computador.');
+  await abrir(page);
+  const [A = ''] = await tresPaletes(page);
+  await marcarEGerar(page, [A]);
+  await page.getByTestId('espelhos-editar').click();
+  const editor = page.getByTestId('editor-layout');
+  const folha = editor.locator('.espelho-folha');
+  const item = (id: string) => folha.locator(`[data-campo-editor="${id}"]`);
+  const fonte = (id: string) => item(id).evaluate((el) => (el as HTMLElement).style.fontSize);
+
+  // Shift + clique: rodapé (emissão e legenda) junto; A+ aumenta 1 pt em cada.
+  await item('emissao').click();
+  await item('legenda').click({ modifiers: ['Shift'] });
+  await expect(editor.getByTestId('ed-titulo-painel')).toHaveText('2 itens selecionados');
+  await editor.getByTestId('ed-maior').click();
+  await editor.getByTestId('ed-maior').click();
+  expect([await fonte('emissao'), await fonte('legenda')]).toEqual(['9pt', '9pt']);
+
+  // Seleção por área: arrastar numa parte vazia da folha pega o topo inteiro.
+  await page.keyboard.press('Escape');
+  const zoom = Number((await editor.getByTestId('ed-zoom').innerText()).replace('%', '')) / 100;
+  const caixa = await folha.boundingBox();
+  if (caixa === null) throw new Error('sem folha');
+  const ponto = (xmm: number, ymm: number) => [caixa.x + xmm * PX_MM * zoom, caixa.y + ymm * PX_MM * zoom] as const;
+  const [x0, y0] = ponto(2, 2);
+  const [x1, y1] = ponto(285, 33);
+  await page.mouse.move(x0, y0);
+  await page.mouse.down();
+  await page.mouse.move((x0 + x1) / 2, (y0 + y1) / 2, { steps: 4 });
+  await expect(editor.getByTestId('ed-laco')).toBeVisible();
+  await page.mouse.move(x1, y1, { steps: 4 });
+  await page.mouse.up();
+  await expect(editor.getByTestId('ed-titulo-painel')).toContainText('itens selecionados');
+  await expect(editor.getByTestId('ed-selecao')).toContainText('Endereço');
+  await expect(editor.getByTestId('ed-selecao')).toContainText('Número do palete');
+  await page.screenshot({ path: resolve('docs/capturas/espelhos-editor', '06-varios-selecionados.png') });
+  // Arrastar um deles move o grupo inteiro (5 mm para baixo).
+  const end = await item('endereco').boundingBox();
+  if (end === null) throw new Error('sem endereço');
+  await page.mouse.move(end.x + 20, end.y + end.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(end.x + 20, end.y + end.height / 2 + 5 * PX_MM * zoom, { steps: 6 });
+  await page.mouse.up();
+  expect(await item('endereco').evaluate((el) => (el as HTMLElement).style.top)).toBe('14mm');
+  expect(await item('palete').evaluate((el) => (el as HTMLElement).style.top)).toBe('14mm');
+
+  // Texto livre: escrever, centralizar e posicionar; outro texto é excluído com Delete.
+  await editor.getByTestId('ed-adicionar-texto').click();
+  await editor.getByTestId('ed-texto').fill('Conferente: ____________');
+  await editor.getByRole('group', { name: 'Alinhamento do texto' }).getByRole('button', { name: 'Centro' }).click();
+  await editor.getByTestId('ed-largura').fill('80');
+  await editor.getByTestId('ed-x').fill('103.5');
+  await editor.getByTestId('ed-y').fill('189');
+  await editor.getByTestId('ed-adicionar-texto').click();
+  await expect(folha.locator('[data-campo-editor^="txt-"]')).toHaveCount(2);
+  await page.keyboard.press('Delete');
+  await expect(folha.locator('[data-campo-editor^="txt-"]')).toHaveCount(1);
+  await editor.getByTestId('ed-aplicar').click();
+  await expect(editor).toBeHidden();
+
+  const texto = page.locator(`.espelhos-folhas .espelho-folha[data-palete="${A}"] [data-campo^="txt-"]`).first();
+  await expect(texto).toHaveText('Conferente: ____________');
+  await expect(texto).toHaveCSS('text-align', 'center');
+  await expect(page.getByTestId('espelhos-problemas')).toHaveCount(0);
+  await page.emulateMedia({ media: 'print' });
+  await expect(texto).toBeVisible();
+  await page.locator(`.espelhos-folhas .espelho-folha[data-palete="${A}"]`).first().screenshot({ path: resolve('docs/capturas/espelhos-editor', '07-texto-livre.png') });
+  await page.emulateMedia({ media: 'screen' });
+});
+
 test('espelhos: remetente longo, campos vazios e muitas notas paginam sem cortar @captura', async ({ page }, info) => {
   test.skip(info.project.name !== 'computador', 'Impressão de espelhos é só no computador.');
   await abrir(page);

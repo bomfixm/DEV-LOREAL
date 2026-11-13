@@ -198,8 +198,3 @@ span.carregamento--compacta .carregamento-quadro {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .abertura {
-    display: none;
-  }
-}

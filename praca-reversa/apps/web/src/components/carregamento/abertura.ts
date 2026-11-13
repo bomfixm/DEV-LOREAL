@@ -17,10 +17,14 @@ function mudar(novo: Estado): void {
   for (const ouvinte of ouvintes) ouvinte();
 }
 
-/** Sessão confirmada: toca se ainda não tocou nesta abertura. Com movimento reduzido, é pulada. */
-export function solicitarAbertura(movimentoReduzido: boolean): void {
+/**
+ * Sessão confirmada: toca se ainda não tocou nesta abertura. Toca também com
+ * "reduzir movimento" ligado no sistema (decisão do usuário, D335): os
+ * computadores da operação costumam ter os efeitos de animação desligados.
+ */
+export function solicitarAbertura(): void {
   if (estado !== 'armada') return;
-  mudar(movimentoReduzido ? 'encerrada' : 'tocando');
+  mudar('tocando');
 }
 
 export function encerrarAbertura(): void {

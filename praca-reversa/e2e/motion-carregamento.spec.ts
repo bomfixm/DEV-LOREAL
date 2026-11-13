@@ -10,7 +10,7 @@ import { aguardarMapa, ehCelular, entrar, obterPraca } from './apoio';
  * - busca de 2.500 ms: aparece aos 1,5 s e sai quando os dados chegam;
  * - erro e cancelamento (troca de rota) não deixam indicador preso;
  * - a abertura toca uma vez, não toca em login rejeitado e não se sobrepõe ao indicador;
- * - movimento reduzido: sem abertura e desenho estático, mesma regra.
+ * - movimento reduzido: a abertura toca assim mesmo (D335) e o desenho do indicador fica parado, mesma regra.
  */
 const PASTA = 'docs/capturas/motion';
 const URL_PRACA = /\/api\/v1\/praca(\?|$)/;
@@ -199,7 +199,7 @@ test('compacta na janela do palete; troca de rota no meio cancela sem indicador 
 test.describe('movimento reduzido', () => {
   test.use({ reducedMotion: 'reduce' });
 
-  test('sem abertura; desenho estático com a mesma regra dos 1,5 s', async ({ page }, testInfo) => {
+  test('a abertura toca assim mesmo; desenho estático com a mesma regra dos 1,5 s', async ({ page }, testInfo) => {
     const marcas = await atrasar(page, URL_PRACA, 2500);
     await entrar(page, 'consulta');
     const indicador = page.locator('[data-carregamento="visivel"]');
@@ -211,7 +211,8 @@ test.describe('movimento reduzido', () => {
     await aguardarMapa(page);
     await expect(indicador).toHaveCount(0);
     const linha = await linhaDoTempo(page);
-    expect(linha.some((e) => e.abertura)).toBe(false);
+    expect(linha.some((e) => e.abertura)).toBe(true);
+    expect(linha.some((e) => e.abertura && e.visiveis > 0)).toBe(false);
     const [intervalo] = intervalosVisiveis(linha);
     const busca = marcas[0];
     expect(intervalo && busca ? intervalo.de - busca.inicio : 0).toBeGreaterThanOrEqual(1400);

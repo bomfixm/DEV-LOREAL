@@ -613,10 +613,11 @@ export function App() {
   }, [usuarioId, escopoId, politica]);
 
   // Abertura pós-login (D334): uma vez por abertura da área autenticada, só depois de o servidor confirmar a sessão.
-  // Antes da pintura, para a tela não piscar sem a abertura. Sair da conta rearma.
+  // Antes da pintura, para a tela não piscar sem a abertura. Sair da conta rearma. Toca também com
+  // "reduzir movimento" do sistema (decisão do usuário, D335).
   const situacaoSessao = estado.estado;
   useLayoutEffect(() => {
-    if (situacaoSessao === 'autenticado') solicitarAbertura(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if (situacaoSessao === 'autenticado') solicitarAbertura();
     else if (situacaoSessao === 'anonimo') rearmarAbertura();
   }, [situacaoSessao]);
 

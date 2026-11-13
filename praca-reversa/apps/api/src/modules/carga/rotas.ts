@@ -28,6 +28,7 @@ import {
   type Escopo,
   type TipoVeiculo,
 } from '@praca-reversa/contracts';
+import { escreverXlsx } from '../importacao/arquivo/xlsx-escrita.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Banco, Transacao } from '../../db/cliente.js';
@@ -121,6 +122,27 @@ export function registrarRotasCarga(app: FastifyInstance, deps: Dependencias, au
   app.get(`${API_PREFIXO}/cargas/janelas/:id`, { preHandler: auth.exigirPermissao('janela.consultar') }, async (request) => {
     const { id } = validar(Id, request.params, 'Identificador de janela inválido.');
     return cargaDaJanela(deps.db, escopoAtivoDe(request), id, deps.agora());
+  });
+
+  // Excel com tudo o que já está nos veículos da janela (uma linha por nota), para PROCV com a planilha do cliente.
+  app.get(`${API_PREFIXO}/cargas/janelas/:id/relatorio`, { preHandler: auth.exigirPermissao('janela.consultar') }, async (request, reply) => {
+    const { id } = validar(Id, request.params, 'Identificador de janela inválido.');
+    const c = await cargaDaJanela(deps.db, escopoAtivoDe(request), id, deps.agora());
+    const t = (titulo: string, largura = 18) => ({ titulo, largura, texto: true });
+    const colunas = [t('Nota', 16), t('Tipo', 12), t('Remetente', 30), t('Delivery', 16), t('Volumes', 10), t('Veículo', 14), t('Placa', 12), t('Palete', 10), t('Posição', 10), t('Palete de origem', 18), t('Carregamento confirmado', 22), t('Físico conferido', 16), t('Documentos', 16)];
+    const linhas: (string | null)[][] = [];
+    for (const v of c.vehicles.filter((x) => x.state !== 'CANCELADO')) {
+      for (const p of v.pallets.filter((x) => x.state === 'ATIVO')) {
+        for (const l of p.lines) {
+          linhas.push([l.documentNumber, l.documentType, l.sender, l.delivery, String(l.volumes), v.label, v.plate, p.label, p.position === null ? null : String(p.position), l.sourcePalletCode, p.positionConfirmed ? 'Sim' : 'Não', p.physical.checked ? 'Sim' : 'Não', p.docs.state]);
+        }
+      }
+    }
+    return reply
+      .header('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .header('cache-control', 'no-store')
+      .header('content-disposition', `attachment; filename="${nomeArquivoSeguro(`expedicao-${c.window.code}`)}.xlsx"`)
+      .send(escreverXlsx([{ nome: 'Na expedicao', colunas, linhas }]));
   });
 
   app.get(`${API_PREFIXO}/cargas/janelas/:id/origem`, { preHandler: auth.exigirPermissao('expedicao.preparar') }, async (request) => {

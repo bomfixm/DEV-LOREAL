@@ -2,7 +2,6 @@ import {
   API_PREFIXO,
   CargaJanelaSchema,
   JanelasCargaSchema,
-  ListaSeparacoesSchema,
   OrigemEmbarqueSchema,
   type CargaJanela,
   type OrigemEmbarque,
@@ -99,9 +98,6 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
   const janelas = useRecurso(`${API}/janelas`, JanelasCargaSchema);
   const listaJanelas = janelas.carga?.estado === 'pronto' ? janelas.carga.dados.items : [];
   const janelaId = rota.janela ?? listaJanelas.find((j) => j.vehicles > 0)?.id ?? null;
-  // Planilhas do cliente ativas (quem não tem permissão de consulta simplesmente não vê o botão).
-  const separacoes = useRecurso(`${API_PREFIXO}/separacoes`, ListaSeparacoesSchema);
-  const faltas = separacoes.carga?.estado === 'pronto' ? separacoes.carga.dados.items : [];
   const [versao, setVersao] = useState(0);
   const carga = useRecurso(janelaId === null ? null : `${API}/janelas/${janelaId}`, CargaJanelaSchema, versao);
   const [resposta, setResposta] = useState<CargaJanela | null>(null);
@@ -260,24 +256,21 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
               ))}
             </div>
           )}
-          {faltas.length > 0 && (
-            <div className="acoes-linha" data-testid="carga-falta-separar">
-              {faltas.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className="botao-secundario botao-compacto"
-                  data-testid="exportar-separados"
-                  title="Excel com o que já está separado (palete, posição, quem e quando separou e todas as colunas da planilha do cliente)"
-                  onClick={() => {
-                    baixarArquivo(`${API_PREFIXO}/separacoes/${s.id}/separados`, `separados-${s.window ?? 'cliente'}.xlsx`).catch((e: unknown) => {
-                      setMensagem({ tipo: 'erro', texto: mensagemDeFalha(e) });
-                    });
-                  }}
-                >
-                  Exportar o que já está separado (Excel){faltas.length > 1 ? ` · ${s.window ?? s.fileName}` : ''}
-                </button>
-              ))}
+          {janelaId !== null && (
+            <div className="acoes-linha" data-testid="carga-exportar">
+              <button
+                type="button"
+                className="botao-secundario botao-compacto"
+                data-testid="exportar-expedicao"
+                title="Excel com todos os paletes e notas que estão nos veículos desta janela"
+                onClick={() => {
+                  baixarArquivo(`${API}/janelas/${janelaId}/relatorio`, `expedicao-${dados?.window.code ?? 'janela'}.xlsx`).catch((e: unknown) => {
+                    setMensagem({ tipo: 'erro', texto: mensagemDeFalha(e) });
+                  });
+                }}
+              >
+                Exportar paletes da Expedição (Excel)
+              </button>
             </div>
           )}
           <MensagemAcao mensagem={mensagem} testId="carga-mensagem" />

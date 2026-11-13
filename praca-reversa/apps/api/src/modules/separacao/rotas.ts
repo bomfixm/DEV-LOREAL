@@ -61,13 +61,15 @@ export function registrarRotasSeparacao(app: FastifyInstance, deps: Dependencias
   app.get(`${API_PREFIXO}/separacoes/:id/separados`, { preHandler: auth.exigirPermissao('selecao.consultar') }, async (request, reply) => {
     const escopo = escopoAtivoDe(request);
     const { id } = validar(ParametrosSchema, request.params, 'Identificador inválido.');
+    const { somente } = validar(z.object({ somente: z.enum(['falta']).optional() }), request.query, 'Parâmetro inválido.');
     const separacao = (await listarSeparacoes(deps.db, escopo.id)).items.find((s) => s.id === id);
     if (!separacao) throw naoEncontrado('Separação ativa não encontrada.');
+    const falta = somente === 'falta';
     return reply
       .header('content-type', TIPO_XLSX)
       .header('cache-control', 'no-store')
-      .header('content-disposition', `attachment; filename="${nomeDownload(`separados-${separacao.window ?? 'cliente'}`)}.xlsx"`)
-      .send(await relatorioSeparadosXlsx(deps.db, escopo.id, separacao));
+      .header('content-disposition', `attachment; filename="${nomeDownload(`${falta ? 'falta-separar' : 'separados'}-${separacao.window ?? 'cliente'}`)}.xlsx"`)
+      .send(await relatorioSeparadosXlsx(deps.db, escopo.id, separacao, falta));
   });
 
   app.post(`${API_PREFIXO}/separacoes/:id/encerrar`, { preHandler: auth.exigirPermissao('selecao.importar') }, async (request, reply) => {

@@ -248,7 +248,7 @@ const fmtDataHora = (d: Date) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'A
  * todas as colunas da planilha do cliente). Segunda aba: notas em paletes do
  * mapa que ainda não foram marcadas.
  */
-export async function relatorioSeparadosXlsx(db: Db, escopoId: string, s: SeparacaoCliente): Promise<Buffer> {
+export async function relatorioSeparadosXlsx(db: Db, escopoId: string, s: SeparacaoCliente, somenteFalta = false): Promise<Buffer> {
   const marcas = await db.separacaoClientePalete.findMany({ where: { escopoId, separacaoId: s.id }, select: { paleteId: true, marcadoPor: true, marcadoEm: true } });
   const nomes = new Map((await db.usuario.findMany({ where: { id: { in: [...new Set(marcas.map((m) => m.marcadoPor))] } }, select: { id: true, nome: true } })).map((u) => [u.id, u.nome]));
   const marca = new Map(marcas.map((m) => [m.paleteId, m]));
@@ -264,6 +264,17 @@ export async function relatorioSeparadosXlsx(db: Db, escopoId: string, s: Separa
       if (m !== undefined) separados.push([l.palletCode, l.positionCode, l.address, fmtDataHora(m.marcadoEm), nomes.get(m.marcadoPor) ?? null, ...valores]);
       else if (n.situation === 'NO_MAPA') falta.push([l.palletCode, l.positionCode, l.address, ...valores]);
     }
+  }
+  if (somenteFalta) {
+    // Tudo o que ainda falta separar: no mapa com palete não marcado + notas sem palete ou sem posição.
+    const colunasSem = [t('Situação', 28), t('Palete no sistema', 20), t('Endereço no sistema', 22), ...s.headers.map((h) => t(h))];
+    const sem = s.notes
+      .filter((n) => n.situation !== 'NO_MAPA')
+      .map((n) => [ROTULOS_SITUACAO_NOTA_SEPARACAO[n.situation], n.locations.map((l) => l.palletCode).join(', ') || null, n.locations.flatMap((l) => (l.address === null ? [] : [l.address])).join(', ') || null, ...s.headers.map((h) => n.values[h] ?? null)]);
+    return escreverXlsx([
+      { nome: 'Falta separar (no mapa)', colunas: colunasFalta, linhas: falta },
+      { nome: 'Sem palete ou posicao', colunas: colunasSem, linhas: sem },
+    ]);
   }
   return escreverXlsx([
     { nome: 'Separados', colunas: colunasSeparados, linhas: separados },

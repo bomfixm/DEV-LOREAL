@@ -2,6 +2,7 @@ import {
   API_PREFIXO,
   CargaJanelaSchema,
   JanelasCargaSchema,
+  ListaSeparacoesSchema,
   OrigemEmbarqueSchema,
   type CargaJanela,
   type OrigemEmbarque,
@@ -14,7 +15,7 @@ import {
 } from '@praca-reversa/contracts';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useChaves, ehConflitoDeVersao } from '../../api/chaves';
-import { enviarJson, mensagemDeFalha, obterJson } from '../../api/cliente';
+import { baixarArquivo, enviarJson, mensagemDeFalha, obterJson } from '../../api/cliente';
 import { useRecurso } from '../../api/use-recurso';
 import { EstadoTela, MensagemAcao } from '../../components/Moldura';
 import type { Navegar, Rota } from '../../rotas';
@@ -98,6 +99,9 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
   const janelas = useRecurso(`${API}/janelas`, JanelasCargaSchema);
   const listaJanelas = janelas.carga?.estado === 'pronto' ? janelas.carga.dados.items : [];
   const janelaId = rota.janela ?? listaJanelas.find((j) => j.vehicles > 0)?.id ?? null;
+  // Planilhas do cliente ativas (quem não tem permissão de consulta simplesmente não vê o botão).
+  const separacoes = useRecurso(`${API_PREFIXO}/separacoes`, ListaSeparacoesSchema);
+  const faltas = separacoes.carga?.estado === 'pronto' ? separacoes.carga.dados.items : [];
   const [versao, setVersao] = useState(0);
   const carga = useRecurso(janelaId === null ? null : `${API}/janelas/${janelaId}`, CargaJanelaSchema, versao);
   const [resposta, setResposta] = useState<CargaJanela | null>(null);
@@ -252,6 +256,26 @@ export function TelaCarga({ sessao, rota, aoNavegar }: { sessao: Sessao; rota: R
                     {v.occupied}/{v.capacity}
                   </span>
                   {v.state === 'FECHADO' && <span className="carga-selo-fechado"> · Fechada</span>}
+                </button>
+              ))}
+            </div>
+          )}
+          {faltas.length > 0 && (
+            <div className="acoes-linha" data-testid="carga-falta-separar">
+              {faltas.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className="botao-secundario botao-compacto"
+                  data-testid="exportar-separados"
+                  title="Excel com o que já está separado (palete, posição, quem e quando separou e todas as colunas da planilha do cliente)"
+                  onClick={() => {
+                    baixarArquivo(`${API_PREFIXO}/separacoes/${s.id}/separados`, `separados-${s.window ?? 'cliente'}.xlsx`).catch((e: unknown) => {
+                      setMensagem({ tipo: 'erro', texto: mensagemDeFalha(e) });
+                    });
+                  }}
+                >
+                  Exportar o que já está separado (Excel){faltas.length > 1 ? ` · ${s.window ?? s.fileName}` : ''}
                 </button>
               ))}
             </div>

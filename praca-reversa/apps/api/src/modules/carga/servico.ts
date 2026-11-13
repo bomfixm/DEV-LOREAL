@@ -22,6 +22,7 @@ import {
   type CriarVeiculoSchema,
   type EmitirSchema,
   type FisicoConferidoSchema,
+  type IncluirNotasEmbarqueSchema,
   type PosicaoEmbarqueSchema,
   type TipoVeiculo,
   type TransferirEmbarqueSchema,
@@ -395,6 +396,153 @@ export async function criarPalete(tx: Transacao, escopo: Escopo, veiculoId: stri
     agora,
   );
   return v.janela_id;
+}
+
+/** Onde cada ocorrência já está nos paletes de embarque ativos da janela (identidade e volumes). */
+async function jaNaJanela(tx: Transacao, escopoId: string, janelaId: string, ids: readonly string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const linhas = await tx.$queryRaw<{ alvo: string; codigo: string; tipo: TipoVeiculo; sequencia: number; numero: number }[]>`
+    SELECT DISTINCT ON (coalesce(l.conteudo_id, l.vinculo_id)) coalesce(l.conteudo_id, l.vinculo_id)::text AS alvo, j.codigo, v.tipo, v.sequencia, pe.numero
+      FROM linha_palete_embarque l
+      JOIN palete_embarque pe ON pe.id = l.palete_embarque_id
+      JOIN veiculo_carga v ON v.id = pe.veiculo_id
+      JOIN janela_devolucao j ON j.id = v.janela_id
+     WHERE l.escopo_id = ${escopoId}::uuid AND coalesce(l.conteudo_id, l.vinculo_id) = ANY(${ids}::uuid[])
+       AND l.removida_em IS NULL AND pe.situacao = 'ATIVO' AND v.situacao <> 'CANCELADO' AND v.janela_id = ${janelaId}::uuid
+     ORDER BY coalesce(l.conteudo_id, l.vinculo_id), pe.criado_em`;
+  return new Map(linhas.map((l) => [l.alvo, identidadeEmbarque(l.codigo, l.tipo, l.sequencia, l.numero)]));
+}
+
+export interface InclusaoNotas {
+  janelaId: string;
+  added: { occurrence: RefOcorrencia; documentType: string | null; documentNumber: string | null; sourcePalletCode: string; volumes: number }[];
+  skipped: { occurrence: RefOcorrencia; documentType: string | null; documentNumber: string | null; sourcePalletCode: string; identity: string }[];
+  pallet: { id: string; label: string; identity: string; created: boolean };
+}
+
+/**
+ * Inclusão por nota (ficha do palete): só as ocorrências pedidas, pelo ID
+ * estável, todas do palete de origem informado. Nunca expande para o palete
+ * inteiro (isso é o FULL de `criarPalete`). Ocorrência já na seleção desta
+ * janela não entra de novo nem tem a quantidade sobrescrita; se todas já
+ * estavam, é conflito (nada muda). As demais validações são as do fracionado
+ * (`prepararLinhas`: na praça, sem FULL ativo, volumes conhecidos e
+ * disponíveis). Destino: fracionado existente do veículo (versão vista) ou um
+ * fracionado novo. Nada baixa estoque.
+ */
+export async function incluirNotas(tx: Transacao, escopo: Escopo, veiculoId: string, dados: Saida<typeof IncluirNotasEmbarqueSchema>, autor: Autor, agora: Date): Promise<InclusaoNotas> {
+  const v = await travarVeiculo(tx, escopo.id, veiculoId);
+  exigirMontagem(v, 'Veículo');
+  let destino: PaleteTravado | null = null;
+  if (dados.targetPalletId !== null) {
+    const t = await travarPalete(tx, escopo.id, dados.targetPalletId);
+    if (t.v.id !== v.id) throw new ErroHttp(409, 'CONFLITO_VERSAO', 'O palete de destino mudou de veículo. Atualize a lista e escolha de novo.');
+    destino = t.p;
+    if (destino.situacao !== 'ATIVO') throw conflito(`O ${rotuloPaleteEmbarque(destino.numero)} foi cancelado: escolha outro destino.`);
+    if (destino.tipo !== 'FRACIONADO') throw conflito(`O ${rotuloPaleteEmbarque(destino.numero)} é FULL (leva um palete inteiro): a nota entra num fracionado.`);
+    exigirVersao(destino.versao, dados.expectedVersion ?? 0, `O ${rotuloPaleteEmbarque(destino.numero)}`);
+  }
+  const origens = await travarOrigens(tx, escopo.id, [dados.sourcePalletId]);
+  const origem = origens.get(dados.sourcePalletId);
+  const refs = dados.lines.map((l) => l.occurrence);
+  const ocorrencias = await lerOcorrencias(tx, escopo.id, refs);
+  // Cada nota precisa existir, ser do tipo informado e estar no palete de origem informado: nada de achar "a mesma NF" em outro palete.
+  for (const r of refs) {
+    const o = ocorrencias.get(r.id);
+    if (o?.kind !== r.kind) throw naoEncontrado('Nota não encontrada neste escopo (identificação inválida ou removida). Nada foi incluído; atualize a ficha do palete.');
+    if (o.palletId !== dados.sourcePalletId) throw conflito(`A ${o.documentType ?? 'nota'} ${o.documentNumber ?? 'sem número'} não está no palete ${origem?.codigo ?? ''}: nada foi incluído. Atualize a ficha do palete.`);
+  }
+  const ja = await jaNaJanela(
+    tx,
+    escopo.id,
+    v.janela_id,
+    refs.map((r) => r.id),
+  );
+  const nota = (r: RefOcorrencia) => {
+    const o = ocorrencias.get(r.id);
+    return { occurrence: r, documentType: o?.documentType ?? null, documentNumber: o?.documentNumber ?? null, sourcePalletCode: o?.palletCode ?? origem?.codigo ?? '' };
+  };
+  const skipped = refs.flatMap((r) => {
+    const onde = ja.get(r.id);
+    return onde === undefined ? [] : [{ ...nota(r), identity: onde }];
+  });
+  const novas = dados.lines.filter((l) => !ja.has(l.occurrence.id));
+  if (novas.length === 0) {
+    const [s] = skipped;
+    throw new ErroHttp(
+      409,
+      'CONFLITO',
+      skipped.length === 1 && s
+        ? `${s.documentType ?? 'Nota'} ${s.documentNumber ?? 'sem número'} já está na expedição (${s.identity}). Nada mudou; para alterar os volumes, edite esse palete na Expedição.`
+        : `As ${String(skipped.length)} notas já estão na expedição desta janela. Nada mudou.`,
+    );
+  }
+  // Volumes: o pedido (parcial) ou todo o disponível para esta janela.
+  const bases = new Map([...ocorrencias.values()].map((o) => [o.id, o.base]));
+  const disp = await disponibilidade(
+    tx,
+    escopo.id,
+    v.janela_id,
+    novas.map((l) => l.occurrence.id),
+    bases,
+    null,
+  );
+  const pedidas = novas.map((l) => {
+    const o = ocorrencias.get(l.occurrence.id);
+    const descricao = `${o?.documentType ?? 'Nota'} ${o?.documentNumber ?? 'sem número'}`;
+    const disponivel = disp.get(l.occurrence.id)?.available ?? null;
+    if (l.volumes !== null) return { ref: l.occurrence, volumes: l.volumes };
+    if (disponivel === null) throw conflito(`${descricao}: volumes não informados. Registre a contagem na conferência de volumes antes de embarcar.`);
+    if (disponivel <= 0) throw conflito(`${descricao}: nenhum volume disponível (já está em outro palete de embarque ou expedido).`);
+    return { ref: l.occurrence, volumes: disponivel };
+  });
+  const linhas = await prepararLinhas(tx, escopo.id, v.janela_id, pedidas, null);
+  const j = await lerJanelaCarga(tx, escopo.id, v.janela_id);
+  const detalhesLinhas = linhas.map((l) => ({ nf: l.numero, origem: l.paleteOrigemCodigo, volumes: l.volumes }));
+  let pallet: InclusaoNotas['pallet'];
+  if (destino === null) {
+    const ativos = await ativosDoVeiculo(tx, v.id);
+    if (ativos.length >= v.capacidade) throw conflito(`O veículo já tem ${String(v.capacidade)} paletes: capacidade completa. Escolha um fracionado existente.`);
+    const numero = proximoNumero(v, ativos);
+    const id = randomUUID();
+    await tx.$executeRaw`
+      INSERT INTO palete_embarque (id, escopo_id, veiculo_id, numero, posicao, tipo, palete_origem_id, criado_por_id, criado_em, atualizado_em)
+      VALUES (${id}::uuid, ${escopo.id}::uuid, ${v.id}::uuid, ${numero}, NULL, 'FRACIONADO', NULL, ${autor.usuarioId}::uuid, ${agora}, ${agora})`;
+    await gravarLinhas(tx, escopo.id, id, linhas);
+    await historico(tx, escopo.id, v.id, id, 'PALETE_CRIADO', { numero, tipo: 'FRACIONADO', posicao: null, inclusao: 'POR_NOTA', origem: origem?.codigo ?? null, linhas: detalhesLinhas }, autor, agora);
+    pallet = { id, label: rotuloPaleteEmbarque(numero), identity: identidadeEmbarque(j.codigo, v.tipo, v.sequencia, numero), created: true };
+  } else {
+    const [m] = await tx.$queryRaw<{ ordem: number }[]>`SELECT coalesce(max(ordem), 0)::int AS ordem FROM linha_palete_embarque WHERE palete_embarque_id = ${destino.id}::uuid`;
+    let ordem = m?.ordem ?? 0;
+    for (const l of linhas) {
+      ordem++;
+      await tx.$executeRaw`
+        INSERT INTO linha_palete_embarque (id, escopo_id, palete_embarque_id, vinculo_id, conteudo_id, palete_origem_id, palete_origem_codigo, volumes,
+                                           tipo_documento, numero_documento, remetente, delivery, ordem)
+        VALUES (${randomUUID()}::uuid, ${escopo.id}::uuid, ${destino.id}::uuid,
+                ${l.ref.kind === 'VINCULO' ? l.ref.id : null}::uuid, ${l.ref.kind === 'CONTEUDO' ? l.ref.id : null}::uuid,
+                ${l.paleteOrigemId}::uuid, ${l.paleteOrigemCodigo}, ${l.volumes}, ${l.tipo}, ${l.numero}, ${l.remetente}, ${l.delivery}, ${ordem})`;
+    }
+    // Conteúdo mudou: revisão nova (físico, documentação e espelho deste palete são revistos), como em "Alterar NFs".
+    await tx.$executeRaw`UPDATE palete_embarque SET revisao = revisao + 1, versao = versao + 1, atualizado_em = ${agora} WHERE id = ${destino.id}::uuid`;
+    await historico(
+      tx,
+      escopo.id,
+      v.id,
+      destino.id,
+      'CONTEUDO_ALTERADO',
+      { numero: destino.numero, revisaoAnterior: destino.revisao, revisaoNova: destino.revisao + 1, inclusao: 'POR_NOTA', acrescentadas: detalhesLinhas },
+      autor,
+      agora,
+    );
+    pallet = { id: destino.id, label: rotuloPaleteEmbarque(destino.numero), identity: identidadeEmbarque(j.codigo, v.tipo, v.sequencia, destino.numero), created: false };
+  }
+  return {
+    janelaId: v.janela_id,
+    added: linhas.map((l) => ({ ...nota(l.ref), volumes: l.volumes })),
+    skipped,
+    pallet,
+  };
 }
 
 export async function moverPosicao(tx: Transacao, escopo: Escopo, paleteId: string, dados: Saida<typeof PosicaoEmbarqueSchema>, autor: Autor, agora: Date): Promise<string> {

@@ -133,7 +133,7 @@ describe('Expedição DHL — carga por veículo', () => {
     const truck = idVeiculo(c, 'Truck 01');
     const o = await origemCom([6, 3]);
     c = await ok(
-      await mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${truck}/paletes`, {
+      mutar(a.app, a.op, 'POST', `${API}/cargas/veiculos/${truck}/paletes`, {
         kind: 'FRACIONADO',
         lines: o.conteudos.map((id) => ({ occurrence: { kind: 'CONTEUDO', id }, volumes: 2 })),
       }),
@@ -163,7 +163,7 @@ describe('Expedição DHL — carga por veículo', () => {
     expect(p.docs.state).toBe('CONFERIDA');
     // Alterar o conteúdo abre revisão nova: físico e documentação voltam a pendentes só neste palete.
     c = await ok(
-      await mutar(a.app, a.op, 'PUT', `${API}/cargas/paletes/${p.id}/linhas`, {
+      mutar(a.app, a.op, 'PUT', `${API}/cargas/paletes/${p.id}/linhas`, {
         expectedVersion: p.version,
         lines: [{ occurrence: { kind: 'CONTEUDO', id: o.conteudos[0] }, volumes: 3 }],
       }),

@@ -33,6 +33,7 @@ import { JanelaModal, JanelaPalete } from './features/paletes/JanelaPalete';
 import { ConferenciaTabela } from './features/conteudos/ConferenciaTabela';
 import { textoResultadoConferencia } from './features/conteudos/textos-resultado';
 import { CartaoValidacao } from './features/conteudos/CartaoValidacao';
+import { AtalhoExpedicao } from './features/carga/AtalhoExpedicao';
 import type { Navegar } from './rotas';
 
 // Leitor da câmera carregado só quando aberto (etapa 09).
@@ -671,6 +672,8 @@ export function TelaPraca({ praca, compacto, paleteRota, permissoes, falhaAtuali
               )}
             </>
           )}
+          {/* Atalho "Expedição · N" (seleção atual): fora do SVG do mapa, não acompanha zoom nem movimento. */}
+          <AtalhoExpedicao ativo={pode('janela.consultar')} versao={versaoDados + versaoDetalhe} aoNavegar={aoNavegar} />
           {praca.scope.demo && (
             <p className="marca-demo" aria-hidden="true">
               Demonstração · dados fictícios

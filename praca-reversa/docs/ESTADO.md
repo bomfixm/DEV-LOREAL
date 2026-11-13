@@ -1,8 +1,15 @@
 # Estado do projeto
 
-Atualizado em 11 de novembro de 2026.
+Atualizado em 13 de novembro de 2026.
 
-## Expedição DHL — carga por veículo — 11 de novembro de 2026
+## Expedição: inclusão por nota e atalho "Expedição · N" — 13 de novembro de 2026 (D332–D333)
+
+Janela do palete: caminhão em cada linha da tabela de conteúdo ("Adicionar esta nota à expedição"), marca "Na expedição · Truck 01 · Palete 01" quando a nota já está num embarque, "Adicionar N notas selecionadas" na seleção de correção; rodapé com "Adicionar palete inteiro" (resumo e sobreposição antes de confirmar). Servidor: `POST /cargas/veiculos/:id/notas` (por ocorrência, nunca expande o palete) e `GET /cargas/selecao` (contador; `?palete=` para as marcas). Mapa: atalho flutuante "Expedição · N" no canto inferior direito; cópia da nota voa até ele (450 ms; nada com "reduzir movimento"). Sem migração.
+
+Verificações: typecheck (contratos, API, web); ESLint dos arquivos alterados (2 avisos antigos em `JanelaPalete.tsx`, fora do trecho alterado); banco `carga-notas` 3/3 (só a NF 37953 com 2 volumes, repetição 409, mesma NF em outro palete, ID inválido sem incluir o palete, FULL depois da nota, parcial, destino com versão) e `carga` 5/5; E2E `adicionar-expedicao.spec.ts` computador e celular (3 aprovados, 1 só de captura pulado no celular); capturas em `docs/capturas/expedicao/` (computador-10 a 12, voo-nota-1 a 3).
+
+Limites: no celular a janela do palete cobre o mapa, então a cópia não voa (o atalho aparece ao fechar a janela; o aviso confirma a inclusão). O contador considera só veículos em montagem: ao fechar a carga, as notas dela saem do número.
+
 
 Branch `expedicao-dhl` (não mesclada na `main`, não publicada). Tela **Expedição** no menu principal (`/expedicao`): escolher a janela, adicionar Carreta (28) ou Truck (16), mapa do veículo visto de cima (frente/cabine e porta; deitado no computador, em pé no celular), alocar na posição livre um palete FULL (palete de origem inteiro) ou fracionado (NFs e volumes separados, com base e disponível por NF), mover sem trocar o número, confirmar a posição no carregamento, transferir entre veículos (identidade nova e aviso de reimpressão), físico conferido, visão **Administrativo** (fila e checklist por NF: conferido/faltante/divergente com observação), etiqueta, espelho de embarque (via do cliente, moldura do espelho), lista de documentos e mapa (prévia ou final só com posições confirmadas). Fechar/reabrir/cancelar veículo com o supervisor. **Nada baixa estoque**: a baixa continua no registro de expedição por volumes da janela (Painel).
 

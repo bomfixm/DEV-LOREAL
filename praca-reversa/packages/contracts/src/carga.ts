@@ -108,6 +108,33 @@ export type TransferirEmbarque = z.input<typeof TransferirEmbarqueSchema>;
 export const AlterarLinhasEmbarqueSchema = z.object({ expectedVersion: Versao, lines: Linhas });
 export type AlterarLinhasEmbarque = z.input<typeof AlterarLinhasEmbarqueSchema>;
 
+/**
+ * Inclusão por nota (ficha do palete, 13 nov. 2026): só as ocorrências pedidas
+ * (vínculo/conteúdo pelo ID estável, nunca pelo número da NF), todas do mesmo
+ * palete de origem. Nunca expande para o palete inteiro — isso é o FULL, ação
+ * própria. Destino: palete fracionado existente do veículo (com a versão vista)
+ * ou um fracionado novo. `volumes` nulo = todo o disponível da ocorrência.
+ */
+export const IncluirNotasEmbarqueSchema = z
+  .object({
+    sourcePalletId: z.uuid('Palete de origem sem identificação válida: nada foi incluído.'),
+    lines: z
+      .array(
+        z.object({
+          occurrence: z.object({ kind: TipoOcorrenciaSchema, id: z.uuid('Nota sem identificação válida: nada foi incluído (o palete inteiro não entra por esta ação).') }),
+          volumes: Inteiro(1, 1_000_000).nullable().default(null),
+        }),
+      )
+      .min(1, 'Escolha ao menos uma nota.')
+      .max(300, 'Até 300 notas por vez.')
+      .refine((ls) => new Set(ls.map((l) => l.occurrence.id)).size === ls.length, 'Cada nota aparece uma vez no pedido.'),
+    /** Palete fracionado de destino; nulo = fracionado novo no veículo. */
+    targetPalletId: z.uuid().nullable().default(null),
+    expectedVersion: Versao.nullable().default(null),
+  })
+  .refine((d) => d.targetPalletId === null || d.expectedVersion !== null, { message: 'Versão do palete de destino ausente.', path: ['expectedVersion'] });
+export type IncluirNotasEmbarque = z.input<typeof IncluirNotasEmbarqueSchema>;
+
 export const FisicoConferidoSchema = z.object({ expectedVersion: Versao, revision: Inteiro(1, 100_000) });
 export type FisicoConferido = z.input<typeof FisicoConferidoSchema>;
 
@@ -313,6 +340,38 @@ export const JanelasCargaSchema = z.object({
   ),
 });
 export type JanelasCarga = z.infer<typeof JanelasCargaSchema>;
+
+/**
+ * Seleção atual da Expedição: o que está nos veículos em montagem das janelas
+ * abertas do escopo. `notes` conta documentos por palete de origem (a linha da
+ * ficha do palete; sem número, cada ocorrência), não volumes nem cliques.
+ */
+export const SelecaoExpedicaoSchema = z.object({
+  notes: z.number().int().nonnegative(),
+  volumes: z.number().int().nonnegative(),
+  vehicles: z.array(z.object({ id: z.uuid(), windowId: z.uuid(), windowCode: z.string(), label: z.string(), notes: z.number().int().nonnegative() })),
+  /** Com `?palete=`: ocorrências desse palete de origem já em algum embarque ativo (onde e quantos volumes). */
+  pallet: z.array(z.object({ occurrenceId: z.uuid(), identity: z.string(), volumes: z.number().int(), vehicleState: SituacaoVeiculoSchema })),
+});
+export type SelecaoExpedicao = z.infer<typeof SelecaoExpedicaoSchema>;
+
+const NotaIncluida = z.object({
+  occurrence: z.object({ kind: TipoOcorrenciaSchema, id: z.uuid() }),
+  documentType: z.string().nullable(),
+  documentNumber: z.string().nullable(),
+  sourcePalletCode: z.string(),
+});
+
+export const ResultadoInclusaoNotasSchema = z.object({
+  added: z.array(NotaIncluida.extend({ volumes: z.number().int().positive() })),
+  /** Já estavam na seleção desta janela: não contam de novo nem mudam a quantidade. */
+  skipped: z.array(NotaIncluida.extend({ identity: z.string() })),
+  pallet: z.object({ id: z.uuid(), label: z.string(), identity: z.string(), created: z.boolean() }),
+  windowId: z.uuid(),
+  vehicleId: z.uuid(),
+  selection: SelecaoExpedicaoSchema,
+});
+export type ResultadoInclusaoNotas = z.infer<typeof ResultadoInclusaoNotasSchema>;
 
 export const EventosEmbarqueSchema = z.object({
   items: z.array(z.object({ id: z.uuid(), kind: z.string(), details: z.record(z.string(), z.unknown()), by: z.string(), at: z.iso.datetime(), pallet: z.string().nullable() })),

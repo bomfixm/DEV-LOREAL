@@ -14,12 +14,14 @@ import {
   type JanelasCarga,
   type LinhaEmbarque,
   type PaleteEmbarque,
+  type SelecaoExpedicao,
   type SituacaoDocs,
   type TipoVeiculo,
   type VeiculoCarga,
   type Escopo,
 } from '@praca-reversa/contracts';
 import type { Banco, Transacao } from '../../db/cliente.js';
+import { Prisma } from '../../generated/prisma/client.js';
 import { naoEncontrado } from '../../http/erros.js';
 
 type Db = Banco | Transacao;
@@ -302,5 +304,47 @@ export async function cargaDaJanela(db: Db, escopo: Escopo, janelaId: string, ag
     stockEffect: TEXTO_BAIXA_CARGA,
     scope: { name: escopo.name, demo: escopo.demo },
     generatedAt: agora.toISOString(),
+  };
+}
+
+/** Chave de contagem da seleção: a linha da ficha do palete (documento no palete de origem); sem número, a própria ocorrência. */
+const CHAVE_NOTA = `CASE WHEN l.numero_documento IS NULL THEN coalesce(l.conteudo_id, l.vinculo_id)::text
+                         ELSE l.palete_origem_id::text || '|' || coalesce(l.tipo_documento, '') || '|' || l.numero_documento END`;
+
+/**
+ * Seleção atual da Expedição (atalho flutuante do mapa): linhas ativas dos
+ * veículos em montagem das janelas abertas do escopo. Com `paleteId`, também
+ * onde cada ocorrência desse palete de origem já está (qualquer veículo não cancelado).
+ */
+export async function selecaoExpedicao(db: Db, escopoId: string, paleteId: string | null): Promise<SelecaoExpedicao> {
+  const filtro = Prisma.sql`
+      FROM linha_palete_embarque l
+      JOIN palete_embarque pe ON pe.id = l.palete_embarque_id AND pe.situacao = 'ATIVO'
+      JOIN veiculo_carga v ON v.id = pe.veiculo_id AND v.situacao = 'MONTAGEM'
+      JOIN janela_devolucao j ON j.id = v.janela_id AND j.situacao::text NOT IN ('CANCELADA', 'ENCERRADA')
+     WHERE l.escopo_id = ${escopoId}::uuid AND l.removida_em IS NULL`;
+  const chave = Prisma.raw(CHAVE_NOTA);
+  const [[total], porVeiculo, doPalete] = await Promise.all([
+    db.$queryRaw<{ notas: bigint; volumes: bigint | null }[]>`SELECT count(DISTINCT ${chave}) AS notas, sum(l.volumes) AS volumes ${filtro}`,
+    db.$queryRaw<{ id: string; janela_id: string; codigo: string; tipo: TipoVeiculo; sequencia: number; notas: bigint }[]>`
+      SELECT v.id::text, v.janela_id::text, j.codigo, v.tipo, v.sequencia, count(DISTINCT ${chave}) AS notas ${filtro}
+       GROUP BY v.id, v.janela_id, j.codigo, v.tipo, v.sequencia
+       ORDER BY j.codigo, v.tipo, v.sequencia`,
+    paleteId === null
+      ? Promise.resolve([])
+      : db.$queryRaw<{ alvo: string; codigo: string; tipo: TipoVeiculo; sequencia: number; numero: number; volumes: number; situacao: 'MONTAGEM' | 'FECHADO' }[]>`
+          SELECT coalesce(l.conteudo_id, l.vinculo_id)::text AS alvo, j.codigo, v.tipo, v.sequencia, pe.numero, l.volumes, v.situacao
+            FROM linha_palete_embarque l
+            JOIN palete_embarque pe ON pe.id = l.palete_embarque_id AND pe.situacao = 'ATIVO'
+            JOIN veiculo_carga v ON v.id = pe.veiculo_id AND v.situacao <> 'CANCELADO'
+            JOIN janela_devolucao j ON j.id = v.janela_id AND j.situacao::text NOT IN ('CANCELADA', 'ENCERRADA')
+           WHERE l.escopo_id = ${escopoId}::uuid AND l.palete_origem_id = ${paleteId}::uuid AND l.removida_em IS NULL
+           ORDER BY j.codigo, v.tipo, v.sequencia, pe.numero`,
+  ]);
+  return {
+    notes: Number(total?.notas ?? 0),
+    volumes: Number(total?.volumes ?? 0),
+    vehicles: porVeiculo.map((v) => ({ id: v.id, windowId: v.janela_id, windowCode: v.codigo, label: rotuloVeiculo(v.tipo, v.sequencia), notes: Number(v.notas) })),
+    pallet: doPalete.map((l) => ({ occurrenceId: l.alvo, identity: identidadeEmbarque(l.codigo, l.tipo, l.sequencia, l.numero), volumes: l.volumes, vehicleState: l.situacao })),
   };
 }

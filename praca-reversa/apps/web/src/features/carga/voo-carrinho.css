@@ -1,39 +1,77 @@
-/* "Pôr no carrinho": cartão do palete voando até a Expedição e o pulo do ícone ao receber. */
-.voo-palete {
+/* "Pôr no carrinho": cópia da nota/palete voando até a Expedição e o pulso discreto de quem recebe. */
+.voo-copia {
   position: fixed;
   z-index: 3000;
-  padding: 10px 14px;
-  border: 2px solid #8a6d00;
-  border-radius: 10px;
-  background: #ffcc00;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid #8a6d00;
+  border-radius: 8px;
+  background: #fff8d6;
   color: #1a1a1a;
-  font-weight: 800;
-  font-size: 15px;
-  letter-spacing: .02em;
+  font-weight: 700;
+  font-size: 13px;
   white-space: nowrap;
-  box-shadow: 0 8px 24px #0004;
+  box-shadow: 0 6px 18px #0003;
   pointer-events: none;
   will-change: transform, opacity;
 }
-.voo-recebeu { animation: voo-pulo 650ms cubic-bezier(.3, 1.6, .5, 1); }
-.voo-recebeu svg { animation: voo-brilho 650ms ease-out; }
-@keyframes voo-pulo {
-  0% { transform: scale(1); }
-  30% { transform: scale(1.28); }
-  55% { transform: scale(.92); }
-  80% { transform: scale(1.06); }
-  100% { transform: scale(1); }
-}
-@keyframes voo-brilho {
-  0%, 100% { filter: none; }
-  35% { filter: drop-shadow(0 0 6px #ffcc00) drop-shadow(0 0 2px #ffcc00); }
+.voo-copia--palete { background: #ffcc00; }
+.voo-copia-icone { display: inline-flex; }
+.voo-recebeu { animation: voo-pulso 320ms ease-out; }
+@keyframes voo-pulso {
+  0%, 100% { transform: scale(1); }
+  45% { transform: scale(1.08); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .voo-recebeu, .voo-recebeu svg { animation: voo-brilho 650ms linear; }
+  .voo-recebeu { animation: none; }
 }
 
-/* Escolha do veículo na janela do palete. */
+/* Atalho flutuante "Expedição · N" no canto inferior direito do mapa. */
+.atalho-expedicao {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 2px solid var(--tinta, #1a1a1a);
+  border-radius: 999px;
+  background: var(--amarelo-acao, #ffcc00);
+  color: var(--tinta-acao, #1a1a1a);
+  font: inherit;
+  font-weight: 800;
+  box-shadow: 0 4px 14px #0003;
+  cursor: pointer;
+}
+.atalho-expedicao:hover { filter: brightness(.97); }
+.atalho-expedicao:focus-visible { outline: 3px solid var(--foco, #0b57d0); outline-offset: 2px; }
+.atalho-expedicao svg { width: 20px; height: 20px; }
+.atalho-expedicao-contador { font-variant-numeric: tabular-nums; }
+/* Selo de demonstração no mesmo canto (computador): o atalho sobe por cima dele. */
+.area-mapa:has(> .marca-demo) > .atalho-expedicao { bottom: 50px; }
+@media (max-width: 1023.98px) {
+  .atalho-expedicao { right: 10px; bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .area-mapa:has(> .marca-demo) > .atalho-expedicao { bottom: calc(40px + env(safe-area-inset-bottom)); }
+}
+@media print { .atalho-expedicao { display: none; } }
+
+/* Escolha do destino (palete inteiro ou notas) na janela do palete. */
 .adicionar-expedicao { display: grid; gap: 8px; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--borda); border-radius: 10px; }
 .adicionar-expedicao-lista { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .adicionar-expedicao-lista button { display: grid; gap: 2px; text-align: left; }
 .adicionar-expedicao-lista small { color: var(--tinta-suave); font-weight: 400; }
+.adicionar-expedicao-veiculo { display: grid; gap: 6px; margin: 0; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 8px; }
+.adicionar-expedicao-veiculo legend { padding: 0 4px; font-weight: 700; }
+.adicionar-expedicao-confirmar { display: grid; gap: 8px; justify-items: start; }
+.adicionar-expedicao-volumes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.adicionar-expedicao-volumes input { width: 7ch; }
+
+/* Ação por linha na tabela de conteúdo do palete. */
+.janela-acao-expedicao { white-space: nowrap; }
+.janela-acao-expedicao .botao-icone { min-width: 36px; min-height: 36px; }
+.janela-na-expedicao { color: var(--tinta-suave); font-size: .85rem; }

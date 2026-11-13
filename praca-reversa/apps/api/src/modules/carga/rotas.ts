@@ -17,11 +17,13 @@ import {
   CriarVeiculoSchema,
   EmitirSchema,
   FisicoConferidoSchema,
+  IncluirNotasEmbarqueSchema,
   PosicaoEmbarqueSchema,
   TransferirEmbarqueSchema,
   identidadeEmbarque,
   nomeArquivoSeguro,
   type EventosEmbarque,
+  type ResultadoInclusaoNotas,
   type OrigemEmbarque,
   type Escopo,
   type TipoVeiculo,
@@ -34,7 +36,7 @@ import { analisarBipagemEmbarque } from './bipagem.js';
 import { contextoDe, escopoAtivoDe, type Autenticacao, type Dependencias } from '../acesso/contexto.js';
 import { executarIdempotente } from '../idempotencia/executar.js';
 import { chaveIdempotencia, responder, validar } from '../idempotencia/http.js';
-import { cargaDaJanela, janelasParaCarga, lerJanelaCarga } from './leitura.js';
+import { cargaDaJanela, janelasParaCarga, lerJanelaCarga, selecaoExpedicao } from './leitura.js';
 import { disponibilidade, lerOcorrencias, ocorrenciasDoPalete } from './origem.js';
 import {
   acaoVeiculo,
@@ -47,6 +49,7 @@ import {
   criarVeiculo,
   emitirMapa,
   emitirPalete,
+  incluirNotas,
   marcarFisico,
   moverPosicao,
   transferirPalete,
@@ -56,6 +59,7 @@ import {
 const Id = z.object({ id: z.uuid() });
 const BuscaOrigem = z.object({ codigo: z.string().trim().min(1).max(40) });
 const Recarregar = z.object({ expectedVersion: z.number().int().positive() });
+const SelecaoConsulta = z.object({ palete: z.uuid().optional() });
 
 async function origemPorCodigo(db: Banco, escopo: Escopo, janelaId: string, codigo: string): Promise<OrigemEmbarque> {
   await lerJanelaCarga(db, escopo.id, janelaId);
@@ -107,6 +111,12 @@ export function registrarRotasCarga(app: FastifyInstance, deps: Dependencias, au
   const autorDe = (request: FastifyRequest): Autor => ({ usuarioId: contextoDe(request).sessao.usuario.id });
 
   app.get(`${API_PREFIXO}/cargas/janelas`, { preHandler: auth.exigirPermissao('janela.consultar') }, async (request) => janelasParaCarga(deps.db, escopoAtivoDe(request)));
+
+  // Seleção atual (contador do atalho no mapa) e, com ?palete=, onde as notas desse palete já estão.
+  app.get(`${API_PREFIXO}/cargas/selecao`, { preHandler: auth.exigirPermissao('janela.consultar') }, async (request) => {
+    const { palete } = validar(SelecaoConsulta, request.query, 'Palete inválido.');
+    return selecaoExpedicao(deps.db, escopoAtivoDe(request).id, palete ?? null);
+  });
 
   app.get(`${API_PREFIXO}/cargas/janelas/:id`, { preHandler: auth.exigirPermissao('janela.consultar') }, async (request) => {
     const { id } = validar(Id, request.params, 'Identificador de janela inválido.');
@@ -201,6 +211,28 @@ export function registrarRotasCarga(app: FastifyInstance, deps: Dependencias, au
       criarPalete(tx, escopo, id, validar(CriarPaleteEmbarqueSchema, request.body, 'FULL: palete de origem; Fracionado: NFs e volumes.'), autor, agora),
     ),
   );
+  // Inclusão por nota (ficha do palete): rota e processamento próprios; nunca expande para o palete inteiro (isso é o FULL acima).
+  app.post(`${API_PREFIXO}/cargas/veiculos/:id/notas`, preparar, async (request, reply) => {
+    const escopo = escopoAtivoDe(request);
+    const autor = autorDe(request);
+    const chave = chaveIdempotencia(request);
+    const { id } = validar(Id, request.params, 'Identificador de veículo inválido.');
+    const dados = validar(IncluirNotasEmbarqueSchema, request.body, 'Nota sem identificação válida: nada foi incluído.');
+    const resultado = await executarIdempotente(deps.db, deps.config.appSegredo, { escopoId: escopo.id, usuarioId: autor.usuarioId, operacao: 'carga.notas.incluir', chave, payload: { id, corpo: request.body } }, async (tx) => {
+      const r = await incluirNotas(tx, escopo, id, dados, autor, deps.agora());
+      const corpo: ResultadoInclusaoNotas = {
+        added: r.added,
+        skipped: r.skipped,
+        pallet: r.pallet,
+        windowId: r.janelaId,
+        vehicleId: id,
+        selection: await selecaoExpedicao(tx, escopo.id, dados.sourcePalletId),
+      };
+      return { status: 201, corpo };
+    });
+    return responder(reply, resultado);
+  });
+
   app.post(
     `${API_PREFIXO}/cargas/veiculos/:id/mapa`,
     preparar,

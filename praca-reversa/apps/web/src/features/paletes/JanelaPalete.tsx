@@ -7,6 +7,7 @@ import {
   PaleteDetalheSchema,
   RenumerarPaleteSchema,
   ResultadoMarcaSeparadoSchema,
+  SelecaoExpedicaoSchema,
   compararQuantidades,
   subtrairQuantidades,
   type ConteudoPalete,
@@ -19,10 +20,10 @@ import type { Carga } from '../../api/use-recurso';
 import { useRecurso } from '../../api/use-recurso';
 import { enviarJson, mensagemDeFalha } from '../../api/cliente';
 import { useChaves } from '../../api/chaves';
-import { IconeAlvo, IconeArquivo, IconeFechar, IconeImprimir } from '../../components/Icones';
+import { IconeAlvo, IconeArquivo, IconeCaminhao, IconeFechar, IconeImprimir } from '../../components/Icones';
 import { formatarDataHora } from '../../utils/datas';
 import { formatarQuantidade } from '../../utils/numeros';
-import { AdicionarExpedicao } from '../carga/AdicionarExpedicao';
+import { AdicionarExpedicao, AdicionarNotas, type NotaParaExpedicao } from '../carga/AdicionarExpedicao';
 import { AcoesConteudo, type OcorrenciaSelecionada } from '../conteudos/AcoesConteudo';
 import { textoResultadoAcao } from '../conteudos/textos-resultado';
 import { agruparDocumentos, contarDocumentos } from './documentos';
@@ -395,6 +396,20 @@ interface PropsPalete {
 
 const textoDocumento = (c: ConteudoPalete) => (c.documentNumber === null ? `Sem documento (${c.sender ?? 'remetente não informado'})` : `${c.documentTypeOriginal ?? c.documentType ?? ''} ${c.documentNumber}`.trim());
 const volumesDe = (c: ConteudoPalete): number | null => (c.count.counted === null || !Number.isInteger(Number(c.count.counted)) ? null : Number(c.count.counted));
+/** Ocorrência real da linha (ID estável do vínculo do inventário ou do conteúdo registrado), nunca o número da NF. */
+const ocorrenciaDe = (c: ConteudoPalete) => ({ kind: c.kind === 'IMPORTADO' ? ('VINCULO' as const) : ('CONTEUDO' as const), id: c.id });
+const notaDe = (rotulo: string, parcelas: readonly ConteudoPalete[]): NotaParaExpedicao => {
+  const volumes = parcelas.map(volumesDe);
+  return { ocorrencias: parcelas.map(ocorrenciaDe), rotulo, volumes: volumes.some((v) => v === null) ? null : volumes.reduce<number>((t, v) => t + (v ?? 0), 0) };
+};
+/** "Carreta 01 · Palete 03" (sem a janela). */
+const identidadeCurta = (identidade: string) => identidade.split(' · ').slice(1).join(' · ') || identidade;
+
+/** Ação por linha da tabela: onde cada ocorrência já está na expedição e como incluir uma nota. */
+interface ExpedicaoLinha {
+  marcas: ReadonlyMap<string, string>;
+  aoAdicionar: (nota: NotaParaExpedicao, origem: HTMLElement) => void;
+}
 
 /** Conferência da linha em poucas letras (com o detalhe no título). */
 function CelulaConferencia({ parcelas }: { parcelas: readonly ConteudoPalete[] }) {
@@ -477,7 +492,7 @@ function TabelaSelecao({ itens, selecionados, aoMudar }: { itens: readonly Conte
 }
 
 /** Tabela de conteúdo: uma linha por documento (várias Deliveries da mesma nota somam no documento), paginada. */
-function TabelaConteudo({ itens }: { itens: readonly ConteudoPalete[] }) {
+function TabelaConteudo({ itens, expedicao }: { itens: readonly ConteudoPalete[]; expedicao: ExpedicaoLinha | null }) {
   const [pagina, setPagina] = useState(1);
   // Ordem estável para achar o documento: tipo e número (comparação numérica); sem número por último.
   // Notas que não constam da versão atual do inventário vão para o fim (a validar no piso).
@@ -520,11 +535,25 @@ function TabelaConteudo({ itens }: { itens: readonly ConteudoPalete[] }) {
               <th scope="col" className="numero">
                 Volumes
               </th>
+              {expedicao !== null && (
+                <th scope="col">
+                  <span className="visualmente-oculto">Expedição</span>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
             {visiveis.map((g) => {
               const primeiro = g.parcelas[0];
+              const rotulo = g.numero === null ? 'Sem documento' : `${g.tipo ?? 'Nota'} ${g.numero}`;
+              const onde =
+                expedicao === null
+                  ? []
+                  : g.parcelas.flatMap((p) => {
+                      const m = expedicao.marcas.get(p.id);
+                      return m === undefined ? [] : [m];
+                    });
+              const toda = onde.length > 0 && onde.length === g.parcelas.length;
               return (
                 <tr key={g.chave} data-testid="janela-linha" data-numero={g.numero ?? ''} data-separacao={naSeparacao(g) ? 'sim' : undefined} className={naSeparacao(g) ? 'janela-linha--separacao' : undefined}>
                   <td data-rotulo="Tipo">{g.tipo ?? vazio}</td>
@@ -546,6 +575,28 @@ function TabelaConteudo({ itens }: { itens: readonly ConteudoPalete[] }) {
                   <td data-rotulo="Volumes" className="numero" data-testid="janela-linha-volumes">
                     {textoVolumes(somaContada(g.parcelas))}
                   </td>
+                  {expedicao !== null && (
+                    <td data-rotulo="Expedição" className="janela-acao-expedicao">
+                      {toda ? (
+                        <span className="janela-na-expedicao" title={[...new Set(onde)].join('; ')} data-testid="janela-linha-na-expedicao">
+                          Na expedição · {[...new Set(onde.map(identidadeCurta))].join(', ')}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="botao-secundario botao-icone"
+                          aria-label={`Adicionar esta nota à expedição: ${rotulo}`}
+                          title={`Adicionar esta nota à expedição (${rotulo}). Só ela entra; o palete inteiro, não.`}
+                          onClick={(e) => {
+                            expedicao.aoAdicionar(notaDe(rotulo, g.parcelas), e.currentTarget);
+                          }}
+                          data-testid="janela-linha-expedicao"
+                        >
+                          <IconeCaminhao />
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -742,6 +793,23 @@ export function JanelaPalete(props: PropsPalete) {
   const escolhidos: OcorrenciaSelecionada[] = (conteudo?.items ?? []).filter((i) => selecionados.has(i.id)).map((i) => ({ kind: i.kind, id: i.id, documento: textoDocumento(i), volumes: volumesDe(i) }));
   const conferencia = estadoExibido(palete);
   const vc = palete.volumeCheck;
+  // Inclusão por nota na expedição (13 nov. 2026): ação por linha, separada do "Adicionar palete inteiro".
+  const podeExpedir = props.permissoes.includes('expedicao.preparar') && (palete.flowState === 'EM_ESTOQUE' || palete.flowState === 'RESERVADO');
+  const [versaoMarcas, setVersaoMarcas] = useState(0);
+  const { carga: cargaMarcas } = useRecurso(podeExpedir ? `${API_PREFIXO}/cargas/selecao?palete=${palete.id}` : null, SelecaoExpedicaoSchema, props.versao + versaoMarcas);
+  const marcas = new Map(cargaMarcas?.estado === 'pronto' ? cargaMarcas.dados.pallet.map((p) => [p.occurrenceId, p.identity] as const) : []);
+  const [incluindo, setIncluindo] = useState<{ notas: NotaParaExpedicao[]; origem: { el: HTMLElement; rect: DOMRect } } | null>(null);
+  const abrirInclusao = (notas: NotaParaExpedicao[], el: HTMLElement) => {
+    setIncluindo({ notas, origem: { el, rect: el.getBoundingClientRect() } });
+  };
+  const expedicaoLinha: ExpedicaoLinha | null = podeExpedir
+    ? {
+        marcas,
+        aoAdicionar: (nota, el) => {
+          abrirInclusao([nota], el);
+        },
+      }
+    : null;
 
   const rodape = (
     <>
@@ -768,7 +836,7 @@ export function JanelaPalete(props: PropsPalete) {
             Registrar conteúdo
           </button>
         )}
-        {props.permissoes.includes('expedicao.preparar') && (palete.flowState === 'EM_ESTOQUE' || palete.flowState === 'RESERVADO') && <AdicionarExpedicao palete={palete} aoAlterado={props.aoAlterado} />}
+        {podeExpedir && <AdicionarExpedicao palete={palete} aoAlterado={props.aoAlterado} />}
       </div>
       <div className="acoes-linha janela-acoes-secundarias">
         <button
@@ -951,7 +1019,30 @@ export function JanelaPalete(props: PropsPalete) {
           }}
         />
       ) : (
-        <TabelaConteudo key={palete.id} itens={conteudo.items} />
+        <TabelaConteudo key={palete.id} itens={conteudo.items} expedicao={expedicaoLinha} />
+      )}
+
+      {incluindo !== null && (
+        <AdicionarNotas
+          key={incluindo.notas.flatMap((n) => n.ocorrencias.map((o) => o.id)).join(',')}
+          palete={palete}
+          notas={incluindo.notas}
+          origem={incluindo.origem}
+          aoCancelar={() => {
+            const el = incluindo.origem.el;
+            setIncluindo(null);
+            if (el.isConnected) el.focus();
+          }}
+          aoConcluir={(texto) => {
+            setIncluindo(null);
+            setVersaoMarcas((v) => v + 1);
+            if (selecionando) {
+              setSelecionados(new Set());
+              setSelecionando(false);
+            }
+            props.aoAlterado(texto);
+          }}
+        />
       )}
 
       {conteudo !== null && conteudo.items.length > 0 && (podeCorrigir || props.aoAbrirValidacao !== null) && (
@@ -974,6 +1065,22 @@ export function JanelaPalete(props: PropsPalete) {
             <span className="tabela-nota" data-testid="selecao-contagem">
               {selecionados.size} de {conteudo.items.length} selecionado(s)
             </span>
+          )}
+          {selecionando && podeExpedir && selecionados.size > 0 && (
+            <button
+              type="button"
+              className="botao-secundario botao-compacto"
+              onClick={(e) => {
+                abrirInclusao(
+                  conteudo.items.filter((i) => selecionados.has(i.id)).map((i) => notaDe(textoDocumento(i), [i])),
+                  e.currentTarget,
+                );
+              }}
+              data-testid="acao-adicionar-selecionadas"
+            >
+              <IconeCaminhao />
+              Adicionar {selecionados.size} {selecionados.size === 1 ? 'nota selecionada' : 'notas selecionadas'} à expedição
+            </button>
           )}
           {props.aoAbrirValidacao !== null && (
             <button type="button" className="botao-link" onClick={props.aoAbrirValidacao}>

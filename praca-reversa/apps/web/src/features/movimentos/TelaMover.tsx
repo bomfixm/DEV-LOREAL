@@ -10,6 +10,7 @@ import { AvisoMovimento, EscolhaPosicao, SemConexaoMovimento } from './comum';
 import { useEnvio, useUltimo } from './use-envio';
 import { MOTIVOS_SUGERIDOS, type Aviso, type PosicaoLivre } from './regras';
 import { AjudaTarefa } from '../ajuda/AjudaTarefa';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 interface Props {
   id: string;
@@ -61,9 +62,7 @@ export function TelaMover({ id, sessao, aoNavegar, aoGravar }: Props) {
               </div>
             </div>
           ) : (
-            <p className="estado-carregando" aria-busy="true">
-              Carregando palete e posições…
-            </p>
+            <Carregando mensagem="Carregando palete e posições…" variante="principal" />
           )}
         </div>
       </main>

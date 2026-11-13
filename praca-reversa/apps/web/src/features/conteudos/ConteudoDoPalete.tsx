@@ -4,6 +4,7 @@ import { IconeAtualizar } from '../../components/Icones';
 import { agruparDocumentos } from '../paletes/documentos';
 import { textoSequenciaFull } from '../paletes/volumes';
 import { textoConferencia, textoVolumesConteudo } from './textos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 /**
  * "Ver mais": conteúdo do palete numa tabela simples — registrado à mão e
@@ -28,7 +29,7 @@ export function ConteudoDoPalete({ paleteId, versao, aoConferir, aoRegistrar }: 
           </button>
         </div>
       )}
-      {dados === null && carga?.estado !== 'erro' && <p className="estado-carregando">Carregando conteúdo…</p>}
+      {dados === null && carga?.estado !== 'erro' && <Carregando mensagem="Carregando conteúdo…" />}
       {dados !== null && dados.items.length === 0 && <p className="sem-itens">Nenhum conteúdo registrado neste palete.</p>}
       {dados !== null && dados.items.length > 0 && (
         <div className="tabela-documentos-rolagem" data-testid="tabela-documentos">

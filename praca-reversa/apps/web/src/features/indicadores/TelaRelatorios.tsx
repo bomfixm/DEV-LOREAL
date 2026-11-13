@@ -20,6 +20,7 @@ import { parametrosRelatorio, type Navegar } from '../../rotas';
 import { formatarDataHora } from '../../utils/datas';
 import { ROTULOS_CONFERENCIA } from '../paletes/estados';
 import { formatarCelula, textoPeriodo } from './formato';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const TITULOS: Readonly<Record<TipoRelatorio, string>> = {
   paletes: 'Paletes e pendências',
@@ -241,7 +242,7 @@ export function TelaRelatorios({ parametros, permissoes, aoNavegar }: Props) {
           </button>
         </div>
       )}
-      {url !== null && carga?.estado === 'carregando' && <p className="estado-carregando">Calculando no servidor…</p>}
+      {url !== null && carga?.estado === 'carregando' && <Carregando mensagem="Calculando no servidor…" />}
       {r && (
         <article className="relatorio" data-testid="relatorio" data-tipo={r.type}>
           <header className="cartao relatorio-cabecalho">

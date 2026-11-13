@@ -1,0 +1,205 @@
+/* Indicador de carregamento (D334): embalagem em traço, no estilo dos ícones do menu; só aparece depois de 1,5 s de busca pendente. */
+
+/* Lugar reservado enquanto a busca ainda não completou 1,5 s: estrutura mantida, nada visível. */
+.carregamento--espera.carregamento--principal {
+  min-height: 168px;
+}
+.carregamento--espera.carregamento--compacta {
+  min-height: 40px;
+}
+span.carregamento--espera {
+  min-height: 0;
+}
+
+.carregamento--visivel {
+  animation: carregamento-entrar 220ms ease-out both;
+}
+@keyframes carregamento-entrar {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.carregamento-mensagem {
+  color: var(--tinta, #1e3028);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* Quadro amarelo igual ao item ativo do menu, com o desenho na cor do texto do item. */
+.carregamento-quadro {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: var(--raio, 10px);
+  background: var(--amarelo-acao, #fff0a3);
+  color: var(--tinta-acao, #1e3028);
+}
+.carregamento-embalagem {
+  display: block;
+  width: 62%;
+  height: 62%;
+  overflow: visible;
+}
+
+/* Principal: primeira abertura de uma tela; cartão do app no centro da área. */
+.carregamento--principal.carregamento--visivel {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 12px;
+  width: min(280px, 100%);
+  min-height: 168px;
+  margin: 24px auto;
+  padding: 20px;
+  border: 1px solid var(--borda, #e3eae5);
+  border-radius: var(--raio-cartao, 16px);
+  background: var(--superficie, #fff);
+  box-shadow: var(--sombra, none);
+  text-align: center;
+}
+.carregamento--principal .carregamento-quadro {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+}
+
+/* Compacta: tabela, filtro, painel do palete, espelho, Expedição; não cobre o resto da tela. */
+.carregamento--compacta.carregamento--visivel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+span.carregamento--compacta.carregamento--visivel {
+  display: inline-flex;
+  vertical-align: middle;
+  gap: 6px;
+  padding: 0;
+}
+.carregamento--compacta .carregamento-quadro {
+  width: 34px;
+  height: 34px;
+}
+span.carregamento--compacta .carregamento-quadro {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .carregamento--visivel {
+    animation: none;
+  }
+}
+
+/* ---------- Abertura pós-login ---------- */
+.abertura {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 46%, rgb(201 143 82 / 0.22), transparent 70%),
+    radial-gradient(ellipse at 50% 45%, #4a2338 0%, #2a1420 58%, #1a0c14 100%);
+  animation: abertura-sair 1100ms ease-in both;
+}
+@keyframes abertura-sair {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+.abertura-palco {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 0 24px;
+  text-align: center;
+}
+
+/* Traço fino que ilumina a composição e revela o título (máscara da esquerda para a direita). */
+.abertura-traco {
+  display: block;
+  width: min(420px, 72vw);
+  height: 1.5px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, transparent, #f3dcae 18%, #fff4dc 50%, #f3dcae 82%, transparent);
+  box-shadow: 0 0 12px 1px rgb(243 220 174 / 0.55);
+  transform-origin: left center;
+  animation: abertura-traco 760ms cubic-bezier(0.45, 0, 0.25, 1) both;
+}
+@keyframes abertura-traco {
+  0% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  55% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 0.35;
+  }
+}
+
+.abertura-titulo {
+  margin: 0;
+  color: #f8efe2;
+  font-size: clamp(30px, 6.4vw, 52px);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  animation: abertura-revelar 520ms cubic-bezier(0.22, 0.8, 0.3, 1) 120ms both;
+}
+@keyframes abertura-revelar {
+  from {
+    clip-path: inset(0 100% 0 0);
+    transform: translateY(6px);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    transform: none;
+  }
+}
+
+.abertura-operacao {
+  margin: 0;
+  color: #d9c08a;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  animation: abertura-operacao 340ms ease-out 380ms both;
+}
+@keyframes abertura-operacao {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .abertura {
+    display: none;
+  }
+}

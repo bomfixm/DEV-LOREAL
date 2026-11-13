@@ -22,6 +22,7 @@ import { MapaPraca, type MapaPracaHandle } from '../mapa/MapaPraca';
 import { DetalheLinha } from './DetalheLinha';
 import { PropostaJanela } from './PropostaJanela';
 import { FILTROS_RAPIDOS, MARCADOR_SITUACAO, ROTULOS_CONTEXTO_NF, ROTULOS_MODALIDADE } from './rotulos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const TAMANHO = 100;
 const MARGENS = { topo: 8, direita: 8, base: 8, esquerda: 8 };
@@ -148,7 +149,7 @@ export function TelaSelecao({
           </button>
         </div>
       )}
-      {dados === null && carga?.estado !== 'erro' && <p className="estado-carregando">Conciliando no servidor…</p>}
+      {dados === null && carga?.estado !== 'erro' && <Carregando mensagem="Conciliando no servidor…" />}
       {s && dados && (
         <>
           <section className="cartao" data-testid="cabecalho-selecao">
@@ -198,7 +199,7 @@ export function TelaSelecao({
                 <dt>Consulta</dt>
                 <dd data-testid="base-consulta">
                   {formatarDataHora(dados.consultedAt)} · bases: {dados.basis.join(' ')}
-                  {atualizando && <span className="estado-carregando"> Atualizando…</span>}
+                  {' '}<Carregando como="span" pendente={atualizando} mensagem="Atualizando…" />
                 </dd>
               </div>
             </dl>
@@ -411,7 +412,7 @@ export function TelaSelecao({
                 <MapaPraca ref={mapaRef} layout={mapa.layout} paletes={mapa.pallets} selecionadoId={null} idsVisiveis={destaque} margens={MARGENS} aoSelecionar={(paleteId) => { aoNavegar({ tipo: 'palete', id: paleteId }); }} aoMudarVisao={() => undefined} />
               </div>
             ) : (
-              <p className="estado-carregando">{praca.carga?.estado === 'erro' ? `Mapa indisponível: ${praca.carga.mensagem}` : 'Carregando o mapa…'}</p>
+              praca.carga?.estado === 'erro' ? <p className="estado-carregando">Mapa indisponível: {praca.carga.mensagem}</p> : <Carregando mensagem="Carregando o mapa…" />
             )}
             {erroDownload && (
               <p className="mensagem-conflito" role="alert">

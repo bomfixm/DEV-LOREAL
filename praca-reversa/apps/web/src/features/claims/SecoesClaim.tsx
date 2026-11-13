@@ -33,6 +33,7 @@ import {
   formatarValor,
 } from './rotulos';
 import type { PropsSecao } from './TelaClaim';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const q = (v: string | null, unidade: string | null = null) => (v === null ? '—' : `${formatarQuantidade(v)}${unidade ? ` ${unidade}` : ''}`);
 const decimal = (t: string) => t.trim().replace(',', '.');
@@ -457,7 +458,7 @@ export function SecaoCandidatos(props: PropsSecao) {
           </button>
         </div>
       )}
-      {carga?.estado === 'carregando' && dados === null && <p className="estado-carregando">Procurando pistas…</p>}
+      {carga?.estado === 'carregando' && dados === null && <Carregando mensagem="Procurando pistas…" />}
       {dados && (
         <>
           {dados.notes.map((n) => (

@@ -15,6 +15,7 @@ import { EstadoTela, MensagemAcao, Pagina } from '../../components/Moldura';
 import { useConectado } from '../../hooks/ambiente';
 import { formatarDataHora } from '../../utils/datas';
 import { EnderecosReais } from './EnderecosReais';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const URL_PRACA = `${API_PREFIXO}/praca`;
 const URL_LAYOUT = `${API_PREFIXO}/layout`;
@@ -141,7 +142,7 @@ export function TelaLayout({ podeConfigurar, demo, aoVoltar, aoGravar }: Props) 
         ) : historico.carga?.estado === 'erro' ? (
           <p className="estado-erro">{historico.carga.mensagem}</p>
         ) : (
-          <p className="estado-carregando">Carregando histórico…</p>
+          <Carregando mensagem="Carregando histórico…" />
         )}
       </section>
     </Pagina>

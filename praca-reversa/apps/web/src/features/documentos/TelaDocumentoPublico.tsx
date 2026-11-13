@@ -3,6 +3,7 @@ import { useRecurso } from '../../api/use-recurso';
 import { formatarDataHora } from '../../utils/datas';
 import { TextoDocumento } from './TextoDocumento';
 import './documentos.css';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const TIPO: Record<'termos' | 'privacidade', TipoDocumento> = { termos: 'TERMOS_DE_USO', privacidade: 'AVISO_DE_PRIVACIDADE' };
 
@@ -23,7 +24,7 @@ export function TelaDocumentoPublico({ documento, aoVoltar, rotuloVoltar }: { do
           {rotuloVoltar}
         </button>
         <h2 id="documento-titulo">{d?.title ?? nome}</h2>
-        {(carga === null || carga.estado === 'carregando') && <p className="estado-carregando">Carregando…</p>}
+        {(carga === null || carga.estado === 'carregando') && <Carregando mensagem="Carregando…" />}
         {naoPublicado && (
           <p className="documento-pendente" role="status" data-testid="documento-nao-publicado">
             Ainda não há versão aprovada publicada deste documento. Em caso de dúvida, fale com o responsável pela operação.

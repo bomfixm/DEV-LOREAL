@@ -19,6 +19,7 @@ import { useConectado } from '../../hooks/ambiente';
 import type { Navegar } from '../../rotas';
 import { normalizar } from '../paletes/filtro';
 import { textoDocumento } from './textos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const URL_PRACA = `${API_PREFIXO}/praca`;
 
@@ -245,7 +246,7 @@ export function TelaRegistrarConteudo({ sessao, paleteInicial, aoNavegar, aoGrav
             )}
           </div>
         ) : paleteId !== null && praca.carga?.estado !== 'pronto' ? (
-          <p className="estado-carregando">Carregando o palete…</p>
+          <Carregando mensagem="Carregando o palete…" />
         ) : paleteId !== null ? (
           <p className="estado-erro">Palete não encontrado neste escopo (arquivado ou de outra unidade).</p>
         ) : (

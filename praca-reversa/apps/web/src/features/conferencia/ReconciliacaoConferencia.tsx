@@ -6,6 +6,7 @@ import { useRecurso } from '../../api/use-recurso';
 import { MensagemAcao } from '../../components/Moldura';
 import { ROTULOS_CONDICAO, ROTULOS_LIBERACAO } from '../paletes/estados';
 import { ROTULOS_EVENTO, formatarDiferenca, quantidadeComUnidade, textoOrigem } from './rotulos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 interface Props {
   sessaoId: string;
@@ -69,7 +70,7 @@ export function ReconciliacaoConferencia({ sessaoId, conectado, bloqueioTela, ao
           </button>
         </div>
       ) : previa === null ? (
-        <p className="estado-carregando">Calculando os efeitos…</p>
+        <Carregando mensagem="Calculando os efeitos…" />
       ) : (
         <>
           <p>

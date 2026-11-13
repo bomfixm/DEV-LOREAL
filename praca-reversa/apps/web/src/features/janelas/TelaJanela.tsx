@@ -19,6 +19,7 @@ import { useAcoes, useUltimoPronto } from './acoes';
 import { Capacidade } from './Capacidade';
 import { ROTULOS_CONDICAO, ROTULOS_EVENTO_JANELA, ROTULOS_ORIGEM, ROTULOS_PREPARACAO, ROTULOS_SITUACAO_JANELA, ROTULOS_SITUACAO_RESERVA, q } from './rotulos';
 import { SelecaoMaterial } from './SelecaoMaterial';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const ABAS: { aba: AbaJanela; rotulo: string }[] = [
   { aba: 'resumo', rotulo: 'Resumo e capacidade' },
@@ -370,7 +371,7 @@ export function TelaJanela({ id, aba, permissoes, aoNavegar, aoGravar }: { id: s
             </button>
           </div>
         ) : (
-          <p className="estado-carregando">Carregando janela…</p>
+          <Carregando mensagem="Carregando janela…" variante="principal" />
         )}
       </Pagina>
     );

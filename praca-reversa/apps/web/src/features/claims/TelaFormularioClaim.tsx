@@ -22,6 +22,7 @@ import { MensagemAcao, Pagina } from '../../components/Moldura';
 import { useConectado } from '../../hooks/ambiente';
 import type { Navegar } from '../../rotas';
 import { ROTULOS_MOTIVO, ROTULOS_ORIGEM, ROTULOS_PRIORIDADE } from './rotulos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 interface LinhaForm {
   id?: string;
@@ -209,7 +210,7 @@ export function TelaFormularioClaim({ id, aoNavegar, aoGravar }: { id: string | 
             </button>
           </div>
         ) : (
-          <p className="estado-carregando">Carregando…</p>
+          <Carregando mensagem="Carregando…" variante="principal" />
         )}
       </Pagina>
     );

@@ -13,6 +13,7 @@ import { IconeAtualizar } from '../../components/Icones';
 import { MensagemAcao, Pagina } from '../../components/Moldura';
 import { useConectado } from '../../hooks/ambiente';
 import { formatarDataHora } from '../../utils/datas';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const MARCADOR: Readonly<Record<EstadoProtecao, string>> = {
   Atualizada: '✓',
@@ -159,7 +160,7 @@ export function TelaPlanilha({ aoVoltar }: { aoVoltar: () => void }) {
       aoVoltar={aoVoltar}
       descricao="Cópia do inventário em Excel atualizada automaticamente depois de cada alteração confirmada (abas Inventário, Movimentações e Proteção e ajuda). O aplicativo continua sendo a fonte oficial: alterações são feitas aqui, não na planilha."
     >
-      {carga?.estado === 'carregando' && <p className="estado-carregando">Carregando a situação…</p>}
+      {carga?.estado === 'carregando' && <Carregando mensagem="Carregando a situação…" />}
       {carga?.estado === 'erro' && (
         <div className="estado-erro" role="alert">
           <p>Não foi possível carregar a situação. {carga.mensagem}</p>

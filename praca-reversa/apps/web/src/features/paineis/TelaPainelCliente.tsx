@@ -19,6 +19,7 @@ import { useConsultaViva } from './consulta-viva';
 import { consultaDe, filtrosDe, volumes } from './formato';
 import { AcaoBloco, BarraFiltros, BarraSegmentada, BlocoResumo, CartaoResumo, PaginaPainel, ResumoJanela, VolumesPorRua } from './resumo';
 import { useLinhasResumo } from './resumo-dados';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 /** Parâmetros que levam à consulta (estoque/histórico) em vez do resumo. */
 const PARAMETROS_CONSULTA = ['aba', 'situacao', 'rua', 'palete', 'documento', 'delivery', 'remetente', 'pagina'];
@@ -72,7 +73,7 @@ function HistoricoRecente({ versao }: { versao: number }) {
   // Acontecimentos à vista no resumo; o histórico completo abre na consulta.
   const linhas = useLinhasResumo(3, 7);
   if (dados === null) {
-    return <p className={carga?.estado === 'erro' ? 'estado-erro' : 'painel-vazio'}>{carga?.estado === 'erro' ? `Não foi possível carregar o histórico: ${carga.mensagem}` : 'Carregando o histórico…'}</p>;
+    return carga?.estado === 'erro' ? <p className="estado-erro">Não foi possível carregar o histórico: {carga.mensagem}</p> : <Carregando mensagem="Carregando o histórico…" />;
   }
   if (dados.events.length === 0) return <p className="painel-vazio">Nenhum acontecimento registrado.</p>;
   return (

@@ -33,6 +33,7 @@ import { formatarQuantidade } from '../../utils/numeros';
 import { ParametrosTipo } from './ParametrosTipo';
 import { faltasParametros, parametrosIniciais, type ParametrosPlanilha } from './parametros';
 import { ALCANCE_TIPO, ROTULOS_CELULA, ROTULOS_CLASSIFICACAO, ROTULOS_CODIFICACAO, ROTULOS_DELIMITADOR, ROTULOS_SITUACAO, ROTULOS_TIPO, ROTULOS_VALOR_EXTRA } from './rotulos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const TAMANHO_LINHAS = 50;
 type Aviso = { tipo: 'ok' | 'erro' | 'conflito'; texto: string; incerto?: boolean } | null;
@@ -129,7 +130,7 @@ function Mapeamento({ lote, aoGerado }: { lote: LoteImportacao; aoGerado: () => 
           </button>
         </div>
       )}
-      {carga?.estado === 'carregando' && <p className="estado-carregando">Lendo o arquivo no servidor…</p>}
+      {carga?.estado === 'carregando' && <Carregando mensagem="Lendo o arquivo no servidor…" />}
       {estrutura && colunas && (
         <>
           <div className="formulario-grade formulario-grade--compacta">
@@ -485,7 +486,7 @@ export function TelaImportacao({ id, permissoes, aoNavegar, aoGravar }: { id: st
           </button>
         </div>
       )}
-      {lote === null && carga?.estado !== 'erro' && <p className="estado-carregando">Carregando lote…</p>}
+      {lote === null && carga?.estado !== 'erro' && <Carregando mensagem="Carregando lote…" />}
       {lote && (
         <>
           <section className="cartao" aria-labelledby={`${ids}-lote`} data-testid="resumo-lote" data-situacao={lote.state}>
@@ -653,7 +654,7 @@ export function TelaImportacao({ id, permissoes, aoNavegar, aoGravar }: { id: st
                   </button>
                 </div>
               )}
-              {paginaLinhas && paginaLinhas.previewVersion !== lote.previewVersion && <p className="estado-carregando">Atualizando para a prévia atual…</p>}
+              {paginaLinhas && paginaLinhas.previewVersion !== lote.previewVersion && <Carregando mensagem="Atualizando para a prévia atual…" />}
               {paginaLinhas && (
                 <>
                   <ol className="linhas-importacao" aria-busy={linhas.carga?.estado === 'carregando'}>

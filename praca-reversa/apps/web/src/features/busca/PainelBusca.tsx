@@ -37,6 +37,7 @@ import {
   urlExportacao,
   type CriteriosBusca,
 } from './estado';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 /** Espera depois da última alteração antes de consultar o servidor. */
 const ESPERA_MS = 300;
@@ -511,7 +512,7 @@ export function PainelBusca({ chaveMemoria, permissoes, versao, oculto, aoEscolh
             {!ativa && !aguardando
               ? 'Digite um código ou escolha um filtro.'
               : aguardando || carga?.estado === 'carregando'
-                ? 'Buscando no servidor…'
+                ? <Carregando como="span" mensagem="Buscando no servidor…" />
                 : resposta
                   ? `${String(resposta.total)} resultado(s) · página ${String(resposta.page)} de ${String(paginas)}`
                   : ''}

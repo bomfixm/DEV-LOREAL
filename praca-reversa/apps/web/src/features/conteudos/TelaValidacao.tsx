@@ -10,6 +10,7 @@ import { JanelaModal } from '../paletes/JanelaPalete';
 import { AcoesConteudo } from './AcoesConteudo';
 import { textoResultadoAcao } from './textos-resultado';
 import './correcoes.css';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const documento = (i: ItemValidacao) => (i.documentNumber === null ? `Sem documento (${i.sender ?? 'remetente não informado'})` : `${i.documentType ?? 'Documento'} ${i.documentNumber}`);
 const notas = (n: number) => (n === 1 ? '1 nota' : `${String(n)} notas`);
@@ -216,7 +217,7 @@ export function TelaValidacao({ podeResolver, aoNavegar, aoGravar }: { podeResol
           </button>
         </div>
       )}
-      {dados === null && carga?.estado !== 'erro' && <p className="estado-carregando">Carregando a fila…</p>}
+      {dados === null && carga?.estado !== 'erro' && <Carregando mensagem="Carregando a fila…" />}
       {dados !== null && dados.total === 0 && (
         <p className="estado-vazio" data-testid="validacao-vazia">
           Nenhuma pendência de validação.

@@ -4,6 +4,7 @@ import { IconeImprimir } from '../../components/Icones';
 import { ROTULOS_CONFERENCIA } from '../paletes/estados';
 import { FILTRO_VAZIO, filtroAtivo, type Filtro } from '../paletes/filtro';
 import type { EstadoFiltro } from '../paletes/ListaPaletes';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 interface Props {
   filtro: Filtro;
@@ -104,7 +105,7 @@ export function FiltroMapa({ filtro, estadoFiltro, quantidade, aoMudarFiltro, ao
         </label>
         <p aria-live="polite" data-testid="contagem-lista">
           {estadoFiltro.estado === 'filtrando'
-            ? 'Filtrando no servidor…'
+            ? <Carregando como="span" mensagem="Filtrando no servidor…" />
             : estadoFiltro.estado === 'pronto'
               ? `${String(quantidade)} de ${String(estadoFiltro.total)} paletes no resultado (os demais ficam esmaecidos no mapa)`
               : 'Sem filtro: todos os paletes no mapa.'}

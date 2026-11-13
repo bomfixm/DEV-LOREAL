@@ -18,6 +18,7 @@ import { formatarDataHora } from '../../utils/datas';
 import { useAcoesClaim } from './acoes';
 import { ROTULOS_MOTIVO, ROTULOS_PENDENCIA, ROTULOS_PRIORIDADE, ROTULOS_SITUACAO, formatarDataInformada, textoUnidades, textoValores } from './rotulos';
 import { SecaoCandidatos, SecaoEvidencias, SecaoHistorico, SecaoLinhas, SecaoResultados } from './SecoesClaim';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const ABAS: { aba: AbaClaim; rotulo: string }[] = [
   { aba: 'linhas', rotulo: 'Linhas' },
@@ -97,7 +98,7 @@ export function TelaClaim({
             </button>
           </div>
         ) : (
-          <p className="estado-carregando">Carregando claim…</p>
+          <Carregando mensagem="Carregando claim…" variante="principal" />
         )}
       </Pagina>
     );

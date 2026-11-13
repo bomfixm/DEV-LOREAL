@@ -25,6 +25,7 @@ import { formatarData, formatarDataHora } from '../../utils/datas';
 import { formatarQuantidade } from '../../utils/numeros';
 import { useAcoes } from './acoes';
 import { ROTULOS_BASE_PESO, ROTULOS_CONDICAO, ROTULOS_PENDENCIA_MATERIAL, q, rotuloMetrica, textoOrigem } from './rotulos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const TAMANHO = 20;
 
@@ -174,7 +175,7 @@ export function SelecaoMaterial({
           </button>
         </div>
       )}
-      {lista.carga?.estado === 'carregando' && <p className="estado-carregando">Consultando material…</p>}
+      {lista.carga?.estado === 'carregando' && <Carregando mensagem="Consultando material…" />}
       {dados?.total === 0 && <p className="estado-vazio">{fila === 'ELEGIVEL' ? 'Nenhum material elegível para esta janela.' : 'Nenhuma pendência.'}</p>}
       {dados && dados.total > 0 && (
         <ul className="lista-material" data-testid={`lista-${fila.toLowerCase()}`}>

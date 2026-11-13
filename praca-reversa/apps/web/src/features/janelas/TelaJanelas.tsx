@@ -8,6 +8,7 @@ import type { Navegar } from '../../rotas';
 import { deslocarMes, formatarDataHora, mesAtual, nomeDoMes } from '../../utils/datas';
 import { Capacidade } from './Capacidade';
 import { ROTULOS_SITUACAO_JANELA } from './rotulos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const TAMANHO = 30;
 
@@ -137,7 +138,7 @@ export function TelaJanelas({ mes, permissoes, aoNavegar }: { mes: string | null
           </button>
         </div>
       )}
-      {lista.carga?.estado === 'carregando' && <p className="estado-carregando">Carregando janelas…</p>}
+      {lista.carga?.estado === 'carregando' && <Carregando mensagem="Carregando janelas…" />}
       {dados?.total === 0 && <p className="estado-vazio">Nenhuma janela cadastrada para {nomeDoMes(mesExibido)}{situacao || busca ? ' com estes filtros' : ''}.</p>}
       {dados && dados.total > 0 && (
         <>

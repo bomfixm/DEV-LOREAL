@@ -21,6 +21,7 @@ import { formatarDataHora, paraEntradaLocal, paraIsoNoFuso } from '../../utils/d
 import { formatarQuantidade } from '../../utils/numeros';
 import { useAcoes, useUltimoPronto } from './acoes';
 import { ROTULOS_BASE_PESO, ROTULOS_CONDICAO, ROTULOS_RETORNO, q, rotuloMetrica, textoOrigem } from './rotulos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const decimal = (t: string) => t.trim().replace(',', '.');
 
@@ -71,7 +72,7 @@ export function TelaExpedicao({ id, permissoes, aoNavegar, aoGravar }: { id: str
             </button>
           </div>
         ) : (
-          <p className="estado-carregando">Carregando expedição…</p>
+          <Carregando mensagem="Carregando expedição…" />
         )}
       </Pagina>
     );

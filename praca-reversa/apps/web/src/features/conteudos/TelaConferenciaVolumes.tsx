@@ -20,6 +20,7 @@ import type { Navegar } from '../../rotas';
 import { formatarDataHora } from '../../utils/datas';
 import { ConferenciaTabela } from './ConferenciaTabela';
 import { identificacaoPendente, textoConferencia, textoDelivery, textoDocumento, textoVolumesConteudo } from './textos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 type Mensagem = { tipo: 'ok' | 'erro' | 'conflito'; texto: string } | null;
 type Modo = 'contar' | 'feita' | 'identificar' | null;
@@ -392,7 +393,7 @@ export function TelaConferenciaVolumes({ id, permissoes, aoNavegar, aoGravar }: 
           </button>
         </div>
       )}
-      {dados === null && carga?.estado !== 'erro' && <p className="estado-carregando">Carregando conteúdo…</p>}
+      {dados === null && carga?.estado !== 'erro' && <Carregando mensagem="Carregando conteúdo…" />}
       {dados !== null && dados.items.length === 0 && (
         <p className="estado-vazio" data-testid="volumes-vazio">
           Nenhum conteúdo neste palete ainda. Importe a bipagem ou registre o conteúdo recebido.

@@ -19,6 +19,7 @@ import { useConectado } from '../../hooks/ambiente';
 import type { Navegar } from '../../rotas';
 import { formatarData, formatarDataHora } from '../../utils/datas';
 import { formatarQuantidade } from '../../utils/numeros';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const TAMANHO = 50;
 type Situacao = FiltroLinhasInventario['situacao'];
@@ -166,7 +167,7 @@ export function TelaInventario({ id, permissoes, aoNavegar, aoGravar }: { id: st
           </button>
         </div>
       )}
-      {i === null && inventario.carga?.estado !== 'erro' && <p className="estado-carregando">Carregando inventário…</p>}
+      {i === null && inventario.carga?.estado !== 'erro' && <Carregando mensagem="Carregando inventário…" />}
       {i && (
         <>
           <section className="cartao" data-testid="resumo-inventario">

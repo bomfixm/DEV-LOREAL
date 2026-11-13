@@ -5,6 +5,7 @@ import { SeloConferenciaExibida } from '../../components/Selos';
 import { ROTULOS_CONFERENCIA } from './estados';
 import { filtroAtivo, FILTRO_VAZIO, type Filtro, type GrupoPaletes } from './filtro';
 import { SeloReconferencia } from './PrazoReconferencia';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 /** Situação da consulta do filtro no servidor. */
 export type EstadoFiltro =
@@ -154,7 +155,7 @@ export function ListaPaletes({
         <div className="filtro-resumo">
           <p aria-live="polite" data-testid="contagem-lista">
             {estadoFiltro.estado === 'filtrando'
-              ? 'Filtrando no servidor…'
+              ? <Carregando como="span" mensagem="Filtrando no servidor…" />
               : ativo
                 ? `${String(quantidade)} de ${String(total)} paletes`
                 : `${String(total)} paletes`}

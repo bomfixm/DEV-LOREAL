@@ -18,6 +18,7 @@ import { useConectado } from '../../hooks/ambiente';
 import { formatarDataHora } from '../../utils/datas';
 import { ReconferenciaCompleta } from './ReconferenciaCompleta';
 import './conferencia-tabela.css';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 type Modo = 'COMPLETA' | 'PARCIAL';
 type Mensagem = { tipo: 'ok' | 'erro' | 'conflito'; texto: string } | null;
@@ -207,7 +208,7 @@ export function ConferenciaTabela({
       </div>
     );
   }
-  if (dados === null) return <p className="estado-carregando">Carregando o conteúdo do palete…</p>;
+  if (dados === null) return <Carregando mensagem="Carregando o conteúdo do palete…" />;
   if (itens.length === 0) return <SemConteudo paleteId={paleteId} paleteCodigo={paleteCodigo} aoReconferido={aoReconferido} />;
 
   return (

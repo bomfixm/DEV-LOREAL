@@ -17,6 +17,7 @@ import { formatarDataHora } from '../../utils/datas';
 import { PassosTeste, SeloAmbienteTeste } from './comum';
 import { avaliarEscolha } from './escolha';
 import { API_TESTE, textoAgenda, textoDocumento, textoPedido, textoVolumes } from './textos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 type Mensagem = { tipo: 'ok' | 'erro'; texto: string } | null;
 
@@ -87,9 +88,7 @@ export function TelaSolicitacaoTeste({ id, aoNavegar }: { id: string; aoNavegar:
               </button>
             </div>
           ) : (
-            <p className="st-nota" role="status">
-              Carregando a solicitação…
-            </p>
+            <Carregando className="st-nota" mensagem="Carregando a solicitação…" />
           )
         ) : s.can.edit ? (
           <Revisao key={s.id} s={s} aoAtualizar={setLocal} aoNavegar={aoNavegar} />

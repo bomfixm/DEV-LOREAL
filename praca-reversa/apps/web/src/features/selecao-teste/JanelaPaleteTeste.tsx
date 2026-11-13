@@ -6,6 +6,7 @@ import { useRecurso } from '../../api/use-recurso';
 import { JanelaModal } from '../paletes/JanelaPalete';
 import { avaliarEscolha } from './escolha';
 import { API_TESTE, TIPO_PALETE, chaveConteudo, remetentes, textoDocumento, textoVolumes, textoVolumesPalete } from './textos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 type Modo = 'inteiro' | 'notas';
 
@@ -54,9 +55,7 @@ export function JanelaPaleteTeste({ paleteId, solicitacao, aoFechar, aoAdicionar
       paleteId={paleteId}
     >
       {carga === null || carga.estado === 'carregando' ? (
-        <p className="st-nota" role="status">
-          Carregando o palete…
-        </p>
+        <Carregando className="st-nota" mensagem="Carregando o palete…" />
       ) : carga.estado === 'erro' ? (
         <div className="estado-erro" role="alert">
           <p>{carga.status === 404 ? 'Este palete não está no estoque consultado (arquivado, expedido ou de outra praça).' : carga.mensagem}</p>

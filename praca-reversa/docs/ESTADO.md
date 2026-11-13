@@ -2,6 +2,14 @@
 
 Atualizado em 13 de novembro de 2026.
 
+## Abertura pós-login e carregamento vetorial — 13 de novembro de 2026 (D334–D335)
+
+Abertura de ~1,1 s depois do login (ou ao iniciar com sessão confirmada), uma vez por abertura, sem bloquear cliques. Indicador `Carregando` (embalagem perfume → shampoo → creme em traço, no estilo dos ícones do menu, no quadrado amarelo do item ativo) no lugar dos textos "Carregando…" das buscas (~65 pontos, inclusive filtros, busca, janela do palete, Expedição, indicadores e Seleção cliente — teste), só depois de 1,5 s de busca pendente. Código em `apps/web/src/components/carregamento/`.
+
+Verificações: typecheck da web; ESLint dos 67 arquivos alterados (só os 2 erros antigos de `JanelaPalete.tsx`); unidade web 130/130, com 10 testes novos da regra (`atraso.test.ts`: 1.200 ms sem indicador, 2.500 ms com indicador de 1,5 s até a chegada, concorrência, resposta antiga, erro, cancelamento, desmontagem); build; E2E novo `motion-carregamento.spec.ts` 14/14 (computador e celular: busca do mapa atrasada para 1.200 ms e 2.500 ms, erro aos 2 s, conteúdo da janela do palete a 2.500 ms e cancelado aos 0,7 s, login rejeitado, navegação interna sem repetir a abertura, movimento reduzido). Capturas em `docs/capturas/motion/`.
+
+Limites: sem teste em aparelho físico; a contagem começa na montagem da área de carregamento (mesmo ciclo de renderização do início da busca). A atualização silenciosa do mapa a cada minuto não mostra indicador (mantém os dados anteriores). Não comitado.
+
 ## Expedição: inclusão por nota e atalho "Expedição · N" — 13 de novembro de 2026 (D332–D333)
 
 Janela do palete: caminhão em cada linha da tabela de conteúdo ("Adicionar esta nota à expedição"), marca "Na expedição · Truck 01 · Palete 01" quando a nota já está num embarque, "Adicionar N notas selecionadas" na seleção de correção; rodapé com "Adicionar palete inteiro" (resumo e sobreposição antes de confirmar). Servidor: `POST /cargas/veiculos/:id/notas` (por ocorrência, nunca expande o palete) e `GET /cargas/selecao` (contador; `?palete=` para as marcas). Mapa: atalho flutuante "Expedição · N" no canto inferior direito; cópia da nota voa até ele (450 ms; nada com "reduzir movimento"). Sem migração.

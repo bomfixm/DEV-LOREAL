@@ -4,6 +4,7 @@ import { useRecurso } from '../../api/use-recurso';
 import { IconeMais, IconeMenos } from '../../components/Icones';
 import type { MargensMapa } from '../mapa/controlador-mapa';
 import { MapaPraca, type MapaPracaHandle } from '../mapa/MapaPraca';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const MARGENS: MargensMapa = { topo: 16, direita: 64, base: 16, esquerda: 16 };
 
@@ -38,9 +39,7 @@ export function MapaConsultaTeste({ aoEscolherPalete, aoVoltar }: { aoEscolherPa
       </header>
       <div className="st-mapa-area">
         {carga === null || carga.estado === 'carregando' ? (
-          <p className="st-nota" role="status">
-            Carregando o mapa…
-          </p>
+          <Carregando className="st-nota" mensagem="Carregando o mapa…" variante="principal" />
         ) : carga.estado === 'erro' ? (
           <div className="estado-erro" role="alert">
             <p>{carga.mensagem}</p>

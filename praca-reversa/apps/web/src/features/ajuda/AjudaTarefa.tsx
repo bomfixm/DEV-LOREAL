@@ -1,6 +1,7 @@
 import { Suspense, lazy, useState } from 'react';
 import { useContextoAjuda } from './estado';
 import { TITULOS_TAREFA, type IdTarefa } from './tarefas';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 // O texto dos guias é carregado só quando a ajuda é aberta.
 const GuiaTarefa = lazy(() => import('./GuiaTarefa').then((m) => ({ default: m.GuiaTarefa })));
@@ -24,7 +25,7 @@ export function AjudaTarefa({ tarefa }: { tarefa: IdTarefa }) {
         <span aria-hidden="true">?</span> Como fazer: {TITULOS_TAREFA[tarefa]}
       </summary>
       {aberta && (
-        <Suspense fallback={<p className="estado-carregando">Carregando o guia…</p>}>
+        <Suspense fallback={<Carregando mensagem="Carregando o guia…" />}>
           <GuiaTarefa tarefa={tarefa} permissoes={contexto?.permissoes ?? []} />
           {contexto && (
             <button

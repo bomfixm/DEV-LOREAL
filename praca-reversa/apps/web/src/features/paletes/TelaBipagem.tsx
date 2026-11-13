@@ -35,6 +35,7 @@ import { formatarDataHora } from "../../utils/datas";
 import type { MargensMapa } from "../mapa/controlador-mapa";
 import { MapaPraca, type MapaPracaHandle } from "../mapa/MapaPraca";
 import "./bipagem.css";
+import { Carregando } from '../../components/carregamento/Carregando';
 
 /**
  * Importar a bipagem "Etiquetas" (21 out. 2026, D283–D288): um arquivo = um
@@ -552,7 +553,7 @@ function EscolhaNoMapa({
       </p>
       <div className="bipagem-mapa-area">
         {carga === null || carga.estado === "carregando" ? (
-          <p className="estado-carregando">Carregando o mapa…</p>
+          <Carregando mensagem="Carregando o mapa…" variante="principal" />
         ) : carga.estado === "erro" ? (
           <div className="estado-erro" role="alert">
             <p>{carga.mensagem}</p>
@@ -1082,7 +1083,7 @@ export function TelaBipagem({ paleteId, sessao, aoNavegar, aoGravar }: Props) {
               </div>
             )}
             {lote === null && cargaLote.carga?.estado !== "erro" && (
-              <p className="estado-carregando">Carregando a importação…</p>
+              <Carregando mensagem="Carregando a importação…" />
             )}
             {lote && (
               <p className="tabela-nota" data-testid="bipagem-lote">

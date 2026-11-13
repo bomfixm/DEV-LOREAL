@@ -1,10 +1,12 @@
 import { API_PREFIXO, PracaSchema, SituacaoDocumentosSchema, TIPOS_IMPORTACAO_GERAL, tiposImportacaoPermitidos, type Permissao, type Praca, type Sessao } from '@praca-reversa/contracts';
-import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Component, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
 import { useConexao } from './api/conexao';
 import { definirContexto } from './api/incertas';
 import { useRecurso } from './api/use-recurso';
 import { useVersao } from './api/versao';
 import { AvisoConexao, Cabecalho, EstadoTela, SemPermissao } from './components/Moldura';
+import { AberturaSessao } from './components/carregamento/AberturaSessao';
+import { rearmarAbertura, solicitarAbertura } from './components/carregamento/abertura';
 import { IconeCaixa } from './components/Icones';
 import { NavegacaoPrincipal } from './components/Navegacao';
 import { secaoDaRota } from './components/paginas';
@@ -610,6 +612,14 @@ export function App() {
     definirContexto(usuarioId !== null && escopoId !== null ? { usuarioId, escopoId } : null, politica);
   }, [usuarioId, escopoId, politica]);
 
+  // Abertura pós-login (D334): uma vez por abertura da área autenticada, só depois de o servidor confirmar a sessão.
+  // Antes da pintura, para a tela não piscar sem a abertura. Sair da conta rearma.
+  const situacaoSessao = estado.estado;
+  useLayoutEffect(() => {
+    if (situacaoSessao === 'autenticado') solicitarAbertura(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    else if (situacaoSessao === 'anonimo') rearmarAbertura();
+  }, [situacaoSessao]);
+
   useEffect(() => {
     if (destino === null) return;
     const url = new URL(destino, window.location.origin);
@@ -630,6 +640,7 @@ export function App() {
           rota={rota}
           navegar={navegar}
         />
+        <AberturaSessao />
       </div>
     );
   }

@@ -10,6 +10,7 @@ import {
 import { useId, useState } from 'react';
 import { useRecurso } from '../../api/use-recurso';
 import { formatarDataHora } from '../../utils/datas';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 type Executar = (metodo: 'POST' | 'PUT', url: string, corpo: object) => Promise<boolean>;
 
@@ -146,7 +147,7 @@ export function EnderecosReais({ versao, podeConfigurar, ocupado, executar }: { 
     <section className="cartao" aria-labelledby="titulo-enderecos-reais" data-testid="enderecos-reais">
       <h3 id="titulo-enderecos-reais">Endereços reais</h3>
       {carga?.estado === 'erro' && <p className="estado-erro">{carga.mensagem}</p>}
-      {carga?.estado === 'carregando' && <p className="estado-carregando">Carregando a tabela de endereços…</p>}
+      {carga?.estado === 'carregando' && <Carregando mensagem="Carregando a tabela de endereços…" />}
       {dados && (
         <>
           <p>

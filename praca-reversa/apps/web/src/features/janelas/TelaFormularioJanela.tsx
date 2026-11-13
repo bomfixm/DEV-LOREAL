@@ -20,6 +20,7 @@ import type { Navegar } from '../../rotas';
 import { mesAtual, paraEntradaLocal, paraIsoNoFuso } from '../../utils/datas';
 import { useAcoes } from './acoes';
 import { ROTULOS_BASE_PESO, ROTULOS_CONDICAO, ROTULOS_METRICA, ROTULOS_ORIGEM } from './rotulos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 interface RestricaoForm {
   metric: MetricaCapacidade;
@@ -158,7 +159,7 @@ export function TelaFormularioJanela({ id, aoNavegar, aoGravar }: { id: string |
   if (form === null) {
     return (
       <Pagina titulo="Janela" testId="tela-formulario-janela" aoVoltar={voltar} rotuloVoltar="Voltar">
-        {atual.carga?.estado === 'erro' ? <p className="estado-erro">{atual.carga.mensagem}</p> : <p className="estado-carregando">Carregando…</p>}
+        {atual.carga?.estado === 'erro' ? <p className="estado-erro">{atual.carga.mensagem}</p> : <Carregando mensagem="Carregando…" />}
       </Pagina>
     );
   }

@@ -30,6 +30,7 @@ import {
   textoValores,
 } from './rotulos';
 import { ABERTOS, VAZIOS, memoria, type Filtros } from './memoria';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const TAMANHO = 20;
 
@@ -311,7 +312,7 @@ export function TelaClaims({ permissoes, chaveMemoria, aoNavegar }: { permissoes
           </button>
         </div>
       )}
-      {lista.carga?.estado === 'carregando' && <p className="estado-carregando">Carregando claims…</p>}
+      {lista.carga?.estado === 'carregando' && <Carregando mensagem="Carregando claims…" />}
       {dados?.total === 0 && <p className="estado-vazio">Nenhum claim{filtrado ? ' com estes filtros' : ' registrado neste escopo'}.</p>}
       {dados && dados.total > 0 && (
         <>

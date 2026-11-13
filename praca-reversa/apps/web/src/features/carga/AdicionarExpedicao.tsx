@@ -14,6 +14,7 @@ import { enviarJson, mensagemDeFalha, obterJson } from '../../api/cliente';
 import { IconeCaminhao } from '../../components/Icones';
 import { atualizarSelecao, definirSelecao } from './selecao-expedicao';
 import { voarParaExpedicao } from './voo-carrinho';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 /** Fracionado ativo de um veículo (destino possível de uma nota). */
 interface FracionadoAberto {
@@ -220,7 +221,7 @@ export function AdicionarNotas({
           <small className="campo-ajuda">{unica.volumes === null ? 'Vazio = todo o disponível.' : `Vazio = todo o disponível (até ${textoVolumes(unica.volumes)}).`}</small>
         </label>
       )}
-      {carregando && veiculos === null && <span>Buscando veículos em montagem…</span>}
+      {carregando && veiculos === null && <Carregando como="span" mensagem="Buscando veículos em montagem…" />}
       {erroLeitura !== null && (
         <span className="mensagem-conflito" role="alert">
           {erroLeitura}
@@ -403,7 +404,7 @@ function PaleteInteiro({ palete, aoFechar, aoAlterado }: { palete: PaleteResumo;
     <div className="adicionar-expedicao" data-testid="adicionar-expedicao">
       <strong>Adicionar o palete {palete.code} inteiro a qual veículo?</strong>
       <span className="campo-ajuda">Entra inteiro (FULL), com todas as notas, sem posição. Para uma nota só, use o caminhão na linha da nota.</span>
-      {carregando && veiculos === null && <span>Buscando veículos em montagem…</span>}
+      {carregando && veiculos === null && <Carregando como="span" mensagem="Buscando veículos em montagem…" />}
       {erroLeitura !== null && (
         <span className="mensagem-conflito" role="alert">
           {erroLeitura}

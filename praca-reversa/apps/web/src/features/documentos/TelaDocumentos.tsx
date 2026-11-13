@@ -18,6 +18,7 @@ import { paraEndereco } from '../../base';
 import { formatarDataHora } from '../../utils/datas';
 import { TextoDocumento } from './TextoDocumento';
 import './documentos.css';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 type Mensagem = { tipo: 'ok' | 'erro' | 'aviso'; texto: string } | null;
 
@@ -68,7 +69,7 @@ export function TelaDocumentos({ aoVoltar }: { aoVoltar: () => void }) {
       descricao="Versões dos termos de uso e do aviso de privacidade. Só a versão publicada aparece para os usuários; minutas ficam nesta tela. Publicar depende da aprovação feita fora do sistema (jurídico/privacidade da empresa), registrada aqui com a referência para conferência."
     >
       <MensagemAcao mensagem={mensagem} testId="documentos-mensagem" />
-      {carga?.estado === 'carregando' && lista === null && <p className="estado-carregando">Carregando…</p>}
+      {carga?.estado === 'carregando' && lista === null && <Carregando mensagem="Carregando…" />}
       {carga?.estado === 'erro' && (
         <div className="estado-erro" role="alert">
           <p>Não foi possível carregar as versões. {carga.mensagem}</p>

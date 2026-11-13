@@ -46,6 +46,8 @@ export async function entrar(page: Page, quem: keyof Credenciais): Promise<void>
   await page.getByLabel('Senha', { exact: true }).fill(senha);
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page.getByTestId('menu-conta')).toBeVisible();
+  // Abertura pós-login (D334): cerca de 1,1 s por cima da tela; capturas e verificações seguem depois dela.
+  await expect(page.getByTestId('abertura')).toHaveCount(0);
 }
 
 /** Praça do escopo ativo, pela mesma sessão do navegador. */

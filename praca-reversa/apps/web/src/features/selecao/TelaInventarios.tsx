@@ -5,6 +5,7 @@ import { IconeAtualizar, IconeMais } from '../../components/Icones';
 import { Pagina } from '../../components/Moldura';
 import type { Navegar } from '../../rotas';
 import { formatarData, formatarDataHora } from '../../utils/datas';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const TAMANHO = 20;
 
@@ -53,7 +54,7 @@ export function TelaInventarios({ permissoes, aoNavegar }: { permissoes: readonl
           </button>
         </div>
       )}
-      {carga?.estado === 'carregando' && <p className="estado-carregando">Carregando inventários…</p>}
+      {carga?.estado === 'carregando' && <Carregando mensagem="Carregando inventários…" />}
       {dados?.total === 0 && (
         <div className="estado-vazio">
           <p>Nenhum inventário de referência registrado.</p>

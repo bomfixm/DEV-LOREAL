@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { enviarJson, mensagemDeFalha } from '../../api/cliente';
 import { useRecurso } from '../../api/use-recurso';
 import { caminhoSvgQr, gerarMatrizQr, ladoComMargem } from '../etiquetas/qr';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const URL_2FA = `${API_PREFIXO}/sessao/segundo-fator`;
 
@@ -120,7 +121,7 @@ export function TelaSeguranca({ aoVoltar }: { aoVoltar: () => void }) {
               {situacao.carga.mensagem}
             </p>
           ) : situacao.carga?.estado !== 'pronto' ? (
-            <p className="estado-carregando">Carregando…</p>
+            <Carregando mensagem="Carregando…" variante="principal" />
           ) : recuperacao !== null ? (
             <div data-testid="codigos-recuperacao">
               <p>

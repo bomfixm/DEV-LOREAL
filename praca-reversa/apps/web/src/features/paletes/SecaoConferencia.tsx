@@ -15,6 +15,7 @@ import { useConectado } from '../../hooks/ambiente';
 import { formatarDataHora } from '../../utils/datas';
 import { formatarQuantidade } from '../../utils/numeros';
 import { ROTULOS_ESCOPO, ROTULOS_EVENTO, ROTULOS_MOTIVO, ROTULOS_SITUACAO, formatarDiferenca, textoOrigem } from '../conferencia/rotulos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 interface Props {
   detalhe: PaleteDetalhe;
@@ -38,7 +39,7 @@ function Historico({ paleteId, aoAbrirConferencia }: { paleteId: string; aoAbrir
       </div>
     );
   }
-  if (carga?.estado !== 'pronto') return <p className="estado-carregando">Carregando histórico…</p>;
+  if (carga?.estado !== 'pronto') return <Carregando mensagem="Carregando histórico…" />;
   const { sessions, events } = carga.dados;
   return (
     <div className="historico-conferencia" data-testid="historico-conferencia">

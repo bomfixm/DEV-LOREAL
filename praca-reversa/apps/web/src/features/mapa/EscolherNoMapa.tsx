@@ -5,6 +5,7 @@ import { IconeAtualizar, IconeMais, IconeMenos } from '../../components/Icones';
 import type { MargensMapa } from './controlador-mapa';
 import { MapaPraca, type MapaPracaHandle } from './MapaPraca';
 import './escolher-no-mapa.css';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const MARGENS: MargensMapa = { topo: 12, direita: 56, base: 12, esquerda: 12 };
 
@@ -47,7 +48,7 @@ export function EscolherNoMapa({ aoEscolher, excluirPaleteId = null }: { aoEscol
       </p>
       <div className="escolha-mapa-area">
         {carga === null || carga.estado === 'carregando' ? (
-          <p className="estado-carregando">Carregando o mapa…</p>
+          <Carregando mensagem="Carregando o mapa…" variante="principal" />
         ) : carga.estado === 'erro' ? (
           <div className="estado-erro" role="alert">
             <p>{carga.mensagem}</p>

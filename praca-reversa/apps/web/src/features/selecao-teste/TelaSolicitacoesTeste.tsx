@@ -6,6 +6,7 @@ import type { Navegar } from '../../rotas';
 import { formatarDataHora } from '../../utils/datas';
 import { PassosTeste, SeloAmbienteTeste } from './comum';
 import { API_TESTE, textoAgenda, textoVolumes } from './textos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 /**
  * Lista interna das solicitações de teste (enviar e acompanhar), separada
@@ -63,9 +64,7 @@ export function TelaSolicitacoesTeste({ aoNavegar }: { aoNavegar: Navegar }) {
           </button>
         </div>
         {carga === null || carga.estado === 'carregando' ? (
-          <p className="st-nota" role="status">
-            Carregando…
-          </p>
+          <Carregando className="st-nota" mensagem="Carregando…" />
         ) : carga.estado === 'erro' ? (
           <div className="estado-erro" role="alert">
             <p>{carga.mensagem}</p>

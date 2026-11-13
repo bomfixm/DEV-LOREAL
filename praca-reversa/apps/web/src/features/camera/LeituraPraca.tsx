@@ -5,6 +5,7 @@ import { formatarQuantidade } from '../../utils/numeros';
 import { useContextoLeitura } from './contexto';
 import { FORMATOS_PRODUTO, type Deteccao } from './deteccao';
 import { LeitorCamera, type AcoesLeitura } from './LeitorCamera';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 interface Props {
   aoAbrirPalete: (id: string) => void;
@@ -86,7 +87,7 @@ function ResultadoLeitura({
 function ProdutoLido({ codigo, acoes, aoBuscarProduto }: { codigo: string; acoes: AcoesLeitura; aoBuscarProduto: ((texto: string) => void) | null }) {
   const { rede } = useConexao();
   const { carga, recarregar } = useRecurso(`${API_PREFIXO}/produtos/identificar?codigo=${encodeURIComponent(codigo)}`, IdentificacaoCodigoSchema);
-  if (carga === null || carga.estado === 'carregando') return <p aria-busy="true">Consultando o cadastro…</p>;
+  if (carga === null || carga.estado === 'carregando') return <Carregando mensagem="Consultando o cadastro…" />;
   if (carga.estado === 'erro') {
     if (carga.status === 404) {
       return (

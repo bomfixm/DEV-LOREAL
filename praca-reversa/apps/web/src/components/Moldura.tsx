@@ -15,6 +15,7 @@ import { AjudaTarefa } from '../features/ajuda/AjudaTarefa';
 import { useContextoAjuda } from '../features/ajuda/estado';
 import { LinksDocumentos } from './LinksDocumentos';
 import type { IdTarefa } from '../features/ajuda/tarefas';
+import { Carregando } from './carregamento/Carregando';
 
 export function Marca() {
   return (
@@ -416,9 +417,7 @@ export function EstadoTela({
           </button>
         </div>
       ) : (
-        <div className="estado-carregando estado-tela" aria-busy="true" data-testid="carregando">
-          <p>Carregando…</p>
-        </div>
+        <Carregando variante="principal" className="estado-tela" data-testid="carregando" />
       )}
     </main>
   );

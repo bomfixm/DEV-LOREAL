@@ -8,6 +8,7 @@ import { formatarDataHora } from '../../utils/datas';
 import { AvisoMovimento, SemConexaoMovimento } from './comum';
 import { useEnvio, useUltimo } from './use-envio';
 import type { Aviso } from './regras';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 interface Props {
   id: string;
@@ -52,9 +53,7 @@ export function TelaLiberarPosicao({ id, sessao, aoNavegar, aoGravar }: Props) {
               </button>
             </div>
           ) : (
-            <p className="estado-carregando" aria-busy="true">
-              Carregando palete…
-            </p>
+            <Carregando mensagem="Carregando palete…" variante="principal" />
           )}
         </div>
       </main>

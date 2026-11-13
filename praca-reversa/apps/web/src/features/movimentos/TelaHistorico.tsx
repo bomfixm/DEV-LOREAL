@@ -21,6 +21,7 @@ import { ROTULOS_CONDICAO } from '../paletes/estados';
 import { AvisoMovimento, EscolhaPosicao, SemConexaoMovimento } from './comum';
 import { useEnvio, useUltimo } from './use-envio';
 import { ROTULOS_EVENTO_ESTOQUE, disponivel, normalizarDigitado, previaSaldo, problemaQuantidade, type Aviso, type PosicaoLivre } from './regras';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 interface Props {
   id: string;
@@ -51,7 +52,7 @@ function CorrecaoLocalizacao({ evento, versaoPalete, aoCorrigido, aoCancelar }: 
   const [confirmado, setConfirmado] = useState(false);
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const envio = useEnvio();
-  if (praca === null) return <p className="estado-carregando">Carregando posições…</p>;
+  if (praca === null) return <Carregando mensagem="Carregando posições…" />;
   const anteriorLivre =
     evento.from !== null && praca.layout?.positions.some((p) => p.id === evento.from?.id && p.available) && !praca.pallets.some((p) => p.positionId === evento.from?.id);
   const pronto = (destino !== null || pendente) && motivo.trim().length >= 3 && confirmado && envio.conectado && !envio.enviando;
@@ -176,7 +177,7 @@ function CorrecaoTransferencia({ evento, aoCorrigido, aoCancelar }: { evento: Ev
   const envio = useEnvio();
   const linha = evento.lines.find((l) => l.pallet.id === recebeu?.id);
   if (recebeu === null || linha === undefined) return null;
-  if (origem === null || quemRecebeu === null) return <p className="estado-carregando">Carregando saldos atuais…</p>;
+  if (origem === null || quemRecebeu === null) return <Carregando mensagem="Carregando saldos atuais…" />;
   const restante = evento.remainingCompensable ?? '0';
   const atual = quemRecebeu.currentItems?.find((i) => i.segmentId === linha.segmentId) ?? null;
   const livre = atual === null ? '0' : disponivel(atual);
@@ -312,9 +313,7 @@ export function TelaHistorico({ id, sessao, aoNavegar, aoGravar }: Props) {
               </div>
             </div>
           ) : (
-            <p className="estado-carregando" aria-busy="true">
-              Carregando histórico…
-            </p>
+            <Carregando mensagem="Carregando histórico…" variante="principal" />
           )}
         </div>
       </main>

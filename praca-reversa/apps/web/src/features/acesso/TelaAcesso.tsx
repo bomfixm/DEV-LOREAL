@@ -17,6 +17,7 @@ import { enviarJson, mensagemDeFalha } from '../../api/cliente';
 import { useRecurso } from '../../api/use-recurso';
 import { ROTULOS_PERFIL } from '../../sessao/perfis';
 import { formatarDataHora } from '../../utils/datas';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const URL_USUARIOS = `${API_PREFIXO}/admin/usuarios`;
 const URL_ALERTAS = `${API_PREFIXO}/admin/alertas-seguranca`;
@@ -322,7 +323,7 @@ export function TelaAcesso({ sessao, aoVoltar }: Props) {
               })}
             </ul>
           ) : (
-            <p className="estado-carregando">Carregando usuários…</p>
+            <Carregando mensagem="Carregando usuários…" />
           )}
         </section>
 
@@ -346,7 +347,7 @@ export function TelaAcesso({ sessao, aoVoltar }: Props) {
               </ul>
             )
           ) : (
-            <p className="estado-carregando">Verificando…</p>
+            <Carregando mensagem="Verificando…" />
           )}
         </section>
 
@@ -370,7 +371,7 @@ export function TelaAcesso({ sessao, aoVoltar }: Props) {
                 ))}
               </ol>
             ) : (
-              <p className="estado-carregando">Carregando auditoria…</p>
+              <Carregando mensagem="Carregando auditoria…" />
             )}
           </section>
         )}

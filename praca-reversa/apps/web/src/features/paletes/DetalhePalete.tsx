@@ -16,6 +16,7 @@ import { DocumentosInformados } from './DocumentosInformados';
 import { SecaoConferencia } from './SecaoConferencia';
 import { ConteudoDoPalete } from '../conteudos/ConteudoDoPalete';
 import { SecaoLiberacao } from '../janelas/SecaoLiberacao';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 interface Props {
   resumo: PaleteResumo;
@@ -662,7 +663,7 @@ export function DetalhePalete({
             </button>
           </div>
         ) : detalhe === null ? (
-          <p className="estado-carregando">Carregando conteúdo…</p>
+          <Carregando mensagem="Carregando conteúdo…" />
         ) : (
           <Conteudo apresentacao={apresentarConteudo(detalhe)} />
         )}

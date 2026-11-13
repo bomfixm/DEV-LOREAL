@@ -22,6 +22,7 @@ import { formatarQuantidade } from '../../utils/numeros';
 import { useAcoes, useUltimoPronto } from './acoes';
 import { Capacidade } from './Capacidade';
 import { ROTULOS_BASE_PESO, ROTULOS_CONDICAO, ROTULOS_PREPARACAO, ROTULOS_SITUACAO_RESERVA, q, textoOrigem } from './rotulos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const decimal = (t: string) => t.trim().replace(',', '.');
 const agoraLocal = () => paraEntradaLocal(new Date().toISOString());
@@ -153,7 +154,7 @@ export function TelaReserva({ id, permissoes, aoNavegar, aoGravar }: { id: strin
             </button>
           </div>
         ) : (
-          <p className="estado-carregando">Carregando reserva…</p>
+          <Carregando mensagem="Carregando reserva…" variante="principal" />
         )}
       </Pagina>
     );

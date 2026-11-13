@@ -9,6 +9,7 @@ import { intervaloCurto } from './dashboard-dados';
 import { Metodologia, PainelClaims, PainelConferencias, PainelEstoque, PainelPraca } from './detalhes';
 import { VisaoGeral } from './visao-geral';
 import './indicadores.css';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 interface Props {
   inicio: string | null;
@@ -99,9 +100,7 @@ export function TelaIndicadores({ inicio, fim, aba, permissoes, aoNavegar }: Pro
           </button>
         </div>
       ) : (
-        <p className="ind-estado" aria-busy="true" data-testid="indicadores-carregando">
-          Consultando os indicadores…
-        </p>
+        <Carregando variante="principal" className="ind-estado" data-testid="indicadores-carregando" mensagem="Consultando os indicadores…" />
       );
   } else {
     const painel = (chave: Aba, filho: ReactNode) => (

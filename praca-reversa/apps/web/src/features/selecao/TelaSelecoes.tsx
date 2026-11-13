@@ -7,6 +7,7 @@ import type { Navegar } from '../../rotas';
 import { formatarDataHora } from '../../utils/datas';
 import { useSeparacaoCliente } from '../separacao/PainelSeparacao';
 import { ROTULOS_MODALIDADE } from './rotulos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const TAMANHO = 20;
 
@@ -87,7 +88,7 @@ export function TelaSelecoes({ permissoes, aoNavegar, aoGravar }: { permissoes: 
           </button>
         </div>
       )}
-      {carga?.estado === 'carregando' && <p className="estado-carregando">Carregando seleções…</p>}
+      {carga?.estado === 'carregando' && <Carregando mensagem="Carregando seleções…" />}
       {dados?.total === 0 && (
         <div className="estado-vazio" data-testid="selecoes-vazio">
           <p>Nenhuma seleção do cliente registrada neste escopo.</p>

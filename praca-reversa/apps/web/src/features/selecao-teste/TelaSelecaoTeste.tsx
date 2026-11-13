@@ -24,6 +24,7 @@ import {
   textoVolumes,
   textoVolumesPalete,
 } from "./textos";
+import { Carregando } from '../../components/carregamento/Carregando';
 
 // Leaflet só é carregado quando o mapa é aberto.
 const MapaConsultaTeste = lazy(() =>
@@ -169,9 +170,7 @@ export function TelaSelecaoTeste({
               </button>
             </p>
           ) : procurando ? (
-            <p className="st-nota" role="status">
-              Procurando a sua seleção em andamento…
-            </p>
+            <Carregando className="st-nota" mensagem="Procurando a sua seleção em andamento…" />
           ) : (
             <>
               {solicitacao !== null &&
@@ -236,9 +235,7 @@ export function TelaSelecaoTeste({
               />
             </label>
             {carga === null || carga.estado === "carregando" ? (
-              <p className="st-nota" role="status">
-                Consultando o estoque…
-              </p>
+              <Carregando className="st-nota" mensagem="Consultando o estoque…" />
             ) : carga.estado === "erro" ? (
               <div className="estado-erro" role="alert">
                 <p>{carga.mensagem}</p>
@@ -349,9 +346,7 @@ export function TelaSelecaoTeste({
         <div className="st-mapa-camada">
           <Suspense
             fallback={
-              <p className="st-nota" role="status">
-                Carregando o mapa…
-              </p>
+              <Carregando className="st-nota" mensagem="Carregando o mapa…" variante="principal" />
             }
           >
             <MapaConsultaTeste

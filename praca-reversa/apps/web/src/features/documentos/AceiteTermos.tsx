@@ -6,6 +6,7 @@ import { paraEndereco } from '../../base';
 import { formatarDataHora } from '../../utils/datas';
 import { TextoDocumento } from './TextoDocumento';
 import './documentos.css';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 /**
  * Aceite dos termos de uso publicados — só aparece quando a instalação exige
@@ -43,7 +44,7 @@ export function AceiteTermos({ situacao, aoAceitar, aoSair }: { situacao: Situac
         <p className="documento-versao">
           Versão {termos.version} · publicada em {formatarDataHora(termos.publishedAt)}. Para continuar a usar o Praça Reversa, leia e aceite esta versão.
         </p>
-        {d === null ? <p className="estado-carregando">Carregando o texto…</p> : <TextoDocumento conteudo={d.content} />}
+        {d === null ? <Carregando mensagem="Carregando o texto…" /> : <TextoDocumento conteudo={d.content} />}
         <p>
           O <a href={paraEndereco('/privacidade')}>aviso de privacidade</a> explica como os dados são tratados; ele é informativo e não pede consentimento.
         </p>

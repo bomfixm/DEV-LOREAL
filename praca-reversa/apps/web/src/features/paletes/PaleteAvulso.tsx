@@ -4,6 +4,7 @@ import { useRecurso } from '../../api/use-recurso';
 import { IconeAtualizar, IconeVoltar } from '../../components/Icones';
 import type { AcaoPalete } from '../../rotas';
 import { DetalhePalete } from './DetalhePalete';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 interface Props {
   id: string;
@@ -85,7 +86,7 @@ export function PaleteAvulso({
         </p>
       </header>
       {carga === null || carga.estado === 'carregando' ? (
-        <p className="estado-carregando">Carregando palete…</p>
+        <Carregando mensagem="Carregando palete…" />
       ) : naoEncontrado ? (
         <div className="estado-vazio" data-testid="palete-nao-encontrado">
           <p>Este palete não existe no escopo ativo ou você não tem acesso a ele.</p>

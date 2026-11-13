@@ -23,6 +23,7 @@ import { AvisoMovimento, SemConexaoMovimento } from './comum';
 import { useEnvio, useUltimo } from './use-envio';
 import { MOTIVOS_SUGERIDOS, SITUACAO_CONTEUDO, disponivel, normalizarDigitado, previaSaldo, problemaQuantidade, type Aviso } from './regras';
 import { AjudaTarefa } from '../ajuda/AjudaTarefa';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 interface Props {
   id: string;
@@ -121,9 +122,7 @@ export function TelaTransferir({ id, sessao, aoNavegar, aoGravar }: Props) {
               </div>
             </div>
           ) : (
-            <p className="estado-carregando" aria-busy="true">
-              Carregando palete…
-            </p>
+            <Carregando mensagem="Carregando palete…" variante="principal" />
           )}
         </div>
       </main>
@@ -371,7 +370,7 @@ export function TelaTransferir({ id, sessao, aoNavegar, aoGravar }: Props) {
                   </button>
                 </div>
               ) : (
-                <p className="estado-carregando">Carregando palete de destino…</p>
+                <Carregando mensagem="Carregando palete de destino…" />
               )
             ) : (
               <div className="destino-escolhido" data-testid="destino-escolhido">

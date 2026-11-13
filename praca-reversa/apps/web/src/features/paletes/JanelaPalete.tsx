@@ -30,6 +30,7 @@ import { agruparDocumentos, contarDocumentos } from './documentos';
 import { estadoExibido } from './estados';
 import { NAO_INFORMADO, avisoReconferencia, baseDosVolumes, dataSimples, somaContada, textoConferenciaInformada, textoFull, textoVolumes } from './janela';
 import { textoSequenciaFull } from './volumes';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 /** Troca manual do número do palete (ex.: "28" → "30"): campo curto no cabeçalho da janela. */
 /** Marca manual "separado para a agenda" no palete roxo (e desfaz). Não reserva nem altera estoque. */
@@ -1000,7 +1001,7 @@ export function JanelaPalete(props: PropsPalete) {
           </button>
         </div>
       ) : conteudo === null ? (
-        <p className="estado-carregando">Carregando conteúdo…</p>
+        <Carregando mensagem="Carregando conteúdo…" />
       ) : conteudo.items.length === 0 ? (
         <p className="janela-nota" data-testid="janela-sem-conteudo">
           Nenhum conteúdo registrado neste palete.

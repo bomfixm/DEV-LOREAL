@@ -31,6 +31,7 @@ import { PainelEntrada, type OrigemDeclarada, type ResultadoEnvio } from './Pain
 import { ReconciliacaoConferencia } from './ReconciliacaoConferencia';
 import { ROTULOS_ESCOPO, ROTULOS_EVENTO, ROTULOS_MOTIVO, ROTULOS_SITUACAO } from './rotulos';
 import { AjudaTarefa } from '../ajuda/AjudaTarefa';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 interface Props {
   id: string;
@@ -329,9 +330,7 @@ export function TelaConferencia({ id, sessao, aoNavegar, aoGravar }: Props) {
               </div>
             </div>
           ) : (
-            <p className="estado-carregando" aria-busy="true">
-              Carregando conferência…
-            </p>
+            <Carregando mensagem="Carregando conferência…" variante="principal" />
           )}
         </div>
       </main>

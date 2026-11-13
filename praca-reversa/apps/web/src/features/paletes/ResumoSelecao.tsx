@@ -7,6 +7,7 @@ import { formatarQuantidade } from '../../utils/numeros';
 import { ROTULOS_FLUXO } from './estados';
 import { textoSequenciaFull, volumesDoPalete } from './volumes';
 import { SeloReconferencia } from './PrazoReconferencia';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 interface Props {
   palete: PaleteResumo;
@@ -27,7 +28,7 @@ interface Props {
 /** Documentos, volumes e FULL do palete, das notas vinculadas (nada presumido quando falta informação). */
 function Composicao({ paleteId, versao }: { paleteId: string; versao: number }) {
   const { carga } = useRecurso(`${API_PREFIXO}/paletes/${paleteId}/conteudos`, ConteudosPaleteSchema, versao);
-  if (carga === null || carga.estado === 'carregando') return <p className="resumo-composicao estado-carregando">Carregando conteúdo…</p>;
+  if (carga === null || carga.estado === 'carregando') return <Carregando className="resumo-composicao" mensagem="Carregando conteúdo…" />;
   if (carga.estado === 'erro') return <p className="resumo-composicao pendente">Conteúdo indisponível agora ({carga.mensagem}).</p>;
   const { items, documents, withoutDocument, full } = carga.dados;
   if (items.length === 0) {

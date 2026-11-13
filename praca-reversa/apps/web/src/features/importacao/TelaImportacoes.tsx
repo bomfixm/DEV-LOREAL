@@ -14,6 +14,7 @@ import { Pagina } from '../../components/Moldura';
 import type { Navegar } from '../../rotas';
 import { formatarDataHora } from '../../utils/datas';
 import { ROTULOS_SITUACAO, ROTULOS_TIPO } from './rotulos';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 const TAMANHO = 20;
 
@@ -89,7 +90,7 @@ export function TelaImportacoes({ permissoes, aoNavegar }: { permissoes: readonl
           </button>
         </div>
       )}
-      {carga?.estado === 'carregando' && <p className="estado-carregando">Carregando histórico…</p>}
+      {carga?.estado === 'carregando' && <Carregando mensagem="Carregando histórico…" />}
       {dados?.total === 0 && <p className="estado-vazio">Nenhuma importação registrada{tipo || situacao ? ' com estes filtros' : ''}.</p>}
       {dados && dados.total > 0 && (
         <>

@@ -16,6 +16,7 @@ import { MensagemAcao } from '../../components/Moldura';
 import { formatarData, formatarDataHora } from '../../utils/datas';
 import { formatarQuantidade } from '../../utils/numeros';
 import { apresentarVolumes, textoSequenciaFull } from './volumes';
+import { Carregando } from '../../components/carregamento/Carregando';
 
 /**
  * Notas do palete (inventário conferido / carga em lote): para cada NF, só os
@@ -397,7 +398,7 @@ export function DocumentosInformados({ paleteId, versao, podeEditar = false }: {
           </button>
         </div>
       )}
-      {carga?.estado === 'carregando' && atualizado === null && <p className="estado-carregando">Carregando notas…</p>}
+      {carga?.estado === 'carregando' && atualizado === null && <Carregando mensagem="Carregando notas…" />}
       {dados && (
         <>
           <p className="nota-resumo" data-testid="palete-full">
